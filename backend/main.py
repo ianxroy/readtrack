@@ -9,11 +9,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from preprocessing import extract_features
-from svm_models import TextComplexitySVM, StudentProficiencySVM
-from ocr import extract_text_from_image
-from tagalog_service import router as tagalog_router
-from grammar_service import router as grammar_router
+from backend.preprocessing import extract_features
+from backend.svm_models import TextComplexitySVM, StudentProficiencySVM
+from backend.ocr import extract_text_from_image
+from backend.tagalog_service import router as tagalog_router
+from backend.grammar_service import router as grammar_router
 
 # Load environment variables from .env.local
 load_dotenv('.env.local')
