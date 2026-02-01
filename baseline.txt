@@ -1,0 +1,25 @@
+The baseline for a Grade 7 learner in the Philippine education system is defined by specific proficiency benchmarks across reading, writing, and subject-area mastery, marking a significant transition from "learning to read" to "reading to learn". At this level, students are expected to move beyond simple narrative texts and engage with expository materials involving complex Science concepts in English and Social Studies in Filipino.
+1. Reading Proficiency Baseline (Phil-IRI)
+The Philippine Informal Reading Inventory (Phil-IRI) serves as the primary classroom-based diagnostic tool to establish literacy baselines, classifying Grade 7 students into three levels based on word recognition (WR) accuracy and reading comprehension (RC).
+Independent Level: To be considered grade-ready and capable of self-directed learning, a student must achieve 97%–100% WR accuracy and 80%–100% in comprehension.
+Instructional Level: Achievement of 90%–96% in WR and 59%–79% in RC indicates a student can progress with teacher scaffolding and support.
+Frustration Level: Scoring 89% or below in WR or 58% or below in RC signifies a state where the student cannot derive meaning from the text, often leading to total disengagement.
+Group Screening Test (GST): Upon entering Grade 7, students are administered a 20-item comprehension test; those scoring below 14 out of 20 (70%) are flagged for further individualized assessment.
+2. Mastery and Achievement Benchmarks (NAT)
+The National Achievement Test (NAT) measures the mastery of 21st-century skills through Mean Percentage Scores (MPS). The official benchmark for "Proficiency" is set at 75%, a target that remains elusive for the majority of public school students who typically cluster in the lower categories.
+Highly Proficient: 90%–100%.
+Proficient: 75%–89%.
+Nearly Proficient: 50%–74%.
+Low Proficient: 25%–49%.
+Not Proficient: 0%–24%.
+3. Writing Proficiency Standard
+Grade 7 writing is evaluated on a 1–4 scale across five core dimensions: Focus, Organization, Development, Language Use, and Conventions.
+A "Proficient" writer must move beyond basic topic focus to utilize strategic knowledge for organizing and developing complex ideas.
+Current empirical data indicates the average Grade 7 learner often falls into the "Basic" category, with a grand mean score of approximately 2.23.
+This "Basic" performance is characterized by restricted sentence variety, limited vocabulary choice, and a reliance on simple, repetitive structures that are insufficient for secondary academic discourse.
+4. Cognitive and Placement Baselines (NLCA)
+For targeted interventions like the National Learning Camp (NLC), Grade 7 students are placed into "Learning Bands" based on raw scores (0–30) from the National Learning Camp Assessment (NLCA).
+English Baseline: A raw score of 16–30 indicates the Enhancement band (advanced), 5–15 is Consolidation, and 0–4 indicates the Intervention band (struggling).
+Mathematics Baseline: A raw score of 12–30 is required for Enhancement, 4–11 for Consolidation, and 0–3 for Intervention.
+Science Baseline: A raw score of 14–30 is for Enhancement, 5–13 for Consolidation, and 0–4 for Intervention.
+Cognitive Depth: To ensure materials match the cognitive load appropriate for secondary education, reading passages are categorized into Literal, Inferential, and Evaluative comprehension levels.

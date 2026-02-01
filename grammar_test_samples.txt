@@ -1,0 +1,80 @@
+=== ENGLISH GRAMMAR TEST SAMPLES ===
+
+1. Subject-Verb Agreement Errors:
+This are a test sentence.
+The dogs is running in the park.
+She go to school every day.
+
+2. Spelling Errors:
+Its a beautifull day outside.
+I recieved your mesage yesterday.
+The commitee will meet tommorrow.
+
+3. Capitalization Errors:
+hello world! how are you?
+my name is john smith.
+i live in new york city.
+
+4. Punctuation Errors:
+What is your name
+She said "hello" but I didnt hear her
+The items are: apples oranges and bananas
+
+5. Grammar Errors (Various):
+I goed to the store yesterday.
+She don't like coffee.
+Me and him went to the park.
+There house is very big.
+Your going to love this book.
+
+6. Complex Errors (Multiple issues):
+its obvius that the wether is getting worse and I should of brought my umbrela.
+she dont know were the party is at.
+
+=== FILIPINO/TAGALOG GRAMMAR TEST SAMPLES ===
+
+1. Capitalization Errors:
+ang bahay ay maganda.
+si juan ay pumunta sa paaralan.
+nakatira ako sa maynila.
+
+2. Repeated Spaces:
+kumain  siya  ng  saba.
+ang   mga   bata   ay   naglalaro.
+
+3. Spelling Errors (Common):
+maganda ang araw ngaun.
+kumain kami ng manok kahapon.
+
+4. Proper Noun Capitalization:
+si maria at pedro ay pumunta sa quezon city.
+ang manila bay ay maganda.
+
+5. Punctuation Errors:
+kumusta ka
+saan ka pupunta
+"magandang umaga" sabi niya
+
+6. Marker Usage:
+ang bahay ni juan ay malaki
+pumunta si maria sa palengke
+
+=== CORRECT SAMPLES (No Errors) ===
+
+English:
+The quick brown fox jumps over the lazy dog.
+She reads books every evening before bed.
+What time does the meeting start?
+
+Filipino:
+Ang bahay ay malaki at maganda.
+Si Maria ay pumunta sa paaralan kahapon.
+Kumain kami ng masarap na pagkain.
+
+=== MIXED COMPLEXITY SAMPLES ===
+
+English (Challenging):
+Despite the fact that the wheather was terrible we decided too go outside and their was nobody around accept us.
+
+Filipino (Challenging):
+ang  mga  bata  ay  naglalaro  sa  parke  at  sila  ay  masaya  ngaun  kahit  mainit  ang  panahon  sa  manila.

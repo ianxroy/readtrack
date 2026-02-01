@@ -1,0 +1,16 @@
+scikit-learn
+numpy
+python-dotenv
+fastapi
+uvicorn
+spacy
+calamancy==0.2.2
+cefrpy
+pydantic
+requests
+language-tool-python
+symspellpy
+easyocr
+pillow
+google-generativeai
+pypdf

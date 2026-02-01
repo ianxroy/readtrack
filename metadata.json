@@ -1,0 +1,5 @@
+{
+  "name": "ReadTrack",
+  "description": "SVM-Based Linguistic Diagnosis & Text Complexity Classifier for PGCHS. Features bilingual support, real-time analysis, and visualized reporting.",
+  "requestFramePermissions": []
+}

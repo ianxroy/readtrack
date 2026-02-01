@@ -1,0 +1,108 @@
+
+# Implementation Guide: Model Evaluation System (FastAPI)
+
+This guide details how to transition the "Model Evaluation" feature from static mock data to a dynamic system powered by the Python/FastAPI backend and React frontend.
+
+## 1. Architecture Overview
+
+The goal is to display performance metrics (Accuracy, Precision, Recall, F1) and Confusion Matrices derived from the actual trained SVM models.
+
+**Data Flow:**
+1.  **Training (Python)**: SVM models are trained; metrics are calculated against a labeled Test Set (Ground Truth).
+2.  **Serving (Python)**: The `StudentProficiencySVM` and `TextComplexitySVM` classes encapsulate these metrics.
+3.  **API (FastAPI)**: The `/api/evaluation` endpoint in `main.py` aggregates metrics from both model classes.
+4.  **Consuming (React)**: The frontend fetches JSON data from the FastAPI server and renders the charts.
+
+---
+
+## 2. Python Backend Implementation (FastAPI)
+
+### Step A: Ensure SVM Model Classes are Ready
+In `svm_models.py`, ensure both `StudentProficiencySVM` and `TextComplexitySVM` have a `get_performance_metrics()` method. This is already complete.
+
+```python
+# pythonServices/svm_models.py
+
+class StudentProficiencySVM(BaseModel):
+    # ... init ...
+    def get_performance_metrics(self):
+        # Return dict with "accuracy", "matrix", "labels", etc.
+        pass
+```
+
+### Step B: Serve via FastAPI Endpoint
+In `pythonServices/main.py`, the endpoint is defined to serve the metrics from the model instances.
+
+```python
+# pythonServices/main.py
+from svm_models import StudentProficiencySVM, TextComplexitySVM
+
+# ... (FastAPI app setup) ...
+
+student_model = StudentProficiencySVM()
+complexity_model = TextComplexitySVM()
+
+@app.get("/api/evaluation")
+def get_evaluation_metrics():
+    """
+    Returns performance metrics for both models.
+    """
+    return {
+        "proficiency": student_model.get_performance_metrics(),
+        "complexity": complexity_model.get_performance_metrics()
+    }
+```
+
+---
+
+## 3. Frontend Implementation (React)
+
+### Step A: Define Types
+Ensure `types.ts` contains the correct interfaces (this remains unchanged).
+
+```typescript
+export interface PerformanceMetrics {
+    accuracy: string;
+    f1: number;
+    precision: number;
+    recall: number;
+    labels: string[];
+    matrix: number[][];
+}
+
+export interface EvaluationApiResponse {
+    proficiency: PerformanceMetrics;
+    complexity: PerformanceMetrics;
+}
+```
+
+### Step B: Fetch Data in Component
+In `components/ModelEvaluation.tsx`, fetch from the new FastAPI backend endpoint. **Note the port change from 5000 to 8000.**
+
+```tsx
+useEffect(() => {
+    const fetchMetrics = async () => {
+        try {
+            // The backend is now served by Uvicorn, typically on port 8000
+            const response = await fetch('http://localhost:8000/api/evaluation');
+            const data = await response.json();
+            setMetrics(data);
+        } catch (error) => {
+            console.warn("Using offline fallback");
+            // Set fallback/mock data
+        }
+    };
+    fetchMetrics();
+}, []);
+```
+
+---
+
+## 4. Deployment & Running
+
+1.  **CORS**: FastAPI's `CORSMiddleware` is configured in `main.py` to allow requests from your React domain.
+2.  **Running the Server**: The backend is no longer a Flask app. To run it, navigate to the `pythonServices` directory and use `uvicorn`:
+    ```bash
+    uvicorn main:app --reload
+    ```
+3.  **Environment Variables**: It is best practice to store the API URL in a `.env` file (e.g., `VITE_API_URL`) instead of hardcoding `localhost:8000`.

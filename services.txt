@@ -1,0 +1,86 @@
+
+# ReadTrack Technical Stack & Services
+
+## 1. System Architecture: Hybrid AI-Three-Tier
+**ReadTrack** employs a hybrid approach where structural and linguistic analysis is performed by a dedicated Python/SVM backend, while semantic content validation is offloaded to a Generative AI service.
+
+## 2. Service Modules
+
+### A. Linguistic Diagnosis Service (Python Backend)
+**Responsibility**: Quantitative analysis of student writing structure, grammar, and complexity.
+- **Type**: REST API (Flask)
+- **Primary Libraries**:
+  - `flask`: API Gateway.
+  - `scikit-learn`: SVM Models for proficiency classification.
+  - `nltk` & `spacy`: Feature engineering (POS tagging, dependency parsing, tokenization).
+  - `easyocr`: OCR engine for extracting text from student handwriting (JPG/PNG).
+  - `numpy` & `pandas`: Vector manipulation.
+  - **CEFR Word List**: Integrated dictionary for mapping vocabulary to CEFR levels (A1-C2).
+- **Data Flow**: `Input Text/Image` -> `Preprocessing` -> `Feature Vector` -> `SVM Classifier` -> `Proficiency Result`.
+
+### B. Content Validation Service (Generative AI)
+**Responsibility**: Semantic comparison of student output against teacher-provided answer keys.
+- **Type**: External API Integration (@google/genai)
+- **Primary Model**: `gemini-2.5-flash`
+- **Functionality**:
+  - **Concept Matching**: Identifies if key concepts from the Reference Material appear in the student work.
+  - **Misconception Detection**: Flags factual errors relative to the provided material.
+  - **Accuracy Scoring**: semantic similarity scoring.
+
+### C. Data Persistence Service
+**Responsibility**: Secure storage of logs, user profiles, and reports.
+- **Provider**: Supabase
+- **Components**:
+  - `PostgreSQL`: Relational database.
+  - `Supabase Storage`: Bucket for uploaded student image/PDF files.
+  - `Row Level Security (RLS)`: Data access control.
+
+### D. Frontend Service
+**Responsibility**: User Interface and orchestration.
+- **Stack**: React 19, Vite, TypeScript, Tailwind CSS.
+- **Orchestration**:
+  - Calls **Service A** for Proficiency & Complexity metrics.
+  - Calls **Service B** (Gemini) *only* when Reference Material is provided.
+  - Merges results into a unified dashboard report.
+
+### E. Model Evaluation & Performance Monitoring
+**Responsibility**: Exposes the technical accuracy metrics of the SVM models to stakeholders/educators to ensure system reliability.
+- **Type**: Internal Reporting API (`/api/evaluation`)
+- **Metrics Tracked**: 
+  - **Confusion Matrix**: Visualizes misclassifications (e.g., distinguishing "Developing" from "Proficient").
+  - **Accuracy**: Overall correctness of the model.
+  - **Precision & Recall**: Granular performance per class.
+  - **F1-Score**: Harmonic mean for balanced evaluation.
+- **Data Source**: Pre-calculated metrics derived from the Model Training/Validation phase (Offline) against the Ground Truth dataset (Labeled Grade 7 Essays).
+
+## 3. Supported File Types
+- **Text Documents**: `.txt`, `.docx`, `.pdf` (Parsed via `PyPDF2` / `python-docx` on backend).
+- **Images**: `.jpg`, `.png`, `.jpeg` (Processed via `EasyOCR` on backend).
+
+## 4. Key Algorithms
+- **Support Vector Machine (SVM)**:
+  - Kernel: RBF (Student Diagnosis), Linear (Complexity).
+  - Features: Type-Token Ratio (TTR), Avg Sentence Length, Clause Density, CEFR Advanced Word Ratio.
+- **Cosine Similarity (via Gemini Embeddings)**: Implicitly used for reference checking.
+
+## 5. Grade 7 Baseline Calibration Protocols
+The system is calibrated to PGCHS Grade 7 Standards as follows:
+
+### A. Proficiency Thresholds (NAT & NLCA)
+- **Proficient (Score >= 75%)**: Maps to NAT "Proficient". Students placed in **Enhancement** Camp.
+- **Developing (Score 50-74%)**: Maps to Grade 7 Average (Basic, 2.23/4). Students placed in **Consolidation** Camp.
+- **Beginning (Score < 50%)**: Maps to NAT "Low/Not Proficient". Students placed in **Intervention** Camp.
+
+### B. Reading Levels (Phil-IRI)
+- **Independent**: 97-100% Word Recognition / 80%+ Comprehension.
+- **Instructional**: 90-96% Word Recognition / 59-79% Comprehension.
+- **Frustration**: Below 90% Recognition / <59% Comprehension.
+
+### C. Cognitive Depth (Readability)
+To ensure materials match the cognitive load appropriate for secondary education, reading passages are categorized into:
+- **Literal (Reading the lines)**: Basic recall of facts found explicitly in the text.
+- **Inferential (Reading between the lines)**: Requires processing information to make connections not explicitly stated.
+- **Evaluative (Reading beyond the lines)**: Involves making judgments, analyzing validity, and synthesizing complex ideas.
+
+### D. Writing Assistant Targets
+- The system specifically flags simple, repetitive sentence structures (Basic Level) to encourage the use of complex/compound sentences required for academic discourse.
