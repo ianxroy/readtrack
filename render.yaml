@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: readtrack-backend
+    env: python
+    region: singapore # You can change this to a region closer to you
+    plan: free # Or your preferred plan
+    buildCommand: "pip install -r backend/requirements.txt"
+    startCommand: "uvicorn backend.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: PYTHON_VERSION
+        value: 3.11.4
