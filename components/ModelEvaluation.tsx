@@ -51,10 +51,8 @@ const ConfusionMatrix = ({ title, labels, data }: { title: string, labels: strin
                                     {labels[i]}
                                 </td>
                                 {row.map((val, j) => {
-                                    // Highlight diagonal (Correct predictions)
                                     const isDiagonal = i === j;
                                     
-                                    // Special highlight for diagonal high values
                                     const cellClass = isDiagonal 
                                         ? `bg-teal-500 text-white font-bold ring-1 ring-white/50` 
                                         : val === 0 ? 'text-gray-200' : 'bg-orange-50 text-orange-600';
@@ -77,7 +75,7 @@ const ConfusionMatrix = ({ title, labels, data }: { title: string, labels: strin
     );
 };
 
-// Fallback Data
+
 const DEFAULT_METRICS: EvaluationApiResponse = {
     proficiency: {
         accuracy: "92.4%",
@@ -105,7 +103,6 @@ export const ModelEvaluation: React.FC<{ onMenuClick?: () => void }> = ({ onMenu
     useEffect(() => {
         const fetchMetrics = async () => {
             try {
-                // In production, this would be process.env.VITE_API_URL
                 const response = await fetch('http://localhost:5000/api/evaluation');
                 
                 if (!response.ok) {
@@ -167,7 +164,6 @@ export const ModelEvaluation: React.FC<{ onMenuClick?: () => void }> = ({ onMenu
             </header>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-                {/* 1. Linguistic Diagnosis Model (Proficiency) */}
                 <GlassCard className="flex flex-col h-full">
                     <div className="flex items-center justify-between mb-6 border-b border-gray-100 pb-4">
                         <div className="flex items-center gap-2">
@@ -191,7 +187,6 @@ export const ModelEvaluation: React.FC<{ onMenuClick?: () => void }> = ({ onMenu
                     />
                 </GlassCard>
 
-                {/* 2. Text Complexity Model */}
                 <GlassCard className="flex flex-col h-full">
                      <div className="flex items-center justify-between mb-6 border-b border-gray-100 pb-4">
                         <div className="flex items-center gap-2">
@@ -216,7 +211,6 @@ export const ModelEvaluation: React.FC<{ onMenuClick?: () => void }> = ({ onMenu
                 </GlassCard>
             </div>
 
-            {/* Definitions Section */}
             <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
                  <div className="flex items-center gap-2 mb-4">
                     <IoInformationCircleOutline className="text-gray-400" />

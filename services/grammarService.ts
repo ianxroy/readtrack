@@ -270,3 +270,39 @@ export function createDebouncedGrammarCheck(
     }, delay);
   };
 }
+
+export interface DefinitionResponse {
+  word: string;
+  definitions: string[];
+  synonyms: string[];
+  examples: string[];
+  cefr?: string;
+  part_of_speech?: string;
+}
+
+export async function getDefinition(
+  word: string, 
+  language?: string, 
+  context?: string,
+  geminiApiKey?: string
+): Promise<DefinitionResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/grammar/definition`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ 
+      word, 
+      language: language || 'en',
+      context,
+      gemini_api_key: geminiApiKey
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch definition');
+  }
+
+  return response.json();
+}
+

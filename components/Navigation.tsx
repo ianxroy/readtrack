@@ -41,10 +41,9 @@ interface SidebarContentProps {
   recentAnalyses?: CachedAnalysis[];
   onDeleteAnalysis?: (id: string) => void;
     onSelectAnalysis?: (analysis: CachedAnalysis) => void;
-  onItemClick?: () => void; // For closing mobile drawer
+  onItemClick?: () => void;
 }
 
-// --- Reusable Content Component (Used in Desktop Sidebar & Mobile Drawer) ---
 const SidebarContent: React.FC<SidebarContentProps> = ({ 
   activeView, 
   onViewChange, 
@@ -81,7 +80,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                 const base64 = (event.target?.result as string).split(',')[1];
                 onReferenceUpload([{ base64, mimeType: file.type, name: file.name }], file.name);
                 setUploadedFileName(file.name);
-                if (onItemClick) onItemClick(); // Close drawer on upload
+                if (onItemClick) onItemClick();
             };
             reader.readAsDataURL(file); 
     }
@@ -185,14 +184,12 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                 </div>
             </div>
         )}
-        {/* Header Section (Only visible inside the container) */}
         <div className="h-16 flex items-center px-6 border-b border-gray-100/50 shrink-0">
              <span className="text-lg font-bold text-teal-600 tracking-tight">ReadTrack</span>
         </div>
 
         <div className="flex-1 overflow-y-auto py-6 px-4">
             
-            {/* MAIN MENU */}
             <div className="mb-8">
                 <div className="px-3 mb-2 text-[11px] font-bold uppercase tracking-wider text-gray-400">
                     Menu
@@ -201,14 +198,12 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                 <NavItem view="evaluation" icon={IoAnalyticsOutline} label="Model Performance" />
             </div>
 
-            {/* REFERENCES SECTION */}
             <div className="mb-8">
                 <div className="px-3 mb-3 text-[11px] font-bold uppercase tracking-wider text-teal-600">
                     References
                 </div>
                 <div className="bg-white border border-teal-100 rounded-2xl shadow-sm p-3">
                 
-                {/* Upload Action */}
                 <div 
                     onClick={() => fileInputRef.current?.click()}
                     className="
@@ -235,7 +230,6 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                     </div>
                 </div>
 
-                {/* Saved References List */}
                 <div className="space-y-1">
                     {savedReferences.map((ref) => (
                         <div 
@@ -275,7 +269,6 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                 </div>
             </div>
 
-            {/* RECENT ANALYSIS SECTION */}
             <div>
                 <div className="px-3 mb-3 text-[11px] font-bold uppercase tracking-wider text-teal-500">
                     Recent Analysis
@@ -328,7 +321,6 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
 
         </div>
 
-        {/* Footer */}
         <div className="p-4 border-t border-gray-100 flex items-center justify-between shrink-0">
             <button className="flex items-center gap-2 text-gray-400 hover:text-gray-600 transition-colors">
                 <IoSettingsOutline className="text-lg"/>
@@ -341,20 +333,16 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
 };
 
 
-// --- Main Navigation Container ---
 export const Navigation: React.FC<NavigationProps> = (props) => {
   return (
     <>
-      {/* 1. Desktop Sidebar (Hidden on Mobile) */}
       <div className="hidden md:flex flex-col w-[280px] h-screen sticky top-0 bg-white z-50 border-r border-gray-200/50 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
          <SidebarContent {...props} />
       </div>
 
-      {/* 2. Mobile Drawer Overlay */}
       <AnimatePresence>
         {props.isMobileOpen && (
             <>
-                {/* Backdrop */}
                 <motion.div 
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -363,7 +351,6 @@ export const Navigation: React.FC<NavigationProps> = (props) => {
                     className="md:hidden fixed inset-0 bg-black/20 backdrop-blur-sm z-40"
                 />
                 
-                {/* Drawer Panel */}
                 <motion.div
                     initial={{ x: "-100%" }}
                     animate={{ x: 0 }}
@@ -371,7 +358,6 @@ export const Navigation: React.FC<NavigationProps> = (props) => {
                     transition={{ type: "spring", stiffness: 300, damping: 30 }}
                     className="md:hidden fixed inset-y-0 left-0 w-[80%] max-w-[300px] bg-white z-50 shadow-2xl border-r border-gray-100"
                 >
-                    {/* Close Button inside Drawer */}
                     <button 
                         onClick={props.onMobileClose}
                         className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600"
@@ -379,7 +365,6 @@ export const Navigation: React.FC<NavigationProps> = (props) => {
                         <IoCloseOutline className="text-xl" />
                     </button>
 
-                    {/* Content */}
                     <SidebarContent {...props} onItemClick={props.onMobileClose} />
                 </motion.div>
             </>

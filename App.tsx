@@ -18,7 +18,6 @@ const App: React.FC = () => {
   const [hasLoadedCache, setHasLoadedCache] = useState(false);
   const [selectedAnalysis, setSelectedAnalysis] = useState<CachedAnalysis | null>(null);
 
-  // Load saved data from localStorage on mount
   useEffect(() => {
     const savedRefs = localStorage.getItem('readtrack_references');
     const savedAnalyses = localStorage.getItem('readtrack_analyses');
@@ -81,19 +80,16 @@ const App: React.FC = () => {
     setHasLoadedCache(true);
   }, []);
 
-  // Save references to localStorage whenever they change
   useEffect(() => {
     if (!hasLoadedCache) return;
     localStorage.setItem('readtrack_references', JSON.stringify(savedReferences));
   }, [savedReferences, hasLoadedCache]);
 
-  // Save analyses to localStorage whenever they change
   useEffect(() => {
     if (!hasLoadedCache) return;
     localStorage.setItem('readtrack_analyses', JSON.stringify(recentAnalyses));
   }, [recentAnalyses, hasLoadedCache]);
 
-  // Save selected reference workspace to localStorage
   useEffect(() => {
     if (!hasLoadedCache) return;
     if (referenceFiles.length > 0) {
@@ -129,7 +125,7 @@ const App: React.FC = () => {
   };
 
   const handleSaveAnalysis = (analysis: CachedAnalysis) => {
-    setRecentAnalyses(prev => [analysis, ...prev].slice(0, 20)); // Keep last 20
+    setRecentAnalyses(prev => [analysis, ...prev].slice(0, 20));
   };
 
   const handleDeleteAnalysis = (id: string) => {
@@ -148,7 +144,6 @@ const App: React.FC = () => {
       
       <div className="max-w-[1920px] mx-auto flex flex-col md:flex-row h-full relative">
         
-        {/* Navigation - Sidebar on Desktop */}
         <Navigation 
             activeView={activeView} 
             onViewChange={setActiveView} 
@@ -163,7 +158,6 @@ const App: React.FC = () => {
             onMobileClose={() => setIsMobileMenuOpen(false)}
         />
 
-        {/* Main Content Area */}
         <main className="flex-1 h-full overflow-hidden flex flex-col relative bg-[#F2F2F7]">
           
           <AnimatePresence mode='wait'>

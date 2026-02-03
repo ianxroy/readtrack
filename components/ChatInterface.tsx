@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { GlassCard } from './ui/GlassCard';
 
-// Define the expected structure of the analysis result from the backend
 interface AnalysisResult {
     level?: string;
     score?: number;
@@ -9,7 +8,6 @@ interface AnalysisResult {
     readabilityScore?: number;
     wordCount?: number;
     keywords?: string[];
-    // Add other potential fields from your backend response
     [key: string]: any;
 }
 

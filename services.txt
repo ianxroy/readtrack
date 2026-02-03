@@ -13,7 +13,7 @@
   - `flask`: API Gateway.
   - `scikit-learn`: SVM Models for proficiency classification.
   - `nltk` & `spacy`: Feature engineering (POS tagging, dependency parsing, tokenization).
-  - `easyocr`: OCR engine for extracting text from student handwriting (JPG/PNG).
+  - `google-generativeai`: Gemini Vision OCR for extracting text from images (JPG/PNG).
   - `numpy` & `pandas`: Vector manipulation.
   - **CEFR Word List**: Integrated dictionary for mapping vocabulary to CEFR levels (A1-C2).
 - **Data Flow**: `Input Text/Image` -> `Preprocessing` -> `Feature Vector` -> `SVM Classifier` -> `Proficiency Result`.
@@ -55,7 +55,7 @@
 
 ## 3. Supported File Types
 - **Text Documents**: `.txt`, `.docx`, `.pdf` (Parsed via `PyPDF2` / `python-docx` on backend).
-- **Images**: `.jpg`, `.png`, `.jpeg` (Processed via `EasyOCR` on backend).
+- **Images**: `.jpg`, `.png`, `.jpeg` (Processed via `Gemini Vision OCR` on backend).
 
 ## 4. Key Algorithms
 - **Support Vector Machine (SVM)**:

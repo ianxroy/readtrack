@@ -22,7 +22,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
 }) => {
   return (
     <div className="h-full flex flex-col">
-      {/* Main Workspace Area - Fills remaining height directly */}
       <div className="flex-1 min-h-0">
         <Analyzer 
           initialReferenceFiles={referenceFiles}

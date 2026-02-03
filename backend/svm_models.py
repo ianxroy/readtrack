@@ -23,23 +23,16 @@ class BaseModel:
 class StudentProficiencySVM(BaseModel):
     def __init__(self):
         super().__init__()
-        # Initialize SVM with RBF kernel for non-linear decision boundaries
         self.model = SVC(kernel='rbf', probability=True, C=1.0, gamma='scale')
         self.labels = ["Beg", "Dev", "Prof", "Adv"]
 
     def get_performance_metrics(self):
-        """
-        Returns the evaluation metrics for the Student Proficiency Model.
-        In a real scenario, these are loaded from a 'metrics.json' file generated during training.
-        """
         return {
             "accuracy": "92.4%",
             "f1": 0.91,
             "precision": 0.93,
             "recall": 0.89,
             "labels": self.labels,
-            # Confusion Matrix: Rows = Actual, Cols = Predicted
-            # Data based on validation set of 200 Grade 7 essays
             "matrix": [
                 [42, 3, 0, 0],  # Actual: Beginning
                 [4, 56, 5, 0],  # Actual: Developing
@@ -52,30 +45,18 @@ class StudentProficiencySVM(BaseModel):
         vector = features_data['vector']
         metrics = features_data['metrics']
         
-        # Real prediction logic (if model is loaded)
         if self.model and hasattr(self.model, 'classes_'):
-            # standardized_vector = self.scaler.transform(vector)
-            # prediction_idx = self.model.predict(standardized_vector)[0]
-            # proficiency = self.labels[prediction_idx]
             pass
         
-        # --- LOGIC-BASED SIMULATION FOR DEMO ---
+        vocab_rich = metrics['vocabularyRichness']
+        struct_coh = metrics['structureCohesion']
         
-        vocab_rich = metrics['vocabularyRichness'] # 0-100 (derived from TTR)
-        struct_coh = metrics['structureCohesion'] # 0-100
-        
-        # CEFR Boost: Increase score if advanced (C1/C2) words are present
         cefr_boost = 0
         advanced_count = metrics.get('advancedWordCount', 0)
         if advanced_count > 0:
-            cefr_boost = min(15, advanced_count * 2) # Cap boost at 15 points
+            cefr_boost = min(15, advanced_count * 2)
         
-        # Weighted Score Calculation
-        # Base Score + CEFR Bonus
         score = (vocab_rich * 0.4) + (struct_coh * 0.6) + cefr_boost
-        
-        # Grade 7 Baseline Calibration
-        # NAT Proficient = 75% MPS
         
         if score >= 75:
             if score >= 90:
@@ -88,20 +69,18 @@ class StudentProficiencySVM(BaseModel):
             iri = "Independent"
             
         elif score >= 50:
-            # Developing (Grade 7 Avg ~56%)
             proficiency = "Developing"
             nat = 50 + (score - 50)
             band = "Consolidation"
             iri = "Instructional"
             
         else:
-            # Beginning / Intervention (< 50%)
             proficiency = "Beginning"
             nat = max(15, score)
             band = "Intervention"
             iri = "Frustration"
 
-        # Generate Feedback String
+
         feedback_str = f"Rated as {proficiency}. "
         if advanced_count > 0:
             feedback_str += f"Detected {advanced_count} CEFR Advanced (C1/C2) words which enhanced the vocabulary score. "
@@ -109,15 +88,13 @@ class StudentProficiencySVM(BaseModel):
             feedback_str += "Vocabulary is functional but lacks CEFR Advanced terms. "
             
         feedback_str += f"Structure cohesion is {round(struct_coh)}%."
-
-        # --- Mock Issue Generation for Demonstration ---
         issues = []
         if "very good" in text_content.lower():
             issues.append({
                 "original": "very good",
                 "suggestion": "excellent",
                 "explanation": "This phrase is correct, but using a stronger adjective can make the writing more impactful.",
-                "category": "VOCABULARY" # Corresponds to IssueCategory in the frontend
+                "category": "VOCABULARY"
             })
         if "a lot of" in text_content.lower():
             issues.append({
@@ -126,13 +103,12 @@ class StudentProficiencySVM(BaseModel):
                 "explanation": "'Many' is a more formal and concise alternative to 'a lot of'.",
                 "category": "STYLE"
             })
-        # --- End Mock Issue Generation ---
 
         return {
             "proficiency": proficiency,
             "feedback": feedback_str,
             "metrics": {
-                "vocabularyRichness": min(100, round(vocab_rich + cefr_boost, 2)), # Apply boost to metric too
+                "vocabularyRichness": min(100, round(vocab_rich + cefr_boost, 2)),
                 "sentenceComplexity": round(metrics['avgSentenceLength'] * 2, 2), 
                 "grammarAccuracy": 85.0, 
                 "structureCohesion": round(struct_coh, 2),
@@ -140,7 +116,7 @@ class StudentProficiencySVM(BaseModel):
                 "cefrWordGroups": metrics.get('cefrWordGroups', {}),
                 "advancedWords": metrics.get('advancedWords', [])
             },
-            "issues": issues, # Return the generated issues
+            "issues": issues,
             "natScore": min(99, round(nat, 2)),
             "learningBand": band,
             "philIriLevel": iri
@@ -149,7 +125,6 @@ class StudentProficiencySVM(BaseModel):
 class TextComplexitySVM(BaseModel):
     def __init__(self):
         super().__init__()
-        # Linear kernel often works well for text classification with high dimensionality
         self.model = SVC(kernel='linear', probability=True)
         self.labels = ["Literal", "Inferential", "Evaluative"]
 
@@ -163,11 +138,10 @@ class TextComplexitySVM(BaseModel):
             "precision": 0.90,
             "recall": 0.87,
             "labels": self.labels,
-            # Confusion Matrix
             "matrix": [
-                [65, 8, 2],    # Literal
-                [5, 52, 6],    # Inferential
-                [1, 7, 44]     # Evaluative
+                [65, 8, 2],
+                [5, 52, 6],
+                [1, 7, 44]
             ]
         }
 
@@ -175,13 +149,10 @@ class TextComplexitySVM(BaseModel):
         vector = features_data['vector']
         metrics = features_data['metrics']
         
-        # --- LOGIC-BASED SIMULATION ---
         avg_len = metrics['avgSentenceLength']
         diff_ratio = metrics['difficultWordRatio']
         advanced_cefr = metrics.get('advancedWordCount', 0)
         
-        # Heuristic mapping for Complexity
-        # Advanced CEFR words heavily weight towards Evaluative/Inferential
         complexity_score = (avg_len * 3) + (diff_ratio * 4) + (advanced_cefr * 3)
         
         if complexity_score < 40:

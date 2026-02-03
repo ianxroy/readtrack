@@ -1,4 +1,5 @@
 import re
+import unicodedata
 import numpy as np
 import spacy
 from cefrpy import CEFRSpaCyAnalyzer, CEFRLevel
@@ -6,18 +7,18 @@ from cefrpy import CEFRSpaCyAnalyzer, CEFRLevel
 # Initialize the spaCy-integrated CEFR analyzer
 analyzer = CEFRSpaCyAnalyzer()
 
-# Load Spacy English model for dependency parsing
 try:
     nlp = spacy.load("en_core_web_sm")
 except OSError:
-    # This happens if the model isn't downloaded
     print("Spacy model 'en_core_web_sm' not found.")
     print("Please run: python -m spacy download en_core_web_sm")
     nlp = None
 
 def clean_text(text):
-    """Basic text cleaning."""
-    text = re.sub(r'\s+', ' ', text) # Remove extra whitespace
+    """Basic text cleaning with Unicode normalization."""
+    # Normalize Unicode to NFC form to handle diacritics and special characters properly
+    text = unicodedata.normalize('NFC', text)
+    text = re.sub(r'\s+', ' ', text)
     return text.strip()
 
 def calculate_ttr(tokens):
@@ -32,7 +33,6 @@ def get_cefr_distribution(doc):
     levels = {"A1": 0, "A2": 0, "B1": 0, "B2": 0, "C1": 0, "C2": 0}
     advanced_count = 0
     
-    # Analyze the spaCy doc to get token-level CEFR info
     cefr_tokens = analyzer.analize_doc(doc)
     
     for token_data in cefr_tokens:
@@ -44,7 +44,7 @@ def get_cefr_distribution(doc):
                 cefr_level_str = CEFRLevel(cefr_rank).name
                 if cefr_level_str in levels:
                     levels[cefr_level_str] += 1
-                    if cefr_rank >= 5: # C1 or C2
+                    if cefr_rank >= 5:
                         advanced_count += 1
                         
     return levels, advanced_count
@@ -52,9 +52,9 @@ def get_cefr_distribution(doc):
 def get_cefr_word_groups(doc):
     """Group words by CEFR bands for basic, independent, and proficient vocab."""
     groups = {
-        "basic": set(),       # A1-A2
-        "independent": set(), # B1-B2
-        "proficient": set()   # C1-C2
+        "basic": set(),
+        "independent": set(),
+        "proficient": set()
     }
 
     cefr_tokens = analyzer.analize_doc(doc)
@@ -81,54 +81,55 @@ def get_difficult_words(tokens):
     """Identify complex words (placeholder logic: > 2 syllables or length > 9)."""
     difficult = []
     for token in tokens:
-        if len(token) > 9: # Simple heuristic for demo
+        if len(token) > 9:
             difficult.append(token)
     return difficult
 
-def extract_features(text):
+def extract_features(text, language="en"):
     """
     Converts raw text into a numerical feature vector for the SVM.
     Returns a dictionary of features and the raw vector.
+    CEFR analysis is only applied for English text.
     """
     if not nlp:
         raise RuntimeError("spaCy model is not loaded. Cannot extract features.")
 
     text = clean_text(text)
-    doc = nlp(text) # Process the text once with spaCy
+    doc = nlp(text)
 
     sentences = list(doc.sents)
     tokens = [token.text for token in doc]
     words = [token.text for token in doc if token.is_alpha]
     
-    # 1. Lexical Features
     word_count = len(words)
     sentence_count = len(sentences)
     avg_sentence_length = word_count / sentence_count if sentence_count > 0 else 0
     ttr = calculate_ttr(words)
     
-    # CEFR Analysis - now pass the spaCy doc directly
-    cefr_dist, advanced_cefr_count = get_cefr_distribution(doc)
-    cefr_word_groups = get_cefr_word_groups(doc)
+    # Only apply CEFR analysis for English text
+    if language == "en":
+        cefr_dist, advanced_cefr_count = get_cefr_distribution(doc)
+        cefr_word_groups = get_cefr_word_groups(doc)
+    else:
+        # For non-English languages (e.g., Tagalog), skip CEFR analysis
+        cefr_dist = {"A1": 0, "A2": 0, "B1": 0, "B2": 0, "C1": 0, "C2": 0}
+        advanced_cefr_count = 0
+        cefr_word_groups = {"basic": [], "independent": [], "proficient": []}
+    
     advanced_ratio = advanced_cefr_count / word_count if word_count > 0 else 0
 
-    # 2. Syntactic Features (using Spacy)
     clause_density = 0
     structure_score = 0
     
     if nlp:
         doc = nlp(text)
-        # Calculate dependency depth or clause count
         verb_count = len([token for token in doc if token.pos_ == "VERB"])
         clause_density = verb_count / sentence_count if sentence_count > 0 else 0
         structure_score = min(100, (clause_density * 10) + (avg_sentence_length * 2))
 
-    # 3. Readability approximations
-    # Flesch-Kincaid readable proxy
     difficult_words = get_difficult_words(words)
     diff_ratio = (len(difficult_words) / word_count) * 100 if word_count > 0 else 0
     
-    # Construct Feature Vector for SVM
-    # [TTR, AvgSentLen, DiffWordRatio, ClauseDensity, AdvancedCEFRRatio]
     feature_vector = np.array([ttr, avg_sentence_length, diff_ratio, clause_density, advanced_ratio]).reshape(1, -1)
     
     return {

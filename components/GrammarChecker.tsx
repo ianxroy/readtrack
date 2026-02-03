@@ -22,7 +22,6 @@ const GrammarChecker: React.FC<GrammarCheckerProps> = ({
   const [selectedIssue, setSelectedIssue] = useState<GrammarIssue | null>(null);
   const geminiApiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
 
-  // Debounced grammar check
   const debouncedCheck = createDebouncedGrammarCheck(1500);
 
   useEffect(() => {
@@ -30,7 +29,7 @@ const GrammarChecker: React.FC<GrammarCheckerProps> = ({
       debouncedCheck(text, (checkResult) => {
         setResult(checkResult);
         setLoading(false);
-      }, geminiApiKey);  // Always use AI when key is available
+      }, geminiApiKey);
       setLoading(true);
     } else {
       setResult(null);
@@ -65,14 +64,11 @@ const GrammarChecker: React.FC<GrammarCheckerProps> = ({
     let highlightedText = '';
     let lastIndex = 0;
 
-    // Sort issues by offset
     const sortedIssues = [...result.issues].sort((a, b) => a.offset - b.offset);
 
     sortedIssues.forEach((issue) => {
-      // Add text before the issue
       highlightedText += escapeHtml(text.slice(lastIndex, issue.offset));
 
-      // Add highlighted issue text
       const issueText = text.slice(issue.offset, issue.offset + issue.length);
       const className = `highlight-${issue.severity}`;
       const title = issue.message;
@@ -82,7 +78,6 @@ const GrammarChecker: React.FC<GrammarCheckerProps> = ({
       lastIndex = issue.offset + issue.length;
     });
 
-    // Add remaining text
     highlightedText += escapeHtml(text.slice(lastIndex));
 
     return highlightedText.replace(/\n/g, '<br>');
@@ -101,7 +96,6 @@ const GrammarChecker: React.FC<GrammarCheckerProps> = ({
 
   return (
     <div className="grammar-checker">
-      {/* Language Detection Indicator */}
       {result && (
         <div className="language-indicator">
           <span className="indicator-icon">🌐</span>
@@ -115,7 +109,6 @@ const GrammarChecker: React.FC<GrammarCheckerProps> = ({
         </div>
       )}
 
-      {/* AI Overall Feedback */}
       {result?.ai_overall_feedback && (
         <div className="ai-overall-feedback">
           <div className="ai-feedback-header">
@@ -126,7 +119,6 @@ const GrammarChecker: React.FC<GrammarCheckerProps> = ({
         </div>
       )}
 
-      {/* Text Input */}
       <div className="text-input-container">
         <div className="line-numbers">
           {getLineNumbers().map((num) => (
@@ -158,7 +150,6 @@ const GrammarChecker: React.FC<GrammarCheckerProps> = ({
         )}
       </div>
 
-      {/* Stats Bar */}
       {stats && (
         <div className="stats-bar">
           <div className="stat">
@@ -176,7 +167,6 @@ const GrammarChecker: React.FC<GrammarCheckerProps> = ({
         </div>
       )}
 
-      {/* Issues List */}
       {result && result.issues.length > 0 && (
         <div className="issues-panel">
           <h3>Issues Found</h3>
@@ -256,7 +246,6 @@ const GrammarChecker: React.FC<GrammarCheckerProps> = ({
         </div>
       )}
 
-      {/* No Issues Message */}
       {result && result.issues.length === 0 && (
         <div className="no-issues">
           <span className="success-icon">✓</span>

@@ -1,17 +1,31 @@
 import calamancy
-from fastapi import APIRouter, HTTPException
+import uvicorn
+from fastapi import FastAPI, APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 
+# 1. Initialize the main App
+app = FastAPI(title="Calamancy Tagalog API")
 router = APIRouter()
 
-# Load the Tagalog model
-try:
-    nlp = calamancy.load("tl_calamancy_md-0.2.0")
-    print("✓ Tagalog model loaded successfully")
-except Exception as e:
-    print(f"✗ Error loading Tagalog model: {e}")
-    nlp = None
+# 2. Robust Model Loading (Handles 0.1.0 and 0.2.0)
+nlp = None
+model_versions = ["tl_calamancy_md-0.2.0", "tl_calamancy_md-0.1.0"]
+
+print("--- Initializing NLP Model ---")
+for version in model_versions:
+    try:
+        print(f"Attempting to load {version}...")
+        nlp = calamancy.load(version)
+        print(f"✓ Success: Loaded {version}")
+        break
+    except Exception:
+        continue
+
+if not nlp:
+    print("✗ Warning: No compatible Tagalog model found. API will return errors.")
+
+# --- Data Models ---
 
 class TagalogAnalysisRequest(BaseModel):
     text: str
@@ -36,23 +50,19 @@ class TagalogAnalysisResponse(BaseModel):
     token_count: int
     entity_count: int
 
+# --- Endpoints ---
+
 @router.post("/api/tagalog/analyze", response_model=TagalogAnalysisResponse)
 async def analyze_tagalog(request: TagalogAnalysisRequest):
     """
     Analyze Tagalog text for POS tagging, morphology, and named entities.
-    
-    Example request:
-    {
-        "text": "Ibinigay ng guro ang mga libro sa mga mag-aaral."
-    }
     """
     if not nlp:
-        raise HTTPException(status_code=500, detail="Tagalog model not loaded. Please ensure the model is installed.")
+        raise HTTPException(status_code=500, detail="Tagalog model not loaded.")
     
     try:
         doc = nlp(request.text)
         
-        # Extract token information
         tokens = [
             TokenInfo(
                 text=token.text,
@@ -64,7 +74,6 @@ async def analyze_tagalog(request: TagalogAnalysisRequest):
             for token in doc
         ]
         
-        # Extract entities
         entities = [
             EntityInfo(
                 text=ent.text,
@@ -83,85 +92,57 @@ async def analyze_tagalog(request: TagalogAnalysisRequest):
             entity_count=len(entities)
         )
         
-        # Log to console
-        print(f"\n--- Tagalog Analysis ---")
-        print(f"Text: {request.text[:50]}...")
-        print(f"Tokens: {len(tokens)}, Entities: {len(entities)}")
-        print("------------------------\n")
+        # Logging to console for verification
+        print(f"\n--- Analysis Request ---")
+        print(f"Input: {request.text[:50]}...")
+        print(f"Detected: {len(tokens)} tokens, {len(entities)} entities")
         
         return result
     
     except Exception as e:
-        import traceback
-        print(f"Error analyzing Tagalog text: {e}")
-        traceback.print_exc()
+        print(f"Error analyzing text: {e}")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 @router.get("/api/tagalog/health")
 async def health_check():
-    """Check if the Tagalog service is running and model is loaded."""
+    """Check if the service is running and model is loaded."""
     return {
-        "status": "healthy" if nlp else "unhealthy",
+        "status": "healthy" if nlp else "degraded",
         "model_loaded": nlp is not None,
-        "model_name": "tl_calamancy_md-0.2.0" if nlp else None,
         "service": "Tagalog NLP Service"
     }
 
 @router.post("/api/tagalog/pos-tags")
 async def get_pos_tags(request: TagalogAnalysisRequest):
-    """
-    Get only POS tags for Tagalog text.
-    Useful for quick grammatical analysis.
-    """
     if not nlp:
         raise HTTPException(status_code=500, detail="Tagalog model not loaded")
     
-    try:
-        doc = nlp(request.text)
-        pos_tags = [
-            {
-                "text": token.text,
-                "pos": token.pos_,
-                "tag": token.tag_
-            }
-            for token in doc
-        ]
-        
-        return {
-            "text": request.text,
-            "pos_tags": pos_tags,
-            "count": len(pos_tags)
-        }
+    doc = nlp(request.text)
+    pos_tags = [{"text": t.text, "pos": t.pos_, "tag": t.tag_} for t in doc]
     
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"POS tagging failed: {str(e)}")
+    return {"text": request.text, "pos_tags": pos_tags}
 
 @router.post("/api/tagalog/morphology")
 async def get_morphology(request: TagalogAnalysisRequest):
-    """
-    Get detailed morphological analysis for Tagalog text.
-    Returns features like Aspect, Case, and Number.
-    """
     if not nlp:
         raise HTTPException(status_code=500, detail="Tagalog model not loaded")
     
-    try:
-        doc = nlp(request.text)
-        morphology = [
-            {
-                "text": token.text,
-                "lemma": token.lemma_,
-                "pos": token.pos_,
-                "morphology": dict(token.morph) if token.morph else {}
-            }
-            for token in doc
-        ]
-        
-        return {
-            "text": request.text,
-            "morphology": morphology,
-            "count": len(morphology)
-        }
+    doc = nlp(request.text)
+    morphology = [
+        {
+            "text": t.text, 
+            "lemma": t.lemma_, 
+            "morphology": dict(t.morph) if t.morph else {}
+        } 
+        for t in doc
+    ]
     
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Morphology analysis failed: {str(e)}")
+    return {"text": request.text, "morphology": morphology}
+
+# 3. Include the router in the main app
+app.include_router(router)
+
+# 4. Entry point to run the server
+if __name__ == "__main__":
+    # This allows you to run 'python main.py' to start the server
+    uvicorn.run(app, host="127.0.0.1", port=8000)

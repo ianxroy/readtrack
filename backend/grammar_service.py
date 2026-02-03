@@ -7,11 +7,28 @@ import language_tool_python
 from symspellpy import SymSpell, Verbosity
 import pkg_resources
 import re
+import os
 from langdetect import detect, LangDetectException
+import nltk
+from cefrpy import CEFRSpaCyAnalyzer, CEFRLevel
+
+from google import genai
+client = None
+model_name = "gemini-flash-lite-latest"
+
+try:
+    nltk.data.find('corpora/wordnet.zip')
+except LookupError:
+    try:
+        nltk.download('wordnet')
+        nltk.download('omw-1.4')
+    except Exception as e:
+        print(f"Error downloading WordNet: {e}")
+from nltk.corpus import wordnet
+
 
 router = APIRouter()
 
-# Initialize language tools
 try:
     english_tool = language_tool_python.LanguageTool('en-US')
     print("✓ English grammar tool loaded")
@@ -33,7 +50,14 @@ except Exception as e:
     print(f"✗ Error loading Tagalog model: {e}")
     nlp_tl = None
 
-# Symspell for English spell checking
+# Initialize CEFR analyzer
+try:
+    cefr_analyzer = CEFRSpaCyAnalyzer()
+    print("✓ CEFR Analyzer loaded")
+except Exception as e:
+    print(f"✗ Error loading CEFR Analyzer: {e}")
+    cefr_analyzer = None
+
 sym_spell = SymSpell(max_dictionary_edit_distance=2, prefix_length=7)
 try:
     dictionary_path = pkg_resources.resource_filename("symspellpy", "frequency_dictionary_en_82_765.txt")
@@ -44,28 +68,42 @@ except Exception as e:
 
 class GrammarCheckRequest(BaseModel):
     text: str
-    language: Optional[str] = None  # Auto-detect if None
-    gemini_api_key: Optional[str] = None  # AI always used for spelling when provided
+    language: Optional[str] = None
+    gemini_api_key: Optional[str] = None
 
 class GrammarIssue(BaseModel):
-    type: str  # grammar, spelling, style, punctuation
+    type: str
     message: str
     offset: int
     length: int
     replacements: List[str]
     context: str
-    severity: str  # error, warning, info
+    severity: str
     rule_id: Optional[str] = None
 
 class GrammarCheckResponse(BaseModel):
     text: str
     language: str
-    detected_language: str  # Shows what language was detected
+    detected_language: str
     issues: List[GrammarIssue]
     issue_count: int
     suggestions_count: int
     corrected_text: Optional[str] = None
     ai_overall_feedback: Optional[str] = None
+
+class DefinitionRequest(BaseModel):
+    word: str
+    language: Optional[str] = 'en'
+    context: Optional[str] = None
+    gemini_api_key: Optional[str] = None
+
+class DefinitionResponse(BaseModel):
+    word: str
+    definitions: List[str]
+    synonyms: List[str]
+    examples: List[str]
+    cefr: Optional[str] = None
+    part_of_speech: Optional[str] = None
 
 class SpellCheckResponse(BaseModel):
     original: str
@@ -405,9 +443,9 @@ async def verify_tagalog_markers_with_ai(issues: List[GrammarIssue], text: str, 
     Only returns warnings that AI confirms are actual errors.
     """
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=gemini_api_key)
-        model = genai.GenerativeModel("gemini-2.0-flash-exp")
+        from google import genai
+        client = genai.Client(api_key=gemini_api_key)
+        model_name = "gemini-flash-lite-latest"
         
         verified_issues = []
         
@@ -434,7 +472,10 @@ Sentence: {context}
 Is this sentence grammatically correct with proper usage of 'ang', 'ng', 'sa' markers?
 Answer with only 'correct' or 'incorrect'."""
                 
-                response = model.generate_content(verification_prompt)
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=verification_prompt
+                )
                 ai_answer = response.text.strip().lower()
                 
                 # Only add the issue if AI confirms it's incorrect
@@ -866,9 +907,9 @@ async def enhance_with_context_aware_ai(result: GrammarCheckResponse, gemini_api
     This ensures corrections like 'weather' vs 'whether', 'to' vs 'too', 'there' vs 'their' are contextually correct.
     """
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=gemini_api_key)
-        model = genai.GenerativeModel("gemini-2.0-flash-exp")
+        from google import genai
+        client = genai.Client(api_key=gemini_api_key)
+        model_name = "gemini-flash-lite-latest"
         
         # Determine language name for prompts
         language_name = "English" if result.language == "en" else "Filipino/Tagalog"
@@ -918,7 +959,10 @@ Format:
 CORRECTION: [correct word/phrase]
 EXPLANATION: [why this is correct in this specific context]"""
 
-                response = model.generate_content(prompt)
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt
+                )
                 ai_response = response.text.strip()
                 
                 # Parse the response
@@ -950,7 +994,10 @@ Text: "{original_text}"
 
 Found {len(priority_issues)} issues. Provide encouraging, specific feedback about the main problems and how the writing can improve."""
 
-                feedback_response = model.generate_content(feedback_prompt)
+                feedback_response = client.models.generate_content(
+                    model=model_name,
+                    contents=feedback_prompt
+                )
                 result.ai_overall_feedback = feedback_response.text.strip()
             except Exception as e:
                 print(f"AI overall feedback failed: {e}")
@@ -968,9 +1015,9 @@ async def enhance_spelling_with_ai(result: GrammarCheckResponse, gemini_api_key:
     Works for both English and Filipino.
     """
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=gemini_api_key)
-        model = genai.GenerativeModel("gemini-2.0-flash-exp")
+        from google import genai
+        client = genai.Client(api_key=gemini_api_key)
+        model_name = "gemini-flash-lite-latest"
         
         # Determine language name for prompts
         language_name = "English" if result.language == "en" else "Filipino/Tagalog"
@@ -1007,7 +1054,10 @@ Format your response as:
 CORRECTION: [corrected word]
 EXPLANATION: [one sentence explanation]"""
 
-                response = model.generate_content(prompt)
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt
+                )
                 ai_response = response.text.strip()
                 
                 # Parse the response
@@ -1036,7 +1086,10 @@ Text: "{original_text}"
 
 Found {len(spelling_issues)} spelling issues. Provide encouraging feedback."""
 
-                feedback_response = model.generate_content(feedback_prompt)
+                feedback_response = client.models.generate_content(
+                    model=model_name,
+                    contents=feedback_prompt
+                )
                 result.ai_overall_feedback = feedback_response.text.strip()
             except Exception as e:
                 print(f"AI overall feedback failed: {e}")
@@ -1099,9 +1152,9 @@ async def check_grammar_enhanced(request: GeminiEnhancedRequest):
     
     if basic_check.issues:
         try:
-            import google.generativeai as genai
-            genai.configure(api_key=request.gemini_api_key)
-            model = genai.GenerativeModel('gemini-2.0-flash-exp')
+            from google import genai
+            client = genai.Client(api_key=request.gemini_api_key)
+            model_name = 'gemini-flash-lite-latest'
             
             # Get AI explanations for each issue
             for issue in basic_check.issues[:5]:  # Limit to top 5 to avoid rate limits
@@ -1128,7 +1181,10 @@ Format your response as JSON:
 }}"""
                 
                 try:
-                    response = model.generate_content(prompt)
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=prompt
+                    )
                     import json
                     ai_response = json.loads(response.text.strip().replace('```json', '').replace('```', ''))
                     
@@ -1182,7 +1238,10 @@ Provide brief feedback on:
 
 Keep it encouraging and constructive. Max 3 sentences total."""
             
-            overall_response = model.generate_content(overall_prompt)
+            overall_response = client.models.generate_content(
+                model=model_name,
+                contents=overall_prompt
+            )
             ai_feedback = overall_response.text.strip()
             
         except Exception as e:
@@ -1200,4 +1259,234 @@ Keep it encouraging and constructive. Max 3 sentences total."""
         corrected_text=basic_check.corrected_text,
         ai_overall_feedback=ai_feedback
     )
+
+@router.post("/api/grammar/definition", response_model=DefinitionResponse)
+async def get_word_definition(request: DefinitionRequest):
+    word = request.word.lower()
+    definitions = []
+    synonyms = set()
+    examples = []
+    cefr_level = None
+    primary_pos = None
+    
+    # Use API key from request or fall back to environment variable
+    api_key = request.gemini_api_key or os.getenv('GEMINI_API_KEY', '')
+    
+    # Auto-detect language from word and context
+    detected_language = request.language
+    try:
+        # Try to detect from context first (more reliable with more text)
+        if request.context:
+            detected_language = detect(request.context)
+        else:
+            # Fall back to detecting from the word itself
+            detected_language = detect(request.word)
+        print(f"🔍 Language auto-detected: '{detected_language}' (from word/context)")
+    except LangDetectException:
+        # If detection fails, use the passed language
+        detected_language = request.language
+        print(f"🔍 Language detection failed, using passed language: '{detected_language}'")
+    
+    print(f"🔍 Definition request: word='{request.word}', language='{request.language}', detected_language='{detected_language}', has_api_key={bool(api_key)}, api_key_length={len(api_key) if api_key else 0}")
+    
+    # Handle Filipino language
+    if detected_language == 'tl' and api_key:
+        print(f"🇵🇭 Processing Filipino word: {request.word}")
+        try:
+            from google import genai
+            client = genai.Client(api_key=api_key)
+            model_name = 'gemini-flash-lite-latest'
+            
+            context_text = f" sa konteksto ng: \"{request.context}\"" if request.context else ""
+            prompt = f"""Magbigay ng detalyadong kahulugan para sa salitang Filipino na "{request.word}"{context_text}.
+
+Sagot sa Filipino language:
+1. Bahagi ng Pananalita (Part of Speech): (pangngalan, pandiwa, pang-uri, atbp.)
+2. Kahulugan: (Isang maikling at malinaw na paliwanag)
+3. Halimbawa ng Pangungusap: (Gumamit ng salita sa isang simpleng pangungusap)
+4. Mga Kasingkahulugan: (2-3 salita na may katulad na kahulugan, o "wala" kung wala)
+
+Format:
+POS: [bahagi ng pananalita]
+Definition: [kahulugan]
+Example: [halimbawa ng pangungusap]
+Synonyms: [mga kasingkahulugan, pinaghihiwalay ng kuwit]"""
+            
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt
+            )
+            result_text = response.text.strip()
+            
+            # Parse the response
+            lines = result_text.split('\n')
+            for line in lines:
+                if line.startswith('POS:'):
+                    primary_pos = line.replace('POS:', '').strip().lower()
+                elif line.startswith('Definition:'):
+                    definitions.append(line.replace('Definition:', '').strip())
+                elif line.startswith('Example:'):
+                    examples.append(line.replace('Example:', '').strip())
+                elif line.startswith('Synonyms:'):
+                    syn_text = line.replace('Synonyms:', '').strip()
+                    if syn_text.lower() != 'wala':
+                        synonyms = set([s.strip() for s in syn_text.split(',') if s.strip()])
+            
+            result = DefinitionResponse(
+                word=request.word,
+                definitions=definitions if definitions else ["Kahulugan ay hindi makita."],
+                synonyms=list(synonyms)[:5],
+                examples=examples[:1],
+                cefr=None,
+                part_of_speech=primary_pos
+            )
+            print(f"✅ Filipino definition returned: {len(definitions)} definitions, POS={primary_pos}")
+            return result
+        except Exception as e:
+            print(f"❌ Error fetching Filipino definition: {e}")
+            import traceback
+            traceback.print_exc()
+            return DefinitionResponse(
+                word=request.word,
+                definitions=["Hindi makuha ang kahulugan."],
+                synonyms=[],
+                examples=[],
+                cefr=None,
+                part_of_speech=None
+            )
+    
+    # Handle English language
+    print(f"🇺🇸 Processing English word: {request.word}")
+    try:
+        # Get CEFR Level
+        if cefr_analyzer and nlp_en:
+            doc = nlp_en(word)
+            results = cefr_analyzer.analize_doc(doc)
+            if results and len(results) > 0:
+                # results is list of (token, lemma, is_skipped, level)
+                level_float = results[0][3]
+                if level_float:
+                    # Round to nearest integer for CEFRLevel enum
+                    cefr_level = CEFRLevel(round(level_float)).name
+
+        synsets = wordnet.synsets(word)
+        
+        # If context is provided, use Gemini for context-aware definition
+        if request.context and api_key and synsets:
+            try:
+                from google import genai
+                client = genai.Client(api_key=api_key)
+                model_name = 'gemini-flash-lite-latest'
+                
+                prompt = f"""Given the word "{request.word}" used in this context: "{request.context}"
+
+Provide:
+1. Part of Speech: (noun, verb, adjective, or adverb)
+2. Definition: (A brief, clear definition that matches how it's used in the context)
+3. Example: (A simple sentence using the word)
+4. Synonyms: (2-3 similar words, or "none" if not applicable)
+
+Format:
+POS: [part of speech]
+Definition: [definition]
+Example: [example sentence]
+Synonyms: [comma-separated synonyms]"""
+                
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt
+                )
+                result_text = response.text.strip()
+                
+                # Parse response
+                lines = result_text.split('\n')
+                for line in lines:
+                    if line.startswith('POS:'):
+                        primary_pos = line.replace('POS:', '').strip().lower()
+                    elif line.startswith('Definition:'):
+                        definitions.append(line.replace('Definition:', '').strip())
+                    elif line.startswith('Example:'):
+                        examples.append(line.replace('Example:', '').strip())
+                    elif line.startswith('Synonyms:'):
+                        syn_text = line.replace('Synonyms:', '').strip()
+                        if syn_text.lower() != 'none':
+                            synonyms = set([s.strip() for s in syn_text.split(',') if s.strip()])
+                
+                if definitions:
+                    return DefinitionResponse(
+                        word=request.word,
+                        definitions=definitions,
+                        synonyms=list(synonyms)[:5],
+                        examples=examples[:1],
+                        cefr=cefr_level,
+                        part_of_speech=primary_pos
+                    )
+            except Exception as e:
+                print(f"Error with context-aware definition: {e}")
+        
+        if synsets:
+            # Sort synsets to prioritize verbs and more common meanings
+            def synset_priority(s):
+                # Common verbs/auxiliaries
+                if word in ['are', 'is', 'am', 'was', 'were', 'be', 'been', 'being', 'do', 'does', 'did', 'have', 'has', 'had']:
+                    return 0 if s.pos() == 'v' else 1
+                return 0
+
+            synsets.sort(key=synset_priority)
+
+            # Simplified POS mapping
+            pos_map = {'n': 'noun', 'v': 'verb', 'a': 'adj', 'r': 'adv', 's': 'adj'}
+            
+            # Get primary POS from the best synset
+            best_syn = synsets[0]
+            primary_pos = pos_map.get(best_syn.pos(), best_syn.pos())
+
+            for syn in synsets[:3]:  # Limit to top 3 meanings
+                if syn.definition():
+                    pos = pos_map.get(syn.pos(), syn.pos())
+                    # Format definition to be cleaner
+                    clean_def = syn.definition().capitalize()
+                    definitions.append(f"({pos}) {clean_def}")
+                for lemma in syn.lemmas():
+                    if lemma.name().lower() != word:
+                        synonyms.add(lemma.name().replace('_', ' '))
+                if syn.examples():
+                    # Format examples to be cleaner
+                    for ex in syn.examples()[:1]:
+                        examples.append(ex.capitalize() + ".")
+            
+            return DefinitionResponse(
+                word=request.word,
+                definitions=definitions,
+                synonyms=list(synonyms)[:5],
+                examples=examples[:3],
+                cefr=cefr_level,
+                part_of_speech=primary_pos
+            )
+        elif nlp_en:
+            # Fallback for proper nouns/names not in WordNet
+            doc = nlp_en(word)
+            if doc and len(doc) > 0:
+                token = doc[0]
+                if token.pos_ == 'PROPN' or token.pos_ == 'NOUN':
+                    return DefinitionResponse(
+                        word=request.word,
+                        definitions=["Proper noun or name."],
+                        synonyms=[],
+                        examples=[],
+                        cefr=cefr_level,
+                        part_of_speech="noun"
+                    )
+    except Exception as e:
+        print(f"Error fetching definition for {word}: {e}")
+        
+    return DefinitionResponse(
+        word=request.word,
+        definitions=[],
+        synonyms=[],
+        examples=[],
+        cefr=cefr_level,
+        part_of_speech=None
+    )
+
 
