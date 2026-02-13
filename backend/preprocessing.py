@@ -4,7 +4,6 @@ import numpy as np
 import spacy
 from cefrpy import CEFRSpaCyAnalyzer, CEFRLevel
 
-# Initialize the spaCy-integrated CEFR analyzer
 analyzer = CEFRSpaCyAnalyzer()
 
 try:
@@ -15,29 +14,28 @@ except OSError:
     nlp = None
 
 def clean_text(text):
-    """Basic text cleaning with Unicode normalization."""
-    # Normalize Unicode to NFC form to handle diacritics and special characters properly
+
     text = unicodedata.normalize('NFC', text)
     text = re.sub(r'\s+', ' ', text)
     return text.strip()
 
 def calculate_ttr(tokens):
-    """Calculate Type-Token Ratio (Lexical Diversity)."""
+
     if not tokens:
         return 0
     unique_types = set(t.lower() for t in tokens)
     return len(unique_types) / len(tokens)
 
 def get_cefr_distribution(doc):
-    """Identify CEFR levels of words using cefrpy and a spaCy doc."""
+
     levels = {"A1": 0, "A2": 0, "B1": 0, "B2": 0, "C1": 0, "C2": 0}
     advanced_count = 0
-    
+
     cefr_tokens = analyzer.analize_doc(doc)
-    
+
     for token_data in cefr_tokens:
         is_skipped, level = token_data[2], token_data[3]
-        
+
         if not is_skipped and level is not None:
             cefr_rank = round(level)
             if 1 <= cefr_rank <= 6:
@@ -46,11 +44,11 @@ def get_cefr_distribution(doc):
                     levels[cefr_level_str] += 1
                     if cefr_rank >= 5:
                         advanced_count += 1
-                        
+
     return levels, advanced_count
 
 def get_cefr_word_groups(doc):
-    """Group words by CEFR bands for basic, independent, and proficient vocab."""
+
     groups = {
         "basic": set(),
         "independent": set(),
@@ -78,19 +76,46 @@ def get_cefr_word_groups(doc):
     }
 
 def get_difficult_words(tokens):
-    """Identify complex words (placeholder logic: > 2 syllables or length > 9)."""
+
     difficult = []
     for token in tokens:
         if len(token) > 9:
             difficult.append(token)
     return difficult
 
+def count_syllables(word):
+
+    word = word.lower()
+    count = 0
+    vowels = "aeiouy"
+    if not word: return 0
+    if word[0] in vowels:
+        count += 1
+    for index in range(1, len(word)):
+        if word[index] in vowels and word[index - 1] not in vowels:
+            count += 1
+    if word.endswith("e"):
+        count -= 1
+    if count == 0:
+        count += 1
+    return count
+
+def calculate_readability(word_count, sentence_count, syllable_count, complex_word_count):
+
+    if word_count == 0 or sentence_count == 0:
+        return {"flesch_kincaid": 0, "ari": 0, "gunning_fog": 0}
+
+    fk = (0.39 * (word_count / sentence_count)) + (11.8 * (syllable_count / word_count)) - 15.59
+
+    fog = 0.4 * ((word_count / sentence_count) + 100 * (complex_word_count / word_count))
+
+    return {
+        "flesch_kincaid": round(max(0, fk), 2),
+        "gunning_fog": round(max(0, fog), 2)
+    }
+
 def extract_features(text, language="en"):
-    """
-    Converts raw text into a numerical feature vector for the SVM.
-    Returns a dictionary of features and the raw vector.
-    CEFR analysis is only applied for English text.
-    """
+
     if not nlp:
         raise RuntimeError("spaCy model is not loaded. Cannot extract features.")
 
@@ -100,38 +125,47 @@ def extract_features(text, language="en"):
     sentences = list(doc.sents)
     tokens = [token.text for token in doc]
     words = [token.text for token in doc if token.is_alpha]
-    
+
     word_count = len(words)
     sentence_count = len(sentences)
     avg_sentence_length = word_count / sentence_count if sentence_count > 0 else 0
     ttr = calculate_ttr(words)
-    
-    # Only apply CEFR analysis for English text
+
+    total_syllables = sum(count_syllables(w) for w in words)
+    difficult_words = get_difficult_words(words)
+    readability = calculate_readability(word_count, sentence_count, total_syllables, len(difficult_words))
+
     if language == "en":
         cefr_dist, advanced_cefr_count = get_cefr_distribution(doc)
         cefr_word_groups = get_cefr_word_groups(doc)
     else:
-        # For non-English languages (e.g., Tagalog), skip CEFR analysis
+
         cefr_dist = {"A1": 0, "A2": 0, "B1": 0, "B2": 0, "C1": 0, "C2": 0}
         advanced_cefr_count = 0
         cefr_word_groups = {"basic": [], "independent": [], "proficient": []}
-    
+
     advanced_ratio = advanced_cefr_count / word_count if word_count > 0 else 0
 
     clause_density = 0
     structure_score = 0
-    
+
     if nlp:
-        doc = nlp(text)
         verb_count = len([token for token in doc if token.pos_ == "VERB"])
         clause_density = verb_count / sentence_count if sentence_count > 0 else 0
         structure_score = min(100, (clause_density * 10) + (avg_sentence_length * 2))
 
-    difficult_words = get_difficult_words(words)
     diff_ratio = (len(difficult_words) / word_count) * 100 if word_count > 0 else 0
-    
-    feature_vector = np.array([ttr, avg_sentence_length, diff_ratio, clause_density, advanced_ratio]).reshape(1, -1)
-    
+
+    feature_vector = np.array([
+        ttr,
+        avg_sentence_length,
+        diff_ratio,
+        clause_density,
+        advanced_ratio,
+        readability['flesch_kincaid'],
+        readability['gunning_fog']
+    ]).reshape(1, -1)
+
     return {
         "vector": feature_vector,
         "metrics": {
@@ -144,6 +178,7 @@ def extract_features(text, language="en"):
             "cefrDistribution": cefr_dist,
             "advancedWordCount": advanced_cefr_count,
             "cefrWordGroups": cefr_word_groups,
-            "advancedWords": cefr_word_groups.get("proficient", [])
+            "advancedWords": cefr_word_groups.get("proficient", []),
+            "readabilityIndices": readability
         }
     }

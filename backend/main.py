@@ -16,27 +16,26 @@ from ocr import extract_text_from_image
 from tagalog_service import router as tagalog_router
 from grammar_service import router as grammar_router
 
-
 load_dotenv('.env.local')
 load_dotenv('.env')
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", os.getenv("API_KEY", ""))
 if GEMINI_API_KEY:
-    print(f"✓ Loaded Gemini API key: {GEMINI_API_KEY[:8]}...")
+    print(f"Loaded Gemini API key: {GEMINI_API_KEY[:8]}...")
 else:
-    print("⚠ Warning: No Gemini API key found in environment")
+    print("Warning: No Gemini API key found in environment")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Enable GPU if available for spaCy
+
     try:
         if torch.cuda.is_available():
             spacy.prefer_gpu()
-            print("✓ GPU acceleration enabled for spaCy")
+            print("GPU acceleration enabled for spaCy")
         else:
-            print("ℹ GPU not available, using CPU for spaCy")
+            print("GPU not available, using CPU for spaCy")
     except Exception as e:
-        print(f"⚠ Could not enable GPU: {e}")
+        print(f"Could not enable GPU: {e}")
 
     try:
         spacy.load("en_core_web_sm")
@@ -44,11 +43,19 @@ async def lifespan(app: FastAPI):
         print("Downloading spaCy model 'en_core_web_sm'...")
         spacy.cli.download("en_core_web_sm")
         print("Model downloaded successfully.")
+
+    models_dir = os.path.join(os.path.dirname(__file__), 'models')
+    comp_path = os.path.join(models_dir, 'complexity_model.pkl')
+    prof_path = os.path.join(models_dir, 'proficiency_model.pkl')
+
+    if complexity_model.load(comp_path):
+        print("Complexity ML model loaded")
+    if student_model.load(prof_path):
+        print("Proficiency ML model loaded")
+
     yield
 
-
 app = FastAPI(lifespan=lifespan)
-
 
 app.add_middleware(
     CORSMiddleware,
@@ -100,18 +107,17 @@ def generate_reference_title(text: str, name: Optional[str] = None) -> str:
 def read_root():
     return {"message": "FastAPI backend is running!"}
 
-
 @app.post("/test-complexity")
 def test_complexity(request: TextRequest):
     try:
         features = extract_features(request.text)
         result = complexity_model.predict(features, request.text)
-        
+
         import json
         print("\n--- API /test-complexity Endpoint Result ---")
         print(json.dumps(result, indent=2))
         print("--------------------------------------------\n")
-        
+
         return result
     except Exception as e:
         import traceback
@@ -119,9 +125,7 @@ def test_complexity(request: TextRequest):
 
 @app.get("/api/evaluation")
 def get_evaluation_metrics():
-    """
-    Returns performance metrics for both the student proficiency and text complexity models.
-    """
+
     return {
         "proficiency": student_model.get_performance_metrics(),
         "complexity": complexity_model.get_performance_metrics()
@@ -129,40 +133,26 @@ def get_evaluation_metrics():
 
 @app.post("/analyze/student")
 def analyze_student_text(request: TextRequest):
-    """Analyzes text for student proficiency."""
+
     try:
         text_to_analyze = request.text
         if request.image:
-            print("\n" + "=" * 70)
-            print("📷 PROCESSING IMAGE FOR STUDENT ANALYSIS")
-            print("=" * 70)
-            print(f"Image data length: {len(request.image)} bytes")
-            print(f"Input text length: {len(request.text)} characters")
-            
+            print("Processing image for student analysis")
             ocr_text = extract_text_from_image(request.image, GEMINI_API_KEY)
-            
-            print("\n" + "-" * 70)
-            print("📝 OCR EXTRACTED TEXT:")
-            print("-" * 70)
-            if ocr_text:
-                print(ocr_text)
-                print("-" * 70)
-                print(f"✓ Extracted {len(ocr_text)} characters from image")
-                text_to_analyze = (text_to_analyze + "\n" + ocr_text).strip()
-                print(f"✓ Combined text length: {len(text_to_analyze)} characters")
-            else:
-                print("⚠ WARNING: No text extracted from image")
-            print("=" * 70 + "\n")
 
-        # Detect language and pass it to feature extraction
+            if ocr_text:
+                print(f"Extracted {len(ocr_text)} characters from image")
+                text_to_analyze = (text_to_analyze + "\n" + ocr_text).strip()
+            else:
+                print("Warning: No text extracted from image")
+
         from grammar_service import detect_language
         detected_lang = detect_language(text_to_analyze)
         features = extract_features(text_to_analyze, language=detected_lang)
         result = student_model.predict(features, text_to_analyze)
-        
+
         result["analyzed_text"] = text_to_analyze
-        
-        print("Student Analysis Result:", result)
+
         return result
     except Exception as e:
         import traceback
@@ -172,24 +162,14 @@ def analyze_student_text(request: TextRequest):
 
 @app.post("/ocr/extract")
 def extract_text_from_image_endpoint(request: OCRRequest):
-    """Extracts text from an image using Gemini OCR."""
-    try:
-        print("\n" + "=" * 70)
-        print("📷 PROCESSING IMAGE FOR OCR ONLY")
-        print("=" * 70)
-        print(f"Image data length: {len(request.image)} bytes")
 
+    try:
+        print("Processing image for OCR")
         ocr_text = extract_text_from_image(request.image, GEMINI_API_KEY)
-        print("\n" + "-" * 70)
-        print("📝 OCR EXTRACTED TEXT:")
-        print("-" * 70)
         if ocr_text:
-            print(ocr_text)
-            print("-" * 70)
-            print(f"✓ Extracted {len(ocr_text)} characters from image")
+            print(f"Extracted {len(ocr_text)} characters from image")
         else:
-            print("⚠ WARNING: No text extracted from image")
-        print("=" * 70 + "\n")
+            print("Warning: No text extracted from image")
 
         return {"text": ocr_text}
     except Exception as e:
@@ -200,7 +180,7 @@ def extract_text_from_image_endpoint(request: OCRRequest):
 
 @app.post("/reference/ingest")
 def ingest_reference(request: ReferenceIngestRequest):
-    """Ingest a reference file (text/pdf/image) and return extracted text."""
+
     try:
         text = ""
         if request.text:
@@ -213,7 +193,7 @@ def ingest_reference(request: ReferenceIngestRequest):
             elif request.mimeType.startswith("text/"):
                 decoded = base64.b64decode(request.file)
                 text = decoded.decode("utf-8", errors="replace")
-        
+
         title = generate_reference_title(text, request.name)
         return {"title": title, "text": text}
     except Exception as e:
@@ -224,39 +204,25 @@ def ingest_reference(request: ReferenceIngestRequest):
 
 @app.post("/analyze/complexity")
 def analyze_complexity_text(request: TextRequest):
-    """Analyzes text for complexity."""
+
     try:
         text_to_analyze = request.text
         if request.image:
-            print("\n" + "=" * 70)
-            print("📷 PROCESSING IMAGE FOR COMPLEXITY ANALYSIS")
-            print("=" * 70)
-            print(f"Image data length: {len(request.image)} bytes")
-            print(f"Input text length: {len(request.text)} characters")
-            
+            print("Processing image for complexity analysis")
             ocr_text = extract_text_from_image(request.image, GEMINI_API_KEY)
-            
-            print("\n" + "-" * 70)
-            print("📝 OCR EXTRACTED TEXT:")
-            print("-" * 70)
-            if ocr_text:
-                print(ocr_text)
-                print("-" * 70)
-                print(f"✓ Extracted {len(ocr_text)} characters from image")
-                text_to_analyze = (text_to_analyze + "\n" + ocr_text).strip()
-                print(f"✓ Combined text length: {len(text_to_analyze)} characters")
-            else:
-                print("⚠ WARNING: No text extracted from image")
-            print("=" * 70 + "\n")
 
-        # Detect language and pass it to feature extraction
+            if ocr_text:
+                print(f"Extracted {len(ocr_text)} characters from image")
+                text_to_analyze = (text_to_analyze + "\n" + ocr_text).strip()
+            else:
+                print("Warning: No text extracted from image")
+
         from grammar_service import detect_language
         detected_lang = detect_language(text_to_analyze)
         features = extract_features(text_to_analyze, language=detected_lang)
         result = complexity_model.predict(features, text_to_analyze)
-        
+
         result["analyzed_text"] = text_to_analyze
-        print("Complexity Analysis Result:", result)
         return result
     except Exception as e:
         import traceback
@@ -266,7 +232,6 @@ def analyze_complexity_text(request: TextRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    print("--- Starting FastAPI Server ---")
-    print("Access at http://localhost:8000")
+    print("Starting FastAPI Server on http://localhost:8000")
     port = int(os.getenv("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)

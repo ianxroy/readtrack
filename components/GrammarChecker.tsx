@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  checkGrammar, 
-  GrammarCheckResponse, 
+import {
+  checkGrammar,
+  GrammarCheckResponse,
   GrammarIssue,
   getIssueStats,
   createDebouncedGrammarCheck
@@ -72,7 +72,7 @@ const GrammarChecker: React.FC<GrammarCheckerProps> = ({
       const issueText = text.slice(issue.offset, issue.offset + issue.length);
       const className = `highlight-${issue.severity}`;
       const title = issue.message;
-      
+
       highlightedText += `<span class="${className}" title="${escapeHtml(title)}" data-issue-id="${sortedIssues.indexOf(issue)}">${escapeHtml(issueText)}</span>`;
 
       lastIndex = issue.offset + issue.length;
@@ -127,10 +127,10 @@ const GrammarChecker: React.FC<GrammarCheckerProps> = ({
             </div>
           ))}
         </div>
-        
+
         <div className="editor-wrapper">
-          <div 
-            className="text-highlight-overlay" 
+          <div
+            className="text-highlight-overlay"
             dangerouslySetInnerHTML={{ __html: getHighlightedText() }}
           />
           <textarea
@@ -142,7 +142,7 @@ const GrammarChecker: React.FC<GrammarCheckerProps> = ({
             spellCheck={false}
           />
         </div>
-        
+
         {loading && (
           <div className="loading-indicator">
             Checking grammar...
@@ -170,7 +170,7 @@ const GrammarChecker: React.FC<GrammarCheckerProps> = ({
       {result && result.issues.length > 0 && (
         <div className="issues-panel">
           <h3>Issues Found</h3>
-          
+
           <div className="issues-list">
             {result.issues.map((issue, index) => (
               <div
@@ -187,9 +187,9 @@ const GrammarChecker: React.FC<GrammarCheckerProps> = ({
                     Line {Math.floor(issue.offset / 50) + 1}
                   </span>
                 </div>
-                
+
                 <div className="issue-message">{issue.message}</div>
-                
+
                 {issue.ai_explanation && (
                   <div className="ai-explanation">
                     <div className="ai-label">
@@ -199,7 +199,7 @@ const GrammarChecker: React.FC<GrammarCheckerProps> = ({
                     <p>{issue.ai_explanation}</p>
                   </div>
                 )}
-                
+
                 {issue.ai_suggestion && (
                   <div className="ai-better-suggestion">
                     <div className="ai-label">
@@ -218,11 +218,11 @@ const GrammarChecker: React.FC<GrammarCheckerProps> = ({
                     </button>
                   </div>
                 )}
-                
+
                 <div className="issue-context">
                   <code>{issue.context}</code>
                 </div>
-                
+
                 {issue.replacements.length > 0 && !issue.ai_suggestion && (
                   <div className="issue-suggestions">
                     <span className="suggestions-label">Suggestions:</span>

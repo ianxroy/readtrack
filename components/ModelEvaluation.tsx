@@ -2,8 +2,8 @@
 import React, { useEffect, useState } from 'react';
 import { GlassCard } from './ui/GlassCard';
 import { PerformanceMetrics, EvaluationApiResponse } from '../types';
-import { 
-    IoStatsChart, 
+import {
+    IoStatsChart,
     IoInformationCircleOutline,
     IoCheckmarkCircle,
     IoTrendingUpOutline,
@@ -29,7 +29,7 @@ const ConfusionMatrix = ({ title, labels, data }: { title: string, labels: strin
                 <IoGridOutline className="text-gray-400" />
                 <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wide">{title}</h4>
             </div>
-            
+
             <div className="relative overflow-x-auto">
                 <table className="w-full text-xs text-center border-collapse">
                     <thead>
@@ -52,9 +52,9 @@ const ConfusionMatrix = ({ title, labels, data }: { title: string, labels: strin
                                 </td>
                                 {row.map((val, j) => {
                                     const isDiagonal = i === j;
-                                    
-                                    const cellClass = isDiagonal 
-                                        ? `bg-teal-500 text-white font-bold ring-1 ring-white/50` 
+
+                                    const cellClass = isDiagonal
+                                        ? `bg-teal-500 text-white font-bold ring-1 ring-white/50`
                                         : val === 0 ? 'text-gray-200' : 'bg-orange-50 text-orange-600';
 
                                     return (
@@ -74,7 +74,6 @@ const ConfusionMatrix = ({ title, labels, data }: { title: string, labels: strin
         </div>
     );
 };
-
 
 const DEFAULT_METRICS: EvaluationApiResponse = {
     proficiency: {
@@ -103,12 +102,12 @@ export const ModelEvaluation: React.FC<{ onMenuClick?: () => void }> = ({ onMenu
     useEffect(() => {
         const fetchMetrics = async () => {
             try {
-                const response = await fetch('http://localhost:5000/api/evaluation');
-                
+                const response = await fetch('http://localhost:8000/api/evaluation');
+
                 if (!response.ok) {
                     throw new Error("Failed to fetch");
                 }
-                
+
                 const data = await response.json();
                 setMetrics(data);
             } catch (error) {
@@ -119,7 +118,7 @@ export const ModelEvaluation: React.FC<{ onMenuClick?: () => void }> = ({ onMenu
                 setIsLoading(false);
             }
         };
-        
+
         fetchMetrics();
     }, []);
 
@@ -138,7 +137,7 @@ export const ModelEvaluation: React.FC<{ onMenuClick?: () => void }> = ({ onMenu
 
     return (
         <div className="h-full overflow-y-auto p-8 max-w-[1600px] mx-auto">
-            
+
             <header className="mb-8 relative">
                 <div className="flex items-center gap-3 mb-2">
                     {onMenuClick && (
@@ -157,8 +156,8 @@ export const ModelEvaluation: React.FC<{ onMenuClick?: () => void }> = ({ onMenu
                     )}
                 </div>
                 <p className="text-gray-500 max-w-3xl leading-relaxed text-sm">
-                    The ReadTrack system utilizes two distinct evaluation tools to assess technical accuracy. 
-                    Below are the performance metrics derived from comparing the system's SVM predictions against 
+                    The ReadTrack system utilizes two distinct evaluation tools to assess technical accuracy.
+                    Below are the performance metrics derived from comparing the system's SVM predictions against
                     ground-truth labels provided by human experts (Grade 7 Educators).
                 </p>
             </header>
@@ -180,10 +179,10 @@ export const ModelEvaluation: React.FC<{ onMenuClick?: () => void }> = ({ onMenu
                         <MetricBox label="Recall" value={metrics.proficiency.recall} color="border-orange-200 bg-orange-50/30" subtext="Sensitivity" />
                     </div>
 
-                    <ConfusionMatrix 
-                        title="Proficiency Confusion Matrix" 
-                        labels={metrics.proficiency.labels} 
-                        data={metrics.proficiency.matrix} 
+                    <ConfusionMatrix
+                        title="Proficiency Confusion Matrix"
+                        labels={metrics.proficiency.labels}
+                        data={metrics.proficiency.matrix}
                     />
                 </GlassCard>
 
@@ -203,10 +202,10 @@ export const ModelEvaluation: React.FC<{ onMenuClick?: () => void }> = ({ onMenu
                         <MetricBox label="Recall" value={metrics.complexity.recall} color="border-orange-200 bg-orange-50/30" subtext="Sensitivity" />
                     </div>
 
-                    <ConfusionMatrix 
-                        title="Cognitive Depth Confusion Matrix" 
-                        labels={metrics.complexity.labels} 
-                        data={metrics.complexity.matrix} 
+                    <ConfusionMatrix
+                        title="Cognitive Depth Confusion Matrix"
+                        labels={metrics.complexity.labels}
+                        data={metrics.complexity.matrix}
                     />
                 </GlassCard>
             </div>

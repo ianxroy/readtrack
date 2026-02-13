@@ -30,10 +30,10 @@ export enum PhilIriLevel {
 }
 
 export enum IssueCategory {
-  GRAMMAR = "Grammar",   // Red
-  CLARITY = "Clarity",   // Blue
-  VOCABULARY = "Vocabulary", // Purple/Pink
-  STYLE = "Style"       // Orange
+  GRAMMAR = "Grammar",
+  CLARITY = "Clarity",
+  VOCABULARY = "Vocabulary",
+  STYLE = "Style"
 }
 
 export interface GrammarIssue {
@@ -41,16 +41,16 @@ export interface GrammarIssue {
   original: string;
   suggestion: string;
   type: string;
-  category: IssueCategory; // Added for UI color coding
+  category: IssueCategory;
   context: string;
-  explanation?: string; // For the tooltip
+  explanation?: string;
 }
 
 export interface LinguisticMetrics {
-  vocabularyRichness: number; // 0-100
-  sentenceComplexity: number; // 0-100
-  grammarAccuracy: number; // 0-100
-  structureCohesion: number; // 0-100
+  vocabularyRichness: number;
+  sentenceComplexity: number;
+  grammarAccuracy: number;
+  structureCohesion: number;
   cefrDistribution?: { [level: string]: number };
   cefrWordGroups?: {
     basic: string[];
@@ -62,7 +62,7 @@ export interface LinguisticMetrics {
 
 export interface ContentValidation {
   hasReference: boolean;
-  accuracyScore: number; // 0-100
+  accuracyScore: number;
   missingPoints: string[];
   misconceptions: string[];
   suggestion: string;
@@ -73,29 +73,29 @@ export interface StudentDiagnosisResult {
   feedback: string;
   metrics: LinguisticMetrics;
   issues: GrammarIssue[];
-  contentValidation?: ContentValidation; // New field for Reference Checking
-  analyzed_text?: string; // The full text that was analyzed (includes OCR text if image was provided)
-  // Grade 7 Specifics
-  natScore: number; // Mean Percentage Score (Target 75%)
+  contentValidation?: ContentValidation;
+  analyzed_text?: string;
+
+  natScore: number;
   learningBand: LearningBand;
   philIriLevel: PhilIriLevel;
 }
 
 export interface TextComplexityResult {
   level: ComplexityLevel;
-  score: number; // 0-100
+  score: number;
   reasoning: string;
   readabilityScore: number;
   wordCount: number;
   keywords: string[];
-  analyzed_text?: string; // The full text that was analyzed (includes OCR text if image was provided)
-  // New Simulated Metrics matching reference
-  fixationDuration: number; // Percentage or ms
-  regressionIndex: number; // Percentage
-  estimatedReadingTime: number; // Minutes
+  analyzed_text?: string;
+
+  fixationDuration: number;
+  regressionIndex: number;
+  estimatedReadingTime: number;
   avgSentenceLength: number;
-  difficultWordRatio: number; // Percentage
-  highlightedSegments: string[]; // Words/Phrases to highlight in Red/Pink
+  difficultWordRatio: number;
+  highlightedSegments: string[];
 }
 
 export interface ReferenceFile {
@@ -127,8 +127,6 @@ export interface ChatMessage {
   mode?: AnalysisMode;
   timestamp: Date;
 }
-
-// --- API Response Types ---
 
 export interface PerformanceMetrics {
     accuracy: string;

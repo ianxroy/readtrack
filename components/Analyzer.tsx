@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { JSX } from 'react';
-import { 
-  StudentDiagnosisResult, 
-  TextComplexityResult, 
-  Language, 
+import {
+  StudentDiagnosisResult,
+  TextComplexityResult,
+  Language,
   ComplexityLevel,
-  GrammarIssue, 
+  GrammarIssue,
   IssueCategory,
   ProficiencyLevel,
   LearningBand,
@@ -16,9 +16,9 @@ import { analyzeStudentWorkAPI, classifyTextComplexityAPI, extractTextFromImageA
 import { validateContentWithGemini } from '../services/geminiService';
 import { checkGrammar, GrammarCheckResponse, GrammarIssue as GrammarServiceIssue, getDefinition, DefinitionResponse } from '../services/grammarService';
 
-import { 
-  IoSparkles, 
-  IoCloseCircle, 
+import {
+  IoSparkles,
+  IoCloseCircle,
   IoAttachOutline,
   IoSettingsOutline,
   IoSend,
@@ -35,41 +35,37 @@ import {
   IoMenuOutline
 } from "react-icons/io5";
 
-// Markdown parser for formatting text with *bold*, **strong**, _italic_, etc.
 const parseMarkdown = (text: string): (string | JSX.Element)[] => {
     const elements: (string | JSX.Element)[] = [];
     let lastIndex = 0;
     let key = 0;
 
-    // Pattern to match markdown: **bold**, *bold*, __italic__, _italic_
     const markdownRegex = /(\*\*(.+?)\*\*)|(\*(.+?)\*)|(__(.+?)__)|(_(.+?)_)/g;
     let match;
 
     while ((match = markdownRegex.exec(text)) !== null) {
-        // Add text before the match
+
         if (match.index > lastIndex) {
             elements.push(text.slice(lastIndex, match.index));
         }
 
-        // Determine what type of formatting this is
         if (match[2]) {
-            // **bold**
+
             elements.push(<strong key={key++} className="font-bold">{match[2]}</strong>);
         } else if (match[4]) {
-            // *bold*
+
             elements.push(<strong key={key++} className="font-bold">{match[4]}</strong>);
         } else if (match[6]) {
-            // __italic__
+
             elements.push(<em key={key++} className="italic">{match[6]}</em>);
         } else if (match[8]) {
-            // _italic_
+
             elements.push(<em key={key++} className="italic">{match[8]}</em>);
         }
 
         lastIndex = markdownRegex.lastIndex;
     }
 
-    // Add remaining text
     if (lastIndex < text.length) {
         elements.push(text.slice(lastIndex));
     }
@@ -90,7 +86,6 @@ interface AnalyzerProps {
     selectedAnalysis?: CachedAnalysis | null;
     onMenuClick?: () => void;
 }
-
 
 const MetricRow = ({ label, value, info }: { label: string, value: string, info?: string }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -119,7 +114,7 @@ const MetricRow = ({ label, value, info }: { label: string, value: string, info?
 
     return (
         <div className="relative" ref={containerRef}>
-            <div 
+            <div
                 className={`flex justify-between items-center py-2 border-b border-gray-50 last:border-0 ${info ? 'cursor-pointer hover:bg-teal-50/40' : ''} transition-all duration-200 px-2 -mx-2 rounded-lg group`}
                 onClick={handleClick}
             >
@@ -167,13 +162,13 @@ const ResultCard = ({ title, children, className = "", description }: { title?: 
                     <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-wide group-hover:text-teal-600 transition-colors">{title}</h3>
                 </div>
             )}
-            
+
             {showInfo && description && (
                 <div className="mb-3 bg-teal-50 text-teal-800 text-[10px] p-2 rounded-lg border border-teal-100 animate-in fade-in slide-in-from-top-1 leading-relaxed">
                    {description}
                 </div>
             )}
-            
+
             {children}
         </div>
     );
@@ -227,12 +222,12 @@ const ComplexityMetricsCard = ({ result }: { result: TextComplexityResult }) => 
 
 const GrammarScoreCard = ({ grammarResult }: { grammarResult: GrammarCheckResponse | null }) => {
     if (!grammarResult) return null;
-    
+
     const totalWords = grammarResult.text.split(/\s+/).filter(w => w.length > 0).length;
-    
+
     const weightedErrors = grammarResult.issues.reduce((sum, issue) => {
         let weight = 1;
-        
+
         const typeWeights: Record<string, number> = {
             'spelling': 2.0,
             'grammar': 1.5,
@@ -240,20 +235,20 @@ const GrammarScoreCard = ({ grammarResult }: { grammarResult: GrammarCheckRespon
             'style': 0.6,
             'capitalization': 0.4
         };
-        
-        const isCapitalizationIssue = 
+
+        const isCapitalizationIssue =
             issue.message?.toLowerCase().includes('capital') ||
             issue.message?.toLowerCase().includes('nakamalaking titik') ||
             issue.rule_id?.includes('CAPITALIZATION') ||
             issue.rule_id?.includes('PROPER_NOUN') ||
             issue.rule_id?.includes('NAME_AFTER');
-        
+
         if (isCapitalizationIssue) {
             weight = 0.4;
         } else {
             weight = typeWeights[issue.type] || 1.0;
         }
-        
+
         if (issue.severity === 'error') {
             weight *= 1.2;
         } else if (issue.severity === 'warning') {
@@ -261,24 +256,24 @@ const GrammarScoreCard = ({ grammarResult }: { grammarResult: GrammarCheckRespon
         } else {
             weight *= 0.5;
         }
-        
+
         return sum + weight;
     }, 0);
-    
+
     const errorRate = totalWords > 0 ? (weightedErrors / totalWords) * 100 : 0;
     const grammarScore = Math.max(0, Math.min(100, 100 - errorRate));
-    
+
     const getScoreColor = (score: number) => {
         if (score >= 90) return { bg: 'bg-green-100', text: 'text-green-600', border: 'border-green-200' };
         if (score >= 75) return { bg: 'bg-blue-100', text: 'text-blue-600', border: 'border-blue-200' };
         if (score >= 60) return { bg: 'bg-orange-100', text: 'text-orange-600', border: 'border-orange-200' };
         return { bg: 'bg-red-100', text: 'text-red-600', border: 'border-red-200' };
     };
-    
+
     const colors = getScoreColor(grammarScore);
     const errorCount = grammarResult.issues.filter(i => i.severity === 'error').length;
     const warningCount = grammarResult.issues.filter(i => i.severity === 'warning').length;
-    
+
     return (
         <div className={`bg-white border ${colors.border} rounded-xl p-4 shadow-sm mb-3`}>
             <div className="flex items-center justify-between mb-3">
@@ -296,7 +291,7 @@ const GrammarScoreCard = ({ grammarResult }: { grammarResult: GrammarCheckRespon
                     <div className="text-2xl font-bold">{Math.round(grammarScore)}</div>
                 </div>
             </div>
-            
+
             <div className="space-y-1.5">
                 <div className="flex justify-between items-center">
                     <span className="text-gray-600 text-xs font-medium">Total Issues</span>
@@ -315,7 +310,7 @@ const GrammarScoreCard = ({ grammarResult }: { grammarResult: GrammarCheckRespon
                     <span className="text-orange-600 font-bold text-xs">{warningCount}</span>
                 </div>
             </div>
-            
+
             {grammarResult.ai_overall_feedback && (
                 <div className="mt-3 pt-3 border-t border-gray-100">
                     <div className="text-[10px] text-gray-400 uppercase font-bold mb-1 flex items-center gap-1">
@@ -331,11 +326,11 @@ const GrammarScoreCard = ({ grammarResult }: { grammarResult: GrammarCheckRespon
 const VerdictCard = ({ result, issueCount, detectedLanguage }: { result: StudentDiagnosisResult, issueCount: number, detectedLanguage?: string }) => {
     const isGood = result.proficiency === ProficiencyLevel.PROFICIENT || result.proficiency === ProficiencyLevel.ADVANCED;
     const [activeStat, setActiveStat] = useState<'score' | 'issues' | null>(null);
-    
-    const languageDisplay = detectedLanguage === 'tl' ? '🇵🇭 Filipino' : 
-                           detectedLanguage === 'en' ? '🇺🇸 English' : 
+
+    const languageDisplay = detectedLanguage === 'tl' ? '🇵🇭 Filipino' :
+                           detectedLanguage === 'en' ? '🇺🇸 English' :
                            detectedLanguage ? `${detectedLanguage.toUpperCase()}` : 'Unknown';
-    
+
     return (
         <div className="bg-gradient-to-br from-white to-gray-50 border border-gray-200 rounded-2xl p-4 shadow-sm mb-3 relative overflow-visible">
             <div className={`absolute top-0 right-0 w-20 h-20 rounded-full -mr-8 -mt-8 opacity-20 pointer-events-none ${isGood ? 'bg-green-400' : 'bg-orange-400'}`}></div>
@@ -364,15 +359,15 @@ const VerdictCard = ({ result, issueCount, detectedLanguage }: { result: Student
             </p>
 
             <div className="flex gap-2 relative">
-                 <div 
+                 <div
                     className="flex-1 bg-white border border-gray-200 rounded-lg p-2 text-center cursor-pointer hover:border-teal-200 hover:shadow-md transition-all group"
                     onClick={() => setActiveStat(activeStat === 'score' ? null : 'score')}
                  >
                     <div className="text-[10px] text-gray-400 uppercase font-bold group-hover:text-teal-500">NAT Score</div>
                     <div className="text-base font-bold text-teal-600">{result.natScore}</div>
                  </div>
-                 
-                 <div 
+
+                 <div
                     className="flex-1 bg-white border border-gray-200 rounded-lg p-2 text-center cursor-pointer hover:border-red-200 hover:shadow-md transition-all group"
                     onClick={() => setActiveStat(activeStat === 'issues' ? null : 'issues')}
                  >
@@ -397,14 +392,14 @@ const VerdictCard = ({ result, issueCount, detectedLanguage }: { result: Student
     );
 };
 
-const SuggestionPopover = ({ 
-    active, 
-    onAccept, 
-    onDismiss 
-}: { 
-    active: ActiveIssueState | null, 
-    onAccept: () => void, 
-    onDismiss: () => void 
+const SuggestionPopover = ({
+    active,
+    onAccept,
+    onDismiss
+}: {
+    active: ActiveIssueState | null,
+    onAccept: () => void,
+    onDismiss: () => void
 }) => {
     if (!active) return null;
 
@@ -431,7 +426,7 @@ const SuggestionPopover = ({
                     <IoCloseCircle className="text-base" />
                 </button>
             </div>
-            
+
             <div className="mb-2">
                 <div className="text-gray-400 line-through text-xs mb-0.5">{active.issue.original}</div>
                 <div className="text-gray-900 font-bold text-base flex items-center gap-2 break-words">
@@ -447,13 +442,13 @@ const SuggestionPopover = ({
             )}
 
             <div className="flex gap-2">
-                <button 
+                <button
                     onClick={onAccept}
                     className="flex-1 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold py-1.5 px-3 rounded-lg transition-colors flex items-center justify-center gap-1"
                 >
                     Accept
                 </button>
-                <button 
+                <button
                     onClick={onDismiss}
                     className="w-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-500 rounded-lg transition-colors"
                 >
@@ -464,16 +459,16 @@ const SuggestionPopover = ({
     );
 };
 
-const InteractiveEditor = ({ 
-    text, 
-    issues, 
+const InteractiveEditor = ({
+    text,
+    issues,
     grammarIssues,
     proficientWords,
     onIssueClick,
     detectedLanguage,
     geminiApiKey
-}: { 
-    text: string, 
+}: {
+    text: string,
     issues: GrammarIssue[],
     grammarIssues?: GrammarServiceIssue[],
     proficientWords?: string[],
@@ -493,33 +488,30 @@ const InteractiveEditor = ({
 
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    // Extract surrounding sentence for context
     const getSentenceContext = (wordOffset: number): string => {
         const beforeText = text.slice(Math.max(0, wordOffset - 100), wordOffset);
         const afterText = text.slice(wordOffset, Math.min(text.length, wordOffset + 100));
         const fullContext = beforeText + afterText;
-        
-        // Try to find sentence boundaries
+
         const sentenceMatch = fullContext.match(/[.!?]\s*([^.!?]+)/);
         if (sentenceMatch) return sentenceMatch[1];
-        
+
         return fullContext.trim();
     };
 
     const handleWordEnter = (word: string, e: React.MouseEvent, grammarIssue?: GrammarServiceIssue) => {
         const cleanWord = word.replace(/[^\w'-]/g, '').trim();
         if (cleanWord.length < 2) return;
-        
+
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
         const rect = e.currentTarget.getBoundingClientRect();
         const x = rect.left + rect.width / 2;
-        
-        // Check space above (approx 300px needed for unified tooltip)
+
         const spaceAbove = rect.top;
         const placement = spaceAbove < 300 ? 'bottom' : 'top';
         const y = placement === 'top' ? rect.top : rect.bottom;
-        
+
         setDefTooltip({
             visible: true,
             word: cleanWord,
@@ -529,13 +521,13 @@ const InteractiveEditor = ({
             placement,
             grammarIssue
         });
-        
+
         timeoutRef.current = setTimeout(async () => {
              try {
-                // Find word position in text for context
+
                 const wordIndex = text.toLowerCase().indexOf(cleanWord.toLowerCase());
                 const context = wordIndex >= 0 ? getSentenceContext(wordIndex) : undefined;
-                
+
                 const lang = detectedLanguage === 'tl' ? 'tl' : 'en';
                 console.log('🔍 Definition request:', { word: cleanWord, detectedLanguage, lang, hasApiKey: !!geminiApiKey, apiKeyLength: geminiApiKey?.length });
                 const data = await getDefinition(cleanWord, lang, context, geminiApiKey);
@@ -546,12 +538,12 @@ const InteractiveEditor = ({
             }
         }, 500);
     };
-    
+
     const handleWordLeave = () => {
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
         setDefTooltip(prev => ({ ...prev, visible: false }));
     };
-    
+
     const grammarHighlights: { offset: number, length: number, issue: GrammarServiceIssue }[] = [];
     if (grammarIssues) {
         grammarIssues.forEach(issue => {
@@ -562,32 +554,32 @@ const InteractiveEditor = ({
             });
         });
     }
-    
+
     grammarHighlights.sort((a, b) => a.offset - b.offset);
-    
+
     const segments: { text: string, grammarIssue?: GrammarServiceIssue, diagIssue?: GrammarIssue }[] = [];
     let pos = 0;
-    
+
     grammarHighlights.forEach(highlight => {
         if (highlight.offset > pos) {
             segments.push({ text: text.substring(pos, highlight.offset) });
         }
-        segments.push({ 
+        segments.push({
             text: text.substring(highlight.offset, highlight.offset + highlight.length),
             grammarIssue: highlight.issue
         });
         pos = highlight.offset + highlight.length;
     });
-    
+
     if (pos < text.length) {
         segments.push({ text: text.substring(pos) });
     }
-    
+
     if (!grammarIssues || grammarIssues.length === 0) {
         segments.length = 0;
         const sortedIssues = [...issues].sort((a, b) => text.indexOf(a.original) - text.indexOf(b.original));
         let searchFrom = 0;
-        
+
         sortedIssues.forEach(issue => {
             const index = text.indexOf(issue.original, searchFrom);
             if (index !== -1) {
@@ -598,7 +590,7 @@ const InteractiveEditor = ({
                 searchFrom = index + issue.original.length;
             }
         });
-        
+
         if (searchFrom < text.length) {
             segments.push({ text: text.substring(searchFrom) });
         }
@@ -610,45 +602,45 @@ const InteractiveEditor = ({
                        issue.rule_id?.includes('CAPITALIZATION') ||
                        issue.rule_id?.includes('PROPER_NOUN') ||
                        issue.rule_id?.includes('NAME_AFTER');
-        
+
         const typeStyles: Record<string, string> = {
             'spelling': 'border-b-2 border-red-500 bg-red-100/80 hover:bg-red-200',
             'grammar': 'border-b-2 border-purple-500 bg-purple-100/80 hover:bg-purple-200',
             'punctuation': 'border-b-2 border-blue-500 bg-blue-100/80 hover:bg-blue-200',
             'style': 'border-b-2 border-indigo-500 bg-indigo-100/80 hover:bg-indigo-200',
         };
-        
+
         if (isCaps) {
             return 'border-b-2 border-yellow-500 bg-yellow-100/80 hover:bg-yellow-200 cursor-pointer transition-all';
         }
-        
+
         if (typeStyles[issue.type]) {
             return typeStyles[issue.type] + ' cursor-pointer transition-all';
         }
-        
+
         switch(issue.severity) {
-            case 'error': 
+            case 'error':
                 return "border-b-2 border-red-500 bg-red-100/80 hover:bg-red-200 cursor-pointer transition-all";
-            case 'warning': 
+            case 'warning':
                 return "border-b-2 border-orange-500 bg-orange-100/80 hover:bg-orange-200 cursor-pointer transition-all";
-            case 'info': 
+            case 'info':
                 return "border-b-2 border-blue-500 bg-blue-100/80 hover:bg-blue-200 cursor-pointer transition-all";
-            default: 
+            default:
                 return "border-b-2 border-gray-500 bg-gray-100/80 hover:bg-gray-200 cursor-pointer transition-all";
         }
     };
 
     const getIssueStyle = (cat: IssueCategory) => {
         switch(cat) {
-            case IssueCategory.GRAMMAR: 
+            case IssueCategory.GRAMMAR:
                 return "border-b-2 border-red-400 bg-red-50 hover:bg-red-100 text-red-900";
-            case IssueCategory.CLARITY: 
+            case IssueCategory.CLARITY:
                 return "border-b-2 border-blue-400 bg-blue-50 hover:bg-blue-100 text-blue-900";
-            case IssueCategory.VOCABULARY: 
+            case IssueCategory.VOCABULARY:
                 return "border-b-2 border-purple-400 bg-purple-50 hover:bg-purple-100 text-purple-900";
-            case IssueCategory.STYLE: 
+            case IssueCategory.STYLE:
                 return "border-b-2 border-orange-400 bg-orange-50 hover:bg-orange-100 text-orange-900";
-            default: 
+            default:
                 return "border-b-2 border-gray-400";
         }
     };
@@ -675,7 +667,7 @@ const InteractiveEditor = ({
             }
             if (isWord) {
                  return (
-                    <span 
+                    <span
                         key={`${part}-${idx}`}
                         className="hover:bg-gray-100 cursor-text rounded-sm transition-colors"
                         onMouseEnter={(e) => handleWordEnter(part, e)}
@@ -694,7 +686,7 @@ const InteractiveEditor = ({
             {segments.map((seg, i) => {
                 if (seg.grammarIssue) {
                     return (
-                        <span 
+                        <span
                             key={i}
                             onMouseEnter={(e) => handleWordEnter(seg.text, e, seg.grammarIssue)}
                             onMouseLeave={handleWordLeave}
@@ -706,7 +698,7 @@ const InteractiveEditor = ({
                 }
                 if (seg.diagIssue) {
                     return (
-                        <span 
+                        <span
                             key={i}
                             onClick={(e) => {
                                 e.stopPropagation();
@@ -722,13 +714,13 @@ const InteractiveEditor = ({
             })}
 
             {defTooltip.visible && (
-                <div 
+                <div
                     className="fixed z-50 bg-white text-gray-800 p-5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] border border-gray-100 w-[320px] max-w-[90vw] pointer-events-auto animate-in fade-in zoom-in-95 duration-200 overflow-hidden"
                     style={{
                         top: defTooltip.pos.y,
                         left: defTooltip.pos.x,
-                        transform: defTooltip.placement === 'top' 
-                            ? 'translate(-50%, -100%) translateY(-15px)' 
+                        transform: defTooltip.placement === 'top'
+                            ? 'translate(-50%, -100%) translateY(-15px)'
                             : 'translate(-50%, 15px)',
                         fontFamily: 'system-ui, -apple-system, sans-serif'
                     }}
@@ -740,7 +732,7 @@ const InteractiveEditor = ({
                          </div>
                     ) : defTooltip.data ? (
                         <div className="space-y-4">
-                             {/* Grammar Issue Section */}
+                             {}
                              {defTooltip.grammarIssue && (
                                  <div className="border-b border-gray-200 pb-3 mb-3">
                                      <div className="flex items-start gap-2">
@@ -781,8 +773,8 @@ const InteractiveEditor = ({
                                      </div>
                                  </div>
                              )}
-                             
-                             {/* Word Definition Section */}
+
+                             {}
                              <div className="flex items-start justify-between border-b border-gray-100 pb-3 gap-2">
                                  <div>
                                      <h3 className="font-bold text-xl text-gray-900 capitalize tracking-tight leading-tight">{defTooltip.data.word}</h3>
@@ -800,7 +792,7 @@ const InteractiveEditor = ({
                                      </span>
                                  )}
                              </div>
-                             
+
                              <div className="space-y-3">
                                 {defTooltip.data.definitions.length > 0 ? (
                                     <div className="space-y-2">
@@ -826,7 +818,7 @@ const InteractiveEditor = ({
                                     </div>
                                 )}
                              </div>
-                             
+
                              {defTooltip.data.synonyms.length > 0 && (
                                  <div className="pt-3 border-t border-gray-50">
                                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest block mb-2">Synonyms</span>
@@ -842,8 +834,8 @@ const InteractiveEditor = ({
                         </div>
                     ) : null}
                     <div className={`absolute left-1/2 -translate-x-1/2 w-4 h-4 bg-white border-gray-100 transform rotate-45 shadow-sm ${
-                        defTooltip.placement === 'top' 
-                            ? 'bottom-[-8px] border-b border-r' 
+                        defTooltip.placement === 'top'
+                            ? 'bottom-[-8px] border-b border-r'
                             : 'top-[-8px] border-t border-l'
                     }`}></div>
                 </div>
@@ -863,17 +855,17 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
   const [useReferenceValidation, setUseReferenceValidation] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  
+
   const [diagnosisResult, setDiagnosisResult] = useState<StudentDiagnosisResult | null>(null);
   const [complexityResult, setComplexityResult] = useState<TextComplexityResult | null>(null);
   const [currentIssues, setCurrentIssues] = useState<GrammarIssue[]>([]);
   const [grammarResult, setGrammarResult] = useState<GrammarCheckResponse | null>(null);
   const geminiApiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
-  
+
   const [selectedFile, setSelectedFile] = useState<{base64: string, mimeType: string, name: string} | null>(null);
-  
+
   const [activeIssue, setActiveIssue] = useState<ActiveIssueState | null>(null);
-  
+
     const fileInputRef = useRef<HTMLInputElement>(null);
     const referenceFileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -881,8 +873,7 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
   const hasResults = !!diagnosisResult && !!complexityResult;
 
         useEffect(() => {
-                // Don't auto-load references - let user decide
-                // initialReferenceFiles are available but not automatically applied
+
         }, [initialReferenceFiles]);
 
     useEffect(() => {
@@ -909,11 +900,11 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
     }, [selectedAnalysis]);
 
   const handleAnalyze = async () => {
-    setErrorMessage(null); 
+    setErrorMessage(null);
     setActiveIssue(null);
-    
+
     const textToAnalyze = inputText || currentText;
-    
+
     if (!textToAnalyze.trim() && !selectedFile) {
         setErrorMessage("Please enter text or upload a document to analyze.");
         return;
@@ -922,29 +913,28 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
         setErrorMessage("Text is too short. Please provide at least 15 characters for analysis.");
         return;
     }
-    
+
     if (isLoading) return;
-    
+
     setIsLoading(true);
-    
+
     const finalText = textToAnalyze;
     setCurrentText(finalText);
     setInputText("");
 
     try {
-      
+
       const [diag, comp, grammar] = await Promise.all([
         analyzeStudentWorkAPI(finalText, selectedFile?.base64),
         classifyTextComplexityAPI(finalText, selectedFile?.base64),
         checkGrammar(finalText, geminiApiKey).catch(() => null)
       ]);
-      
+
       if (diag.analyzed_text) {
         console.log("📄 Analyzed text from API:", diag.analyzed_text);
         setCurrentText(diag.analyzed_text);
       }
-      
-            // Only validate with reference if user has enabled it
+
             if (useReferenceValidation && showReferenceInput) {
                 const referenceFilesToUse = referenceFiles.length > 0 ? referenceFiles : undefined;
                 if (referenceText.trim().length > 5 || referenceFilesToUse) {
@@ -961,7 +951,7 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
       setComplexityResult(comp);
       setCurrentIssues(diag.issues);
       setGrammarResult(grammar);
-      
+
             if (onSaveAnalysis) {
                 const analyzedText = diag.analyzed_text || finalText;
                 const firstLine = analyzedText.split("\n").find((line) => line.trim().length > 0) || "Untitled Analysis";
@@ -1171,11 +1161,11 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
 
   return (
     <div className="flex flex-col h-full bg-white relative">
-      
-      <SuggestionPopover 
-        active={activeIssue} 
-        onAccept={handleAcceptSuggestion} 
-        onDismiss={handleDismissSuggestion} 
+
+      <SuggestionPopover
+        active={activeIssue}
+        onAccept={handleAcceptSuggestion}
+        onDismiss={handleDismissSuggestion}
       />
 
             {isSaveReferenceModalOpen && (
@@ -1274,16 +1264,16 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
          </button>
       </header>
 
-      <div 
-        className="flex-1 overflow-y-auto overflow-x-visible" 
-        ref={scrollRef} 
-        onClick={() => setActiveIssue(null)} 
+      <div
+        className="flex-1 overflow-y-auto overflow-x-visible"
+        ref={scrollRef}
+        onClick={() => setActiveIssue(null)}
         style={{ position: 'relative' }}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-         
+
          {!hasResults && !isLoading && !currentText && (
             <div className={`flex flex-col items-center justify-center h-[calc(100vh-200px)] animate-in fade-in zoom-in-95 duration-500 transition-all ${isDragging ? 'scale-105' : ''}`}>
                 <div className={`w-20 h-20 bg-teal-50 rounded-2xl flex items-center justify-center mb-6 shadow-sm transition-all ${isDragging ? 'bg-teal-100 scale-110 shadow-lg' : ''}`}>
@@ -1305,7 +1295,7 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
 
          {hasResults && !isLoading && (
              <div className="flex flex-col lg:flex-row gap-4 p-4 pb-48 max-w-[1800px] mx-auto h-full min-h-full">
-                 
+
                  <div className="flex-1 bg-white rounded-xl relative border border-gray-100 shadow-sm flex flex-col min-h-[400px]" style={{ overflow: 'visible' }}>
                      <div className="sticky top-0 bg-white/95 backdrop-blur-sm z-10 py-2 px-4 border-b border-gray-100 mb-4 flex gap-3 text-[10px] font-semibold text-gray-500 rounded-t-xl uppercase tracking-wider flex-wrap">
                          <div className="flex items-center gap-1.5">
@@ -1329,9 +1319,9 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
                              <span>Style</span>
                          </div>
                      </div>
-                     
+
                      <div className="prose max-w-none px-6 pb-6 flex-1 overflow-y-auto" onClick={(e) => e.stopPropagation()} style={{maxHeight: 'calc(100vh - 250px)'}}>
-                         <InteractiveEditor 
+                         <InteractiveEditor
                              text={currentText}
                              issues={currentIssues}
                              grammarIssues={grammarResult?.issues}
@@ -1344,14 +1334,14 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
                  </div>
 
                  <div className="w-full lg:w-[360px] shrink-0 space-y-3">
-                     
+
                      {diagnosisResult && (
                         <VerdictCard result={diagnosisResult} issueCount={currentIssues.length} detectedLanguage={grammarResult?.detected_language} />
                      )}
 
                      {diagnosisResult?.contentValidation?.hasReference && (
-                        <ResultCard 
-                            title="Content Accuracy" 
+                        <ResultCard
+                            title="Content Accuracy"
                             description="Semantic validation against teacher's reference material."
                         >
                             <div className="flex items-center justify-between mb-3">
@@ -1362,25 +1352,25 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
                                     </div>
                                 </div>
                                 <div className={`px-3 py-2 rounded-lg font-bold text-sm ${
-                                    diagnosisResult.contentValidation.accuracyScore > 70 
-                                        ? 'bg-green-100 text-green-700' 
-                                        : diagnosisResult.contentValidation.accuracyScore > 50 
-                                        ? 'bg-orange-100 text-orange-700' 
+                                    diagnosisResult.contentValidation.accuracyScore > 70
+                                        ? 'bg-green-100 text-green-700'
+                                        : diagnosisResult.contentValidation.accuracyScore > 50
+                                        ? 'bg-orange-100 text-orange-700'
                                         : 'bg-red-100 text-red-700'
                                 }`}>
                                     {diagnosisResult.contentValidation.accuracyScore > 70 ? '✓ Correct' : diagnosisResult.contentValidation.accuracyScore > 50 ? '~ Partial' : '✗ Needs Work'}
                                 </div>
                             </div>
-                            
+
                             <div className="mb-3 text-center">
                                 <div className={`text-3xl font-bold ${
-                                    diagnosisResult.contentValidation.accuracyScore > 75 ? 'text-green-600' : 
+                                    diagnosisResult.contentValidation.accuracyScore > 75 ? 'text-green-600' :
                                     diagnosisResult.contentValidation.accuracyScore > 50 ? 'text-orange-500' : 'text-red-500'
                                 }`}>
                                     {diagnosisResult.contentValidation.accuracyScore}%
                                 </div>
                             </div>
-                            
+
                             {diagnosisResult.contentValidation.missingPoints.length > 0 && (
                                 <div className="mb-2">
                                     <h4 className="text-[10px] font-bold text-red-400 uppercase mb-1">Missing Concepts</h4>
@@ -1402,7 +1392,7 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
                                     </ul>
                                 </div>
                             )}
-                            
+
                             <div className="bg-teal-50 p-2 rounded-lg text-xs text-teal-800 italic border border-teal-100 mt-2">
                                 <IoSparkles className="inline mr-1 text-teal-500"/>
                                 "{diagnosisResult.contentValidation.suggestion}"
@@ -1410,8 +1400,8 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
                         </ResultCard>
                      )}
 
-                     <ResultCard 
-                        title="Readability" 
+                     <ResultCard
+                        title="Readability"
                         description={
                             <div className="space-y-1">
                                 <p>SVM-based complexity analysis aligned with Grade 7 Cognitive Depth Baselines (NLCA/Phil-IRI):</p>
@@ -1425,7 +1415,7 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
                      >
                          <div className={`
                             py-3 rounded-lg text-center font-bold text-lg mb-1
-                            ${complexityResult?.level === ComplexityLevel.EVALUATIVE ? 'bg-red-50 text-red-700' : 
+                            ${complexityResult?.level === ComplexityLevel.EVALUATIVE ? 'bg-red-50 text-red-700' :
                               complexityResult?.level === ComplexityLevel.INFERENTIAL ? 'bg-orange-50 text-orange-700' : 'bg-green-50 text-green-700'}
                          `}>
                             {complexityResult?.level === ComplexityLevel.EVALUATIVE ? 'Difficult' : complexityResult?.level}
@@ -1487,14 +1477,14 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
                      )}
 
                      <ResultCard title="Proficiency Metrics" description="Metrics extracted for the Student Diagnosis (Proficiency) SVM model.">
-                        <MetricRow 
-                            label="TTR (Vocab Richness)" 
-                            value={`${diagnosisResult?.metrics.vocabularyRichness}%`} 
+                        <MetricRow
+                            label="TTR (Vocab Richness)"
+                            value={`${diagnosisResult?.metrics.vocabularyRichness}%`}
                             info="Type-Token Ratio: A higher percentage indicates a more diverse vocabulary."
                         />
-                         <MetricRow 
-                            label="Structure Cohesion" 
-                            value={`${diagnosisResult?.metrics.structureCohesion}%`} 
+                         <MetricRow
+                            label="Structure Cohesion"
+                            value={`${diagnosisResult?.metrics.structureCohesion}%`}
                             info="Measures the variance in sentence length. Consistent variance often indicates better flow."
                         />
                      </ResultCard>
@@ -1506,7 +1496,7 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
 
       <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-white via-white to-transparent pointer-events-none flex justify-center z-50">
           <div className="pointer-events-auto w-full max-w-3xl relative flex flex-col items-center">
-              
+
               {errorMessage && (
                   <div className="absolute -top-14 left-0 right-0 flex justify-center z-10 animate-in slide-in-from-bottom-2 fade-in duration-300">
                       <div className="bg-red-50 text-red-600 px-3 py-2 rounded-lg text-xs font-medium shadow-sm border border-red-100 flex items-center gap-2 backdrop-blur-sm">
@@ -1564,7 +1554,7 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
                                >
                                    <IoAttachOutline className="text-base rotate-45"/>
                                </button>
-                               <button 
+                               <button
                                 onClick={handleSaveClick}
                                 title="Save to References"
                                 className="text-gray-400 hover:text-teal-600 transition-colors"
@@ -1582,7 +1572,7 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
                                </button>
                            </div>
                        </div>
-                       
+
                        <textarea
                            value={referenceText}
                            onChange={(e) => setReferenceText(e.target.value)}
@@ -1590,7 +1580,7 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
                            className="w-full border border-gray-200 rounded-lg p-2 text-xs focus:ring-2 focus:ring-teal-200 focus:border-teal-400 outline-none resize-none mb-2"
                            rows={3}
                        />
-                       
+
                        {currentReferenceName && (
                            <div className="mb-2 px-1 text-[10px] text-teal-600 font-medium">
                                Loaded: {currentReferenceName}
@@ -1606,7 +1596,7 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
                                </ul>
                            </div>
                        )}
-                       
+
                        {!useReferenceValidation && (
                            <div className="px-1 text-[10px] text-orange-500 italic bg-orange-50 rounded p-2 mt-1">
                                ⚠️ Reference validation disabled. Check "Use Reference" to validate content accuracy.
@@ -1628,7 +1618,7 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
                   </div>
               )}
 
-              <div 
+              <div
                   className={`
                   w-full
                   bg-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.08)] border transition-all flex items-center p-1.5 pr-1.5 relative group
@@ -1639,12 +1629,12 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
               >
-                  <input 
-                    type="file" ref={fileInputRef} className="hidden" 
+                  <input
+                    type="file" ref={fileInputRef} className="hidden"
                     onChange={handleFileSelect}
                     accept=".txt,image/*,.pdf"
                   />
-                  
+
                   <textarea
                     value={inputText}
                     onChange={handleInputChange}
@@ -1654,7 +1644,7 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
                   />
 
                   <div className="flex items-center gap-1 pr-1">
-                      <button 
+                      <button
                         onClick={() => setShowReferenceInput(!showReferenceInput)}
                         title="Add Reference Material"
                         className={`p-2 transition-colors rounded-full ${showReferenceInput ? 'bg-teal-50 text-teal-600' : 'text-gray-400 hover:text-teal-600 hover:bg-gray-100'}`}
@@ -1662,13 +1652,13 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
                           <IoBookOutline className="text-lg" />
                       </button>
 
-                      <button 
+                      <button
                         onClick={() => fileInputRef.current?.click()}
                         className="p-2 text-gray-400 hover:text-teal-600 transition-colors rounded-full hover:bg-gray-100"
                       >
                           <IoAttachOutline className="text-lg rotate-45" />
                       </button>
-                      <button 
+                      <button
                         onClick={handleAnalyze}
                         disabled={(!inputText.trim() && !selectedFile) || isLoading}
                         className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${

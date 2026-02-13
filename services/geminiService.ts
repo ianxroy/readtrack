@@ -7,19 +7,12 @@ const ai = new GoogleGenAI({ apiKey });
 
 const MODEL_NAME = 'gemini-2.5-flash';
 
-/**
- * CONTENT VALIDATION SERVICE
- * 
- * Uses Generative AI to compare student output against a teacher-provided reference.
- * This is the semantic layer of the ReadTrack Hybrid Architecture.
- */
-
 export const validateContentWithGemini = async (
-  studentText: string, 
+  studentText: string,
   referenceText?: string,
   referenceFiles?: { mimeType: string; base64: string; name?: string }[]
 ): Promise<ContentValidation> => {
-  
+
   if ((!referenceText || referenceText.length < 5) && (!referenceFiles || referenceFiles.length === 0)) {
       return {
         hasReference: false,
@@ -33,14 +26,14 @@ export const validateContentWithGemini = async (
   const prompt = `
     Act as a Teacher's Assistant.
     Compare the STUDENT ANSWER below with the REFERENCE MATERIAL / ANSWER KEY.
-    
+
     STUDENT ANSWER: "${studentText}"
     ${referenceText && referenceText.length > 0 ? `\nREFERENCE MATERIAL (TEXT): "${referenceText}"` : ""}
     ${referenceFiles && referenceFiles.length > 0 ? `\nREFERENCE MATERIAL (FILES): ${referenceFiles.map(f => f.name || 'attached file').join(', ')} (use the attached files)` : ""}
-    
+
     Tasks:
     1. Determine an Accuracy Score (0-100).
-       CRITICAL SCORING INSTRUCTION: prioritize the presence of the CORE THOUGHT or INTENT. 
+       CRITICAL SCORING INSTRUCTION: prioritize the presence of the CORE THOUGHT or INTENT.
        If the student captures the main idea (the thought is there), consider it correct and give credit, even if the phrasing is imperfect or strictly not identical.
        Do not be overly pedantic about minor details if the fundamental concept is understood.
     2. List Missing Concepts (key points in reference completely absent in student work).

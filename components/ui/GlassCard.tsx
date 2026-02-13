@@ -11,9 +11,9 @@ export const GlassCard: React.FC<GlassCardProps> = ({ children, className = "", 
   return (
     <div className={`
       relative overflow-hidden
-      bg-white/85 backdrop-blur-xl 
-      border border-white/40 
-      rounded-[32px] p-6 shadow-xl 
+      bg-white/85 backdrop-blur-xl
+      border border-white/40
+      rounded-[32px] p-6 shadow-xl
       transition-all duration-300 hover:shadow-2xl hover:bg-white/90
       ${className}
     `}>

@@ -28,7 +28,7 @@ export const MetricRow = ({ label, value, info }: { label: string, value: string
 
     return (
         <div className="relative" ref={containerRef}>
-            <div 
+            <div
                 className={`flex justify-between items-center py-2 border-b border-gray-50 last:border-0 ${info ? 'cursor-pointer hover:bg-teal-50/40' : ''} transition-all duration-200 px-2 -mx-2 rounded-lg group`}
                 onClick={handleClick}
             >

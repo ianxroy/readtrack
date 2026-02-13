@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { ReferenceFile, ViewState, CachedAnalysis } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
+import {
   IoCloudUploadOutline,
   IoBookOutline,
   IoCheckmarkCircle,
@@ -44,17 +44,17 @@ interface SidebarContentProps {
   onItemClick?: () => void;
 }
 
-const SidebarContent: React.FC<SidebarContentProps> = ({ 
-  activeView, 
-  onViewChange, 
-  onReferenceUpload, 
+const SidebarContent: React.FC<SidebarContentProps> = ({
+  activeView,
+  onViewChange,
+  onReferenceUpload,
   savedReferences,
   onDeleteReference,
     onUpdateReference,
   recentAnalyses = [],
   onDeleteAnalysis,
     onSelectAnalysis,
-  onItemClick 
+  onItemClick
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
@@ -82,20 +82,20 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                 setUploadedFileName(file.name);
                 if (onItemClick) onItemClick();
             };
-            reader.readAsDataURL(file); 
+            reader.readAsDataURL(file);
     }
   };
 
   const NavItem = ({ view, icon: Icon, label }: { view: ViewState, icon: any, label: string }) => (
-    <button 
+    <button
         onClick={() => {
             onViewChange(view);
             if (onItemClick) onItemClick();
         }}
         className={`
             w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left mb-1
-            ${activeView === view 
-                ? 'bg-teal-50 text-teal-700 font-semibold shadow-sm' 
+            ${activeView === view
+                ? 'bg-teal-50 text-teal-700 font-semibold shadow-sm'
                 : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}
         `}
     >
@@ -189,7 +189,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
         </div>
 
         <div className="flex-1 overflow-y-auto py-6 px-4">
-            
+
             <div className="mb-8">
                 <div className="px-3 mb-2 text-[11px] font-bold uppercase tracking-wider text-gray-400">
                     Menu
@@ -203,8 +203,8 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                     References
                 </div>
                 <div className="bg-white border border-teal-100 rounded-2xl shadow-sm p-3">
-                
-                <div 
+
+                <div
                     onClick={() => fileInputRef.current?.click()}
                     className="
                     mb-3 px-4 py-3 rounded-xl border-2 border-dashed border-teal-300 bg-teal-50
@@ -212,12 +212,12 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                     flex items-center gap-3 group
                     "
                 >
-                    <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        className="hidden" 
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        className="hidden"
                         onChange={handleFileChange}
-                        accept=".txt,.md,.csv" 
+                        accept=".txt,.md,.csv"
                     />
                     <div className="w-10 h-10 rounded-xl bg-teal-100 text-teal-600 flex items-center justify-center group-hover:bg-teal-200 transition-colors">
                         {uploadedFileName ? <IoCheckmarkCircle /> : <IoCloudUploadOutline />}
@@ -232,7 +232,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
 
                 <div className="space-y-1">
                     {savedReferences.map((ref) => (
-                        <div 
+                        <div
                             key={ref.id}
                             className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 transition-all group"
                         >
@@ -275,7 +275,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                 </div>
                 <div className="space-y-1">
                     {recentAnalyses.map((analysis) => (
-                        <div 
+                        <div
                             key={analysis.id}
                             className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 transition-all group"
                         >
@@ -332,7 +332,6 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
   );
 };
 
-
 export const Navigation: React.FC<NavigationProps> = (props) => {
   return (
     <>
@@ -343,14 +342,14 @@ export const Navigation: React.FC<NavigationProps> = (props) => {
       <AnimatePresence>
         {props.isMobileOpen && (
             <>
-                <motion.div 
+                <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     onClick={props.onMobileClose}
                     className="md:hidden fixed inset-0 bg-black/20 backdrop-blur-sm z-40"
                 />
-                
+
                 <motion.div
                     initial={{ x: "-100%" }}
                     animate={{ x: 0 }}
@@ -358,7 +357,7 @@ export const Navigation: React.FC<NavigationProps> = (props) => {
                     transition={{ type: "spring", stiffness: 300, damping: 30 }}
                     className="md:hidden fixed inset-y-0 left-0 w-[80%] max-w-[300px] bg-white z-50 shadow-2xl border-r border-gray-100"
                 >
-                    <button 
+                    <button
                         onClick={props.onMobileClose}
                         className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600"
                     >

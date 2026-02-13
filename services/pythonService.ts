@@ -1,16 +1,10 @@
-import { 
-    StudentDiagnosisResult, 
-    TextComplexityResult 
+import {
+    StudentDiagnosisResult,
+    TextComplexityResult
 } from "../types";
 
-/**
- * Calls the FastAPI backend to analyze student text.
- * @param text The text to analyze.
- * @param base64Image Optional base64 encoded image string.
- * @returns A promise that resolves to a StudentDiagnosisResult.
- */
 export const analyzeStudentWorkAPI = async (text: string, base64Image?: string): Promise<StudentDiagnosisResult> => {
-    const response = await fetch('http://127.0.0.1:8000/analyze/student', {
+    const response = await fetch('http://localhost:8000/analyze/student', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -26,14 +20,8 @@ export const analyzeStudentWorkAPI = async (text: string, base64Image?: string):
     return response.json();
 };
 
-/**
- * Calls the FastAPI backend to classify text complexity.
- * @param text The text to classify.
- * @param base64Image Optional base64 encoded image string.
- * @returns A promise that resolves to a TextComplexityResult.
- */
 export const classifyTextComplexityAPI = async (text: string, base64Image?: string): Promise<TextComplexityResult> => {
-    const response = await fetch('http://127.0.0.1:8000/analyze/complexity', {
+    const response = await fetch('http://localhost:8000/analyze/complexity', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -49,13 +37,8 @@ export const classifyTextComplexityAPI = async (text: string, base64Image?: stri
     return response.json();
 };
 
-/**
- * Calls the FastAPI backend to extract text from an image using Gemini OCR.
- * @param base64Image Base64 encoded image string.
- * @returns A promise that resolves to the extracted text.
- */
 export const extractTextFromImageAPI = async (base64Image: string): Promise<string> => {
-    const response = await fetch('http://127.0.0.1:8000/ocr/extract', {
+    const response = await fetch('http://localhost:8000/ocr/extract', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -73,16 +56,13 @@ export const extractTextFromImageAPI = async (base64Image: string): Promise<stri
     return data.text || '';
 };
 
-/**
- * Ingest a reference file (text/pdf/image) and return extracted text.
- */
 export const ingestReferenceAPI = async (payload: {
     name?: string;
     mimeType?: string;
     text?: string;
     file?: string;
 }): Promise<{ title: string; text: string }> => {
-    const response = await fetch('http://127.0.0.1:8000/reference/ingest', {
+    const response = await fetch('http://localhost:8000/reference/ingest', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

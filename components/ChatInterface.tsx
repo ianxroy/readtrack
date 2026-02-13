@@ -56,7 +56,7 @@ export const ChatInterface: React.FC = () => {
     return (
         <div className="flex flex-col h-full p-4">
             <h2 className="text-2xl font-bold text-white mb-4">Text Analysis Interface</h2>
-            
+
             <div className="flex-grow flex flex-col">
                 <textarea
                     className="w-full flex-grow p-4 rounded-lg bg-gray-800 bg-opacity-60 text-white border border-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none transition"

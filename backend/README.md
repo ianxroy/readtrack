@@ -17,3 +17,8 @@
    ```
 
 The server will be available at http://localhost:5000
+
+## Documentation
+- [Model Services Overview](MODEL_SERVICES.md) - General overview of the backend models.
+- [Machine Learning Integration](ML_README.md) - Technical details on training, features, and SVM architecture.
+- [Tagalog Service](TAGALOG_SERVICE_README.md) - Details on Tagalog-specific NLP.

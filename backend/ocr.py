@@ -8,17 +8,13 @@ except ImportError:
     genai = None
     print("Warning: google-generativeai not installed. OCR functionality will be disabled.")
 
-
 def _normalize_base64(base64_string: str) -> str:
     if "," in base64_string:
         return base64_string.split(",")[1]
     return base64_string
 
-
 def extract_text_from_image(base64_string: str, api_key: Optional[str] = None) -> str:
-    """
-    Extracts text from a base64 encoded image using Gemini.
-    """
+
     if genai is None:
         return ""
 

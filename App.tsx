@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 const App: React.FC = () => {
   const [activeView, setActiveView] = useState<ViewState>('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  
+
   const [referenceFiles, setReferenceFiles] = useState<{ base64: string; mimeType: string; name: string }[]>([]);
   const [referenceFileName, setReferenceFileName] = useState<string>("");
   const [savedReferences, setSavedReferences] = useState<ReferenceFile[]>([]);
@@ -22,7 +22,7 @@ const App: React.FC = () => {
     const savedRefs = localStorage.getItem('readtrack_references');
     const savedAnalyses = localStorage.getItem('readtrack_analyses');
     const savedWorkspace = localStorage.getItem('readtrack_reference_workspace');
-    
+
     if (savedRefs) {
       try {
         const parsed: ReferenceFile[] = JSON.parse(savedRefs);
@@ -47,7 +47,7 @@ const App: React.FC = () => {
         console.error('Failed to load references:', e);
       }
     }
-    
+
     if (savedAnalyses) {
       try {
         const parsed: CachedAnalysis[] = JSON.parse(savedAnalyses);
@@ -141,12 +141,12 @@ const App: React.FC = () => {
 
   return (
     <div className="h-screen w-screen bg-[#F2F2F7] text-gray-900 font-sans selection:bg-blue-100 selection:text-blue-900 overflow-hidden">
-      
+
       <div className="max-w-[1920px] mx-auto flex flex-col md:flex-row h-full relative">
-        
-        <Navigation 
-            activeView={activeView} 
-            onViewChange={setActiveView} 
+
+        <Navigation
+            activeView={activeView}
+            onViewChange={setActiveView}
             onReferenceUpload={handleReferenceUpload}
             savedReferences={savedReferences}
             onDeleteReference={handleDeleteReference}
@@ -159,7 +159,7 @@ const App: React.FC = () => {
         />
 
         <main className="flex-1 h-full overflow-hidden flex flex-col relative bg-[#F2F2F7]">
-          
+
           <AnimatePresence mode='wait'>
             <motion.div
               key={activeView}
@@ -170,9 +170,9 @@ const App: React.FC = () => {
               className="flex-1 flex flex-col h-full min-h-0"
             >
                {activeView === 'dashboard' ? (
-                   <Dashboard 
+                   <Dashboard
                         referenceFiles={referenceFiles}
-                        referenceFileName={referenceFileName} 
+                        referenceFileName={referenceFileName}
                         onSaveReference={handleSaveReference}
                         onSaveAnalysis={handleSaveAnalysis}
                         selectedAnalysis={selectedAnalysis}
@@ -181,7 +181,7 @@ const App: React.FC = () => {
                ) : activeView === 'grammar' ? (
                    <GrammarChecker />
                ) : (
-                   <ModelEvaluation 
+                   <ModelEvaluation
                         onMenuClick={() => setIsMobileMenuOpen(true)}
                    />
                )}

@@ -12,20 +12,20 @@ interface DashboardProps {
     onMenuClick: () => void;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ 
-  referenceFiles, 
-    referenceFileName, 
+export const Dashboard: React.FC<DashboardProps> = ({
+  referenceFiles,
+    referenceFileName,
     onSaveReference,
     onSaveAnalysis,
   selectedAnalysis,
-    onMenuClick 
+    onMenuClick
 }) => {
   return (
     <div className="h-full flex flex-col">
       <div className="flex-1 min-h-0">
-        <Analyzer 
+        <Analyzer
           initialReferenceFiles={referenceFiles}
-            referenceFileName={referenceFileName} 
+            referenceFileName={referenceFileName}
             onSaveReference={onSaveReference}
             onSaveAnalysis={onSaveAnalysis}
           selectedAnalysis={selectedAnalysis}
