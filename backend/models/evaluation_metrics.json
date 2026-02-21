@@ -1,0 +1,58 @@
+{
+    "proficiency": {
+        "accuracy": "70.9%",
+        "f1": 0.71,
+        "precision": 0.71,
+        "recall": 0.71,
+        "labels": [
+            "Independent",
+            "Instructional",
+            "Frustration"
+        ],
+        "matrix": [
+            [
+                1166,
+                246,
+                10
+            ],
+            [
+                422,
+                1067,
+                315
+            ],
+            [
+                56,
+                392,
+                1271
+            ]
+        ]
+    },
+    "complexity": {
+        "accuracy": "99.1%",
+        "f1": 0.99,
+        "precision": 0.99,
+        "recall": 0.99,
+        "labels": [
+            "Literal",
+            "Inferential",
+            "Evaluative"
+        ],
+        "matrix": [
+            [
+                179,
+                2,
+                0
+            ],
+            [
+                0,
+                219,
+                1
+            ],
+            [
+                0,
+                2,
+                163
+            ]
+        ]
+    }
+}

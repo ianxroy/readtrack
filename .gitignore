@@ -27,3 +27,8 @@ dist-ssr
 /backend/__pycache__/
 /Python312/
 *.pyc
+
+backend/ASAP2_train_sourcetexts.csv
+backend/models/proficiency_model.pkl
+backend/ASAP2_train_sourcetexts_features.pkl
+backend/models/asap_linguistic_features.npy

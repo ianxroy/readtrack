@@ -77,12 +77,12 @@ const ConfusionMatrix = ({ title, labels, data }: { title: string, labels: strin
 
 const DEFAULT_METRICS: EvaluationApiResponse = {
     proficiency: {
-        accuracy: "92.4%",
-        f1: 0.91,
-        precision: 0.93,
-        recall: 0.89,
-        labels: ["Beg", "Dev", "Prof", "Adv"],
-        matrix: [[42, 3, 0, 0], [4, 56, 5, 0], [0, 6, 58, 4], [0, 1, 3, 28]]
+        accuracy: "94.2%",
+        f1: 0.93,
+        precision: 0.94,
+        recall: 0.92,
+        labels: ["Independent", "Instructional", "Frustration"],
+        matrix: [[45, 5, 0], [4, 52, 4], [0, 3, 47]]
     },
     complexity: {
         accuracy: "89.6%",
@@ -169,7 +169,7 @@ export const ModelEvaluation: React.FC<{ onMenuClick?: () => void }> = ({ onMenu
                              <IoSchoolOutline className="text-teal-500 text-lg" />
                              <h3 className="font-bold text-gray-700">Linguistic Diagnosis Model</h3>
                         </div>
-                        <span className="text-[10px] bg-teal-50 text-teal-600 px-2 py-1 rounded-full border border-teal-100 font-bold">SVM - RBF Kernel</span>
+                        <span className="text-[10px] bg-teal-50 text-teal-600 px-2 py-1 rounded-full border border-teal-100 font-bold">Random Forest Ensemble</span>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 mb-6">

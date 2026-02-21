@@ -1,5 +1,6 @@
 scikit-learn
 numpy
+pandas
 python-dotenv
 fastapi
 uvicorn
@@ -13,3 +14,9 @@ symspellpy
 google-generativeai
 pypdf
 nltk
+matplotlib
+seaborn
+tqdm
+torch
+transformers
+xgboost

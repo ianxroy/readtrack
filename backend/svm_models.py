@@ -1,6 +1,9 @@
 import numpy as np
 import pickle
+import json
+import os
 from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 
 class BaseModel:
@@ -38,11 +41,38 @@ class BaseModel:
             return idx
         return None
 
+    def _load_metrics(self, model_key):
+        base_dir = os.path.dirname(__file__)
+        metrics_path = os.path.join(base_dir, 'models', 'evaluation_metrics.json')
+        
+        default_metrics = {
+            "accuracy": "N/A",
+            "f1": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "labels": self.labels,
+            "matrix": []
+        }
+        
+        if not os.path.exists(metrics_path):
+            return default_metrics
+            
+        try:
+            with open(metrics_path, 'r') as f:
+                data = json.load(f)
+                return data.get(model_key, default_metrics)
+        except Exception:
+            return default_metrics
+
 class StudentProficiencySVM(BaseModel):
     def __init__(self):
         super().__init__()
-        self.model = SVC(kernel='rbf', probability=True, C=1.0, gamma='scale')
-        self.labels = ["Beginning", "Developing", "Proficient", "Advanced"]
+        # Switched to RandomForest for better non-linear performance
+        self.model = RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42)
+        self.labels = ["Independent", "Instructional", "Frustration"]
+
+    def get_performance_metrics(self):
+        return self._load_metrics("proficiency")
 
     def predict(self, features_data, text_content):
         vector = features_data['vector']
@@ -60,22 +90,21 @@ class StudentProficiencySVM(BaseModel):
         if ml_result:
             proficiency = ml_result
 
-            label_map = {"Beginning": 30, "Developing": 60, "Proficient": 80, "Advanced": 95}
+            label_map = {"Independent": 90, "Instructional": 65, "Frustration": 35}
             nat = label_map.get(proficiency, score)
         else:
-            if score >= 75:
-                proficiency = "Advanced" if score >= 90 else "Proficient"
+            if score >= 80:
+                proficiency = "Independent"
             elif score >= 50:
-                proficiency = "Developing"
+                proficiency = "Instructional"
             else:
-                proficiency = "Beginning"
+                proficiency = "Frustration"
             nat = score
 
         band_map = {
-            "Advanced": ("Enhancement", "Independent"),
-            "Proficient": ("Enhancement", "Independent"),
-            "Developing": ("Consolidation", "Instructional"),
-            "Beginning": ("Intervention", "Frustration")
+            "Independent": ("Enhancement", "Independent"),
+            "Instructional": ("Consolidation", "Instructional"),
+            "Frustration": ("Intervention", "Frustration")
         }
         band, iri = band_map.get(proficiency, ("Intervention", "Frustration"))
 
@@ -112,19 +141,7 @@ class TextComplexitySVM(BaseModel):
         self.labels = ["Literal", "Inferential", "Evaluative"]
 
     def get_performance_metrics(self):
-
-        return {
-            "accuracy": "89.6%",
-            "f1": 0.88,
-            "precision": 0.90,
-            "recall": 0.87,
-            "labels": self.labels,
-            "matrix": [
-                [65, 8, 2],
-                [5, 52, 6],
-                [1, 7, 44]
-            ]
-        }
+        return self._load_metrics("complexity")
 
     def predict(self, features_data, text_content):
         vector = features_data['vector']
