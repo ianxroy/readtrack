@@ -12,7 +12,7 @@ from langdetect import detect, LangDetectException
 import nltk
 from cefrpy import CEFRSpaCyAnalyzer, CEFRLevel
 
-from google import genai
+from google import generativeai as genai
 client = None
 model_name = "gemini-flash-lite-latest"
 

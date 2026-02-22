@@ -20,3 +20,5 @@ tqdm
 torch
 transformers
 xgboost
+sentencepiece
+langdetect

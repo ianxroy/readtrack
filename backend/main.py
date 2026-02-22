@@ -204,30 +204,26 @@ def ingest_reference(request: ReferenceIngestRequest):
 
 @app.post("/analyze/complexity")
 def analyze_complexity_text(request: TextRequest):
-
     try:
         text_to_analyze = request.text
         if request.image:
-            print("Processing image for complexity analysis")
             ocr_text = extract_text_from_image(request.image, GEMINI_API_KEY)
-
             if ocr_text:
-                print(f"Extracted {len(ocr_text)} characters from image")
                 text_to_analyze = (text_to_analyze + "\n" + ocr_text).strip()
-            else:
-                print("Warning: No text extracted from image")
 
         from grammar_service import detect_language
         detected_lang = detect_language(text_to_analyze)
+        
+        # Ensure preprocessing.py is synced with the training features
         features = extract_features(text_to_analyze, language=detected_lang)
+        
+        # Use the TextComplexitySVM predict method
         result = complexity_model.predict(features, text_to_analyze)
 
         result["analyzed_text"] = text_to_analyze
         return result
     except Exception as e:
         import traceback
-        print("ERROR in analyze_complexity_text:")
-        traceback.print_exc()
         return {"error": str(e), "trace": traceback.format_exc()}
 
 if __name__ == "__main__":

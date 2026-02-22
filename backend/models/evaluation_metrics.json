@@ -54,5 +54,33 @@
                 163
             ]
         ]
+    },
+    "proficiency_hybrid": {
+        "accuracy": "72.8%",
+        "f1": 0.73,
+        "precision": 0.73,
+        "recall": 0.73,
+        "labels": [
+            "Independent",
+            "Instructional",
+            "Frustration"
+        ],
+        "matrix": [
+            [
+                1066,
+                346,
+                10
+            ],
+            [
+                245,
+                1216,
+                343
+            ],
+            [
+                25,
+                374,
+                1321
+            ]
+        ]
     }
 }

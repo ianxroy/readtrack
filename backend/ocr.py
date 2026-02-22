@@ -23,7 +23,7 @@ def extract_text_from_image(base64_string: str, api_key: Optional[str] = None) -
         print("⚠ Warning: No Gemini API key available for OCR")
         return ""
 
-    model_name = os.getenv("GEMINI_OCR_MODEL", "gemini-1.5-flash")
+    model_name = os.getenv("GEMINI_OCR_MODEL", "gemini-2.5-flash")
     try:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel(model_name)
