@@ -1,0 +1,94 @@
+-- ============================================================
+-- ReadTrack - Supabase SQL Setup
+-- Run this in the Supabase SQL Editor (Dashboard > SQL Editor)
+-- ============================================================
+
+-- ----------------------------------------------------------------
+-- 1. TEACHER EVALUATIONS
+--    Stores teacher star ratings and comments on student analyses
+-- ----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS teacher_evaluations (
+  id              UUID        DEFAULT gen_random_uuid() PRIMARY KEY,
+  teacher_id      UUID        REFERENCES auth.users(id) ON DELETE SET NULL,
+  student_text    TEXT        NOT NULL,
+  proficiency_level TEXT      NOT NULL,
+  nat_score       NUMERIC(5, 2),
+  rating          INTEGER     CHECK (rating >= 1 AND rating <= 5),
+  comment         TEXT,
+  created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Row Level Security
+ALTER TABLE teacher_evaluations ENABLE ROW LEVEL SECURITY;
+
+-- Authenticated teachers can read their own rows
+CREATE POLICY "Teachers can view own evaluations"
+  ON teacher_evaluations FOR SELECT
+  USING (auth.uid() = teacher_id);
+
+-- Authenticated teachers can insert their own evaluations
+CREATE POLICY "Teachers can insert own evaluations"
+  ON teacher_evaluations FOR INSERT
+  WITH CHECK (auth.uid() = teacher_id);
+
+-- Authenticated teachers can update their own evaluations
+CREATE POLICY "Teachers can update own evaluations"
+  ON teacher_evaluations FOR UPDATE
+  USING (auth.uid() = teacher_id);
+
+-- Authenticated teachers can delete their own evaluations
+CREATE POLICY "Teachers can delete own evaluations"
+  ON teacher_evaluations FOR DELETE
+  USING (auth.uid() = teacher_id);
+
+-- Index for fast lookup by teacher
+CREATE INDEX IF NOT EXISTS idx_teacher_evaluations_teacher_id
+  ON teacher_evaluations (teacher_id);
+
+
+-- ----------------------------------------------------------------
+-- 2. TEACHER PROFILES  (optional – extends Supabase auth.users)
+--    Stores display name / school info for each teacher account
+-- ----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS teacher_profiles (
+  id          UUID  PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  full_name   TEXT,
+  school      TEXT,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE teacher_profiles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Teachers can view own profile"
+  ON teacher_profiles FOR SELECT
+  USING (auth.uid() = id);
+
+CREATE POLICY "Teachers can update own profile"
+  ON teacher_profiles FOR UPDATE
+  USING (auth.uid() = id);
+
+-- Auto-create a profile row when a new user signs up
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  INSERT INTO public.teacher_profiles (id, full_name)
+  VALUES (NEW.id, NEW.raw_user_meta_data->>'full_name');
+  RETURN NEW;
+END;
+$$;
+
+-- Trigger fires after each new Supabase auth user is created
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+
+-- ----------------------------------------------------------------
+-- NOTES
+-- ----------------------------------------------------------------
+-- Authentication is handled by Supabase Auth (no extra tables needed).
+-- Enable "Email" provider in: Supabase Dashboard > Authentication > Providers
+-- Optionally disable "Confirm email" during development:
+--   Supabase Dashboard > Authentication > Settings > Disable email confirmations
+-- ----------------------------------------------------------------

@@ -96,6 +96,12 @@ export interface TextComplexityResult {
   avgSentenceLength: number;
   difficultWordRatio: number;
   highlightedSegments: string[];
+
+  /** Readability indices computed by the trained model */
+  readability?: {
+    flesch_kincaid?: number;
+    gunning_fog?: number;
+  };
 }
 
 export interface ReferenceFile {

@@ -156,21 +156,9 @@ def extract_features(text, language="en"):
     clause_density = 0
     structure_score = 0
 
-    # Transition words for cohesion analysis
-    transitions = {"however", "therefore", "furthermore", "consequently", "specifically", 
-                   "moreover", "additionally", "nevertheless", "conversely", "meanwhile"}
-    trans_count = len([w for w in words if w.lower() in transitions])
-    trans_ratio = trans_count / sentence_count if sentence_count > 0 else 0
-
     if nlp:
-        verbs = [token.text.lower() for token in doc if token.pos_ == "VERB"]
-        nouns = [token.text.lower() for token in doc if token.pos_ == "NOUN"]
-        
-        verb_diversity = len(set(verbs)) / len(verbs) if verbs else 0
-        noun_diversity = len(set(nouns)) / len(nouns) if nouns else 0
-
-        verb_count = len(verbs)
-        noun_count = len(nouns)
+        verb_count = len([token for token in doc if token.pos_ == "VERB"])
+        noun_count = len([token for token in doc if token.pos_ == "NOUN"])
         adj_count = len([token for token in doc if token.pos_ == "ADJ"])
         adv_count = len([token for token in doc if token.pos_ == "ADV"])
         
@@ -179,12 +167,6 @@ def extract_features(text, language="en"):
         noun_ratio = noun_count / word_count if word_count > 0 else 0
         adj_ratio = adj_count / word_count if word_count > 0 else 0
         
-        # New Stylistic Markers for 90% Goal
-        pronoun_count = len([token for token in doc if token.pos_ == "PRON"])
-        conj_count = len([token for token in doc if token.pos_ == "CONJ" or token.pos_ == "CCONJ"])
-        pronoun_ratio = pronoun_count / word_count if word_count > 0 else 0
-        conj_ratio = conj_count / sentence_count if sentence_count > 0 else 0
-
         # Syntactic Complexity (Tree Depth estimate via dependency distance)
         dep_distance = 0
         for token in doc:
@@ -212,14 +194,6 @@ def extract_features(text, language="en"):
     sent_lengths = [len(s.text.split()) for s in sentences]
     sent_len_std = np.std(sent_lengths) if sent_lengths else 0
 
-    # Logical Structure for 90% Push
-    logic_words = {"if", "then", "because", "so", "unless", "since", "due to", "resulting in"}
-    logic_count = len([w for w in words if w.lower() in logic_words])
-    logic_ratio = logic_count / word_count if word_count > 0 else 0
-    
-    paragraph_count = text.count('\n\n') + 1
-    para_ratio = paragraph_count / sentence_count if sentence_count > 0 else 0
-
     feature_vector = np.array([
         ttr,
         avg_sentence_length,
@@ -241,25 +215,7 @@ def extract_features(text, language="en"):
         avg_word_length,
         syllables_per_word,
         # CEFR distribution
-        *cefr_ratios,
-        # Interaction Features for 85% Accuracy Goal
-        avg_sentence_length * advanced_ratio,
-        ttr * syllables_per_word,
-        clause_density * punct_density,
-        # Cohesion & Diversity (The 90% Push)
-        trans_ratio,
-        verb_diversity,
-        noun_diversity,
-        # Final Ceiling Features
-        len(set(token.text for token in doc if token.is_punct)) / word_count if word_count > 0 else 0,
-        sent_len_std / avg_sentence_length if avg_sentence_length > 0 else 0,
-        advanced_ratio * ttr,
-        # Pronoun ratio (captures personal narratives)
-        pronoun_ratio,
-        conj_ratio,
-        # 90% Logic & Structure
-        logic_ratio,
-        para_ratio
+        *cefr_ratios
     ]).reshape(1, -1)
 
     return {

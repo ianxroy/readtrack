@@ -15,12 +15,11 @@ def process_single_essay(row):
         score = row['score']
         features = extract_features(essay_text)
         
-        # Map Score (1-6) to Phil-IRI Levels
-        # REVISED MAPPING for better class balance and linguistic accuracy
-        # Score 4-6 → Independent (Proficient to Advanced)
-        # Score 3   → Instructional (Developing/Average)
-        # Score 1-2 → Frustration (Struggling)
-        if score >= 4:
+        # Map Score (1-6) to Phil-IRI Levels (Refined Mapping)
+        # Score 6 → Independent (elite writers only)
+        # Score 3-5 → Instructional (broader middle range)
+        # Score 1-2 → Frustration (struggling writers)
+        if score >= 6:
             label = 0 # Independent
         elif score >= 3:
             label = 1 # Instructional
@@ -94,18 +93,11 @@ def load_asap_data(path, sample_size=None):
     return X_final, y_final
 
 def load_commonlit_data(path, model_type="proficiency", sample_size=None):
-    """
-    Loads CommonLit essays with parallel processing for feature extraction.
-    """
-    try:
-        df = pd.read_csv(path)
-        print(f"Loaded CommonLit dataset with {len(df)} texts.")
-    except Exception as e:
-        print(f"Error loading CommonLit data: {e}")
-        return np.array([]), np.array([])
+    df = pd.read_csv(path)
+    X, y = [], []
     
     # Shuffle data to get a representative sample
-    df = df.sample(frac=1, random_state=42).reset_index(drop=True)
+    df = df.sample(frac=1).reset_index(drop=True)
     
     # Use all data if sample_size not specified
     if sample_size is None:
@@ -113,82 +105,36 @@ def load_commonlit_data(path, model_type="proficiency", sample_size=None):
     else:
         sample_size = min(len(df), sample_size)
     
-    print(f"Processing {sample_size} samples for {model_type} using all cores...")
-
-    # Define helper for parallel execution
-    def process_commonlit_row(row, m_type):
+    print(f"Loading {sample_size} samples for {model_type}...")
+    
+    for idx, row in df.iloc[:sample_size].iterrows():
         try:
             features = extract_features(row['excerpt'])
-            vec = features['vector'][0]
+            X.append(features['vector'][0])
             
             target = row['target']
-            lab = None
-            
-            if m_type == "proficiency":
+            if model_type == "proficiency":
                 # Phil-IRI Proficiency Mapping
                 if target > -0.5:
-                    lab = 0 # Independent
+                    y.append(0) # Independent
                 elif target > -1.8:
-                    lab = 1 # Instructional
+                    y.append(1) # Instructional
                 else:
-                    lab = 2 # Frustration
+                    y.append(2) # Frustration
             else:
-                # Complexity Mapping
+                # Complexity Mapping (Text inherent property)
                 fk = features['metrics']['readabilityIndices']['flesch_kincaid']
-                if fk < 8.0:
-                    lab = 0 # Literal
-                elif fk < 12.0:
-                    lab = 1 # Inferential
+                if fk < 12.0:
+                    y.append(0) # Literal
+                elif fk < 15.0:
+                    y.append(1) # Inferential
                 else:
-                    lab = 2 # Evaluative
-            return vec, lab
+                    y.append(2) # Evaluative
+                    
         except Exception:
-            return None, None
-
-    # Parallel Execution
-    from joblib import Parallel, delayed
-    try:
-        from tqdm import tqdm
-        iterable = tqdm(df.iloc[:sample_size].iterrows(), total=sample_size, desc=f"Extracting {model_type} features")
-    except ImportError:
-        iterable = df.iloc[:sample_size].iterrows()
-        
-    results = Parallel(n_jobs=-1)(
-        delayed(process_commonlit_row)(row, model_type) for _, row in iterable
-    )
-
-    X, y = [], []
-    for vec, lab in results:
-        if vec is not None and lab is not None:
-            X.append(vec)
-            y.append(lab)
+            continue
             
     return np.array(X), np.array(y)
-
-import json
-
-def save_model_metrics(model_key, metrics):
-    """
-    Save evaluation metrics to a JSON file in the models directory.
-    model_key: "proficiency" or "complexity"
-    metrics: dict containing accuracy, f1, precision, recall, labels, matrix
-    """
-    base_dir = os.path.dirname(__file__)
-    metrics_path = os.path.join(base_dir, 'models', 'evaluation_metrics.json')
-    
-    current_metrics = {}
-    if os.path.exists(metrics_path):
-        try:
-            with open(metrics_path, 'r') as f:
-                current_metrics = json.load(f)
-        except json.JSONDecodeError:
-            pass
-            
-    current_metrics[model_key] = metrics
-    
-    with open(metrics_path, 'w') as f:
-        json.dump(current_metrics, f, indent=4)
-    print(f"Metrics saved to {metrics_path}")
 
 def get_data_path():
     base_dir = os.path.dirname(__file__)

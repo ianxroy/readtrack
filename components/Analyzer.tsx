@@ -15,6 +15,7 @@ import {
 import { analyzeStudentWorkAPI, classifyTextComplexityAPI, extractTextFromImageAPI } from '../services/pythonService';
 import { validateContentWithGemini } from '../services/geminiService';
 import { checkGrammar, GrammarCheckResponse, GrammarIssue as GrammarServiceIssue, getDefinition, DefinitionResponse } from '../services/grammarService';
+import { saveTeacherEvaluation } from '../services/supabaseService';
 
 import {
   IoSparkles,
@@ -32,7 +33,9 @@ import {
   IoBookOutline,
   IoSaveOutline,
   IoStatsChartOutline,
-  IoMenuOutline
+  IoMenuOutline,
+  IoStarOutline,
+  IoStar
 } from "react-icons/io5";
 
 const parseMarkdown = (text: string): (string | JSX.Element)[] => {
@@ -866,6 +869,14 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
 
   const [activeIssue, setActiveIssue] = useState<ActiveIssueState | null>(null);
 
+  // Teacher evaluation state
+  const [teacherRating, setTeacherRating] = useState(0);
+  const [teacherHoverRating, setTeacherHoverRating] = useState(0);
+  const [teacherComment, setTeacherComment] = useState("");
+  const [evalSaving, setEvalSaving] = useState(false);
+  const [evalSaved, setEvalSaved] = useState(false);
+  const [evalError, setEvalError] = useState<string | null>(null);
+
     const fileInputRef = useRef<HTMLInputElement>(null);
     const referenceFileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -996,6 +1007,25 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
       const name = referenceWorkspaceName.trim() || "Reference Workspace";
       onSaveReference(name, referenceFiles);
       setIsSaveReferenceModalOpen(false);
+  };
+
+  const handleSaveEvaluation = async () => {
+    if (!diagnosisResult || teacherRating === 0) return;
+    setEvalSaving(true);
+    setEvalError(null);
+    const { error } = await saveTeacherEvaluation({
+      student_text: currentText,
+      proficiency_level: diagnosisResult.proficiency,
+      nat_score: diagnosisResult.natScore,
+      rating: teacherRating,
+      comment: teacherComment.trim() || undefined,
+    });
+    setEvalSaving(false);
+    if (error) {
+      setEvalError(error);
+    } else {
+      setEvalSaved(true);
+    }
   };
 
   const handleIssueClick = (issue: GrammarIssue, e: React.MouseEvent) => {
@@ -1335,6 +1365,28 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
 
                  <div className="w-full lg:w-[360px] shrink-0 space-y-3">
 
+                     {/* Reference Material card */}
+                     <ResultCard title="Reference Material" description="Paste the answer key or reference text. Re-run analysis to validate content accuracy against it.">
+                         <textarea
+                             value={referenceText}
+                             onChange={(e) => setReferenceText(e.target.value)}
+                             placeholder="Paste answer key or reference text here (optional)…"
+                             className="w-full border border-gray-200 rounded-lg p-2 text-xs focus:ring-2 focus:ring-teal-200 focus:border-teal-400 outline-none resize-none"
+                             rows={4}
+                         />
+                         <div className="flex items-center gap-2 mt-2">
+                             <label className="flex items-center gap-1.5 cursor-pointer">
+                                 <input
+                                     type="checkbox"
+                                     checked={useReferenceValidation}
+                                     onChange={(e) => setUseReferenceValidation(e.target.checked)}
+                                     className="w-3.5 h-3.5 text-teal-600 rounded focus:ring-teal-500"
+                                 />
+                                 <span className="text-[10px] font-semibold text-teal-700">Enable validation on next run</span>
+                             </label>
+                         </div>
+                     </ResultCard>
+
                      {diagnosisResult && (
                         <VerdictCard result={diagnosisResult} issueCount={currentIssues.length} detectedLanguage={grammarResult?.detected_language} />
                      )}
@@ -1406,20 +1458,74 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
                             <div className="space-y-1">
                                 <p>SVM-based complexity analysis aligned with Grade 7 Cognitive Depth Baselines (NLCA/Phil-IRI):</p>
                                 <ul className="list-disc pl-3 space-y-1 text-teal-800/90 text-[10px] leading-relaxed">
-                                    <li><strong>Literal Comprehension:</strong> Understanding a text’s stated facts, ideas, vocabulary, events, and information. It targets questions like “what,” “where,” “when,” and “who.”</li>
-                                    <li><strong>Inferential Comprehension:</strong> Making valid inferences from the text—reading between the lines. It answers “why” and “how” questions through implied meaning (e.g., generalizations, comparisons, conclusions, assumptions, predictions, cause-and-effect).</li>
-                                    <li><strong>Evaluative Comprehension:</strong> Deeper analysis of the author’s intent, opinion, language, and style. It evaluates the appropriateness of devices and makes judgments based on implied ideas.</li>
+                                    <li><strong>Literal:</strong> Understanding stated facts, vocabulary, and events (what, where, when, who).</li>
+                                    <li><strong>Inferential:</strong> Reading between the lines - implied meaning, cause-and-effect, predictions (why, how).</li>
+                                    <li><strong>Evaluative:</strong> Deeper analysis of author intent, style, and judgment based on implied ideas.</li>
                                 </ul>
                             </div>
                         }
                      >
                          <div className={`
-                            py-3 rounded-lg text-center font-bold text-lg mb-1
+                            py-2 rounded-lg text-center font-bold text-base mb-3
                             ${complexityResult?.level === ComplexityLevel.EVALUATIVE ? 'bg-red-50 text-red-700' :
                               complexityResult?.level === ComplexityLevel.INFERENTIAL ? 'bg-orange-50 text-orange-700' : 'bg-green-50 text-green-700'}
                          `}>
-                            {complexityResult?.level === ComplexityLevel.EVALUATIVE ? 'Difficult' : complexityResult?.level}
+                            {complexityResult?.level === ComplexityLevel.EVALUATIVE ? 'Difficult (Evaluative)' :
+                             complexityResult?.level === ComplexityLevel.INFERENTIAL ? 'Moderate (Inferential)' : 'Easy (Literal)'}
                          </div>
+
+                         <div className="flex justify-between items-center py-1.5 border-b border-gray-50">
+                             <span className="text-xs font-medium text-gray-500">Complexity Score</span>
+                             <span className="text-sm font-bold text-gray-800">{complexityResult?.score ?? 'N/A'}</span>
+                         </div>
+                         <div className="flex justify-between items-center py-1.5 border-b border-gray-50">
+                             <span className="text-xs font-medium text-gray-500">Readability Score</span>
+                             <span className="text-sm font-bold text-gray-800">{complexityResult?.readabilityScore ?? 'N/A'}</span>
+                         </div>
+
+                         {complexityResult?.readability && (
+                             <>
+                                 {complexityResult.readability.flesch_kincaid !== undefined && (
+                                     <div className="flex justify-between items-center py-1.5 border-b border-gray-50">
+                                         <span className="text-xs font-medium text-gray-500">Flesch-Kincaid Grade</span>
+                                         <span className="text-sm font-bold text-teal-700">{complexityResult.readability.flesch_kincaid}</span>
+                                     </div>
+                                 )}
+                                 {complexityResult.readability.gunning_fog !== undefined && (
+                                     <div className="flex justify-between items-center py-1.5 border-b border-gray-50">
+                                         <span className="text-xs font-medium text-gray-500">Gunning Fog Index</span>
+                                         <span className="text-sm font-bold text-teal-700">{complexityResult.readability.gunning_fog}</span>
+                                     </div>
+                                 )}
+                             </>
+                         )}
+
+                         <div className="flex justify-between items-center py-1.5 border-b border-gray-50">
+                             <span className="text-xs font-medium text-gray-500">Avg Sentence Length</span>
+                             <span className="text-sm font-bold text-gray-800">{complexityResult?.avgSentenceLength ?? 'N/A'} words</span>
+                         </div>
+                         <div className="flex justify-between items-center py-1.5 border-b border-gray-50">
+                             <span className="text-xs font-medium text-gray-500">Difficult Word Ratio</span>
+                             <span className="text-sm font-bold text-gray-800">{complexityResult?.difficultWordRatio ?? 'N/A'}%</span>
+                         </div>
+
+                         {complexityResult?.reasoning && (
+                             <div className="mt-3 bg-gray-50 rounded-lg p-2 text-[10px] text-gray-600 leading-relaxed border border-gray-100">
+                                 <span className="font-bold text-gray-400 uppercase tracking-wider block mb-0.5">Model Reasoning</span>
+                                 {complexityResult.reasoning}
+                             </div>
+                         )}
+
+                         {complexityResult?.keywords && complexityResult.keywords.length > 0 && (
+                             <div className="mt-3">
+                                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Key Difficult Words</span>
+                                 <div className="flex flex-wrap gap-1">
+                                     {complexityResult.keywords.slice(0, 8).map((w, i) => (
+                                         <span key={i} className="px-2 py-0.5 bg-orange-50 text-orange-700 border border-orange-100 rounded-full text-[10px] font-medium">{w}</span>
+                                     ))}
+                                 </div>
+                             </div>
+                         )}
                      </ResultCard>
 
                      {complexityResult && (
@@ -1428,6 +1534,38 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
 
                      {grammarResult && (
                          <GrammarScoreCard grammarResult={grammarResult} />
+                     )}
+
+                     {grammarResult && grammarResult.issues.length > 0 && (
+                         <ResultCard title="Grammar & Spelling Issues" description="List of detected spelling and grammar errors in the student's text.">
+                             <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                                 {grammarResult.issues.map((issue, i) => (
+                                     <div key={i} className={`rounded-lg p-2 text-xs border ${
+                                         issue.type === 'spelling' ? 'bg-red-50 border-red-100' :
+                                         issue.type === 'grammar' ? 'bg-purple-50 border-purple-100' :
+                                         'bg-gray-50 border-gray-100'
+                                     }`}>
+                                         <div className="flex items-center gap-1.5 mb-0.5">
+                                             <span className={`font-bold uppercase text-[9px] tracking-wider ${
+                                                 issue.type === 'spelling' ? 'text-red-500' :
+                                                 issue.type === 'grammar' ? 'text-purple-500' :
+                                                 'text-gray-400'
+                                             }`}>{issue.type}</span>
+                                             <span className="text-gray-300">•</span>
+                                             <span className={`text-[9px] ${issue.severity === 'error' ? 'text-red-400' : 'text-orange-400'}`}>{issue.severity}</span>
+                                         </div>
+                                         <div className="text-gray-700 leading-snug">{issue.message}</div>
+                                         {issue.replacements && issue.replacements.length > 0 && (
+                                             <div className="mt-1 flex flex-wrap gap-1">
+                                                 {issue.replacements.slice(0, 3).map((r, ri) => (
+                                                     <span key={ri} className="px-1.5 py-0.5 bg-white border border-gray-200 rounded text-[10px] font-medium text-gray-700">{r}</span>
+                                                 ))}
+                                             </div>
+                                         )}
+                                     </div>
+                                 ))}
+                             </div>
+                         </ResultCard>
                      )}
 
                      {diagnosisResult?.metrics?.cefrWordGroups && grammarResult?.detected_language !== 'tl' && (
@@ -1489,6 +1627,59 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
                         />
                      </ResultCard>
 
+                     {/* Teacher Evaluation */}
+                     {diagnosisResult && (
+                         <ResultCard title="Teacher Evaluation">
+                             <p className="text-[10px] text-gray-400 mb-3">Rate this student's overall performance and optionally leave a comment. This will be saved to the database.</p>
+                             <div className="flex items-center gap-1 mb-3">
+                                 {[1, 2, 3, 4, 5].map((star) => (
+                                     <button
+                                         key={star}
+                                         onMouseEnter={() => setTeacherHoverRating(star)}
+                                         onMouseLeave={() => setTeacherHoverRating(0)}
+                                         onClick={() => { setTeacherRating(star); setEvalSaved(false); }}
+                                         className="text-2xl transition-transform hover:scale-110 focus:outline-none"
+                                     >
+                                         {star <= (teacherHoverRating || teacherRating)
+                                             ? <IoStar className="text-yellow-400" />
+                                             : <IoStarOutline className="text-gray-300" />
+                                         }
+                                     </button>
+                                 ))}
+                                 {teacherRating > 0 && (
+                                     <span className="ml-2 text-xs font-semibold text-gray-500">{
+                                         teacherRating === 1 ? 'Poor' :
+                                         teacherRating === 2 ? 'Fair' :
+                                         teacherRating === 3 ? 'Good' :
+                                         teacherRating === 4 ? 'Very Good' : 'Excellent'
+                                     }</span>
+                                 )}
+                             </div>
+                             <textarea
+                                 value={teacherComment}
+                                 onChange={(e) => { setTeacherComment(e.target.value); setEvalSaved(false); }}
+                                 placeholder="Optional comment…"
+                                 className="w-full border border-gray-200 rounded-lg p-2 text-xs focus:ring-2 focus:ring-teal-200 focus:border-teal-400 outline-none resize-none mb-3"
+                                 rows={2}
+                             />
+                             {evalError && (
+                                 <p className="text-[10px] text-red-500 mb-2">{evalError}</p>
+                             )}
+                             <button
+                                 onClick={handleSaveEvaluation}
+                                 disabled={teacherRating === 0 || evalSaving || evalSaved}
+                                 className={`w-full py-2 rounded-lg text-xs font-semibold transition-all ${
+                                     evalSaved ? 'bg-green-100 text-green-700 border border-green-200' :
+                                     teacherRating === 0 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' :
+                                     evalSaving ? 'bg-teal-100 text-teal-500' :
+                                     'bg-teal-500 text-white hover:bg-teal-600'
+                                 }`}
+                             >
+                                 {evalSaved ? '✓ Saved' : evalSaving ? 'Saving…' : 'Save Evaluation'}
+                             </button>
+                         </ResultCard>
+                     )}
+
                  </div>
              </div>
          )}
@@ -1509,107 +1700,6 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
                   </div>
               )}
 
-              {showReferenceInput && (
-                  <div className="w-full bg-white/90 backdrop-blur-xl border border-teal-200 rounded-xl p-3 shadow-xl mb-3 animate-in slide-in-from-bottom-2">
-                       <div className="flex justify-between items-center mb-2 px-1">
-                           <div className="flex items-center gap-2">
-                               <label className="flex items-center gap-1.5 cursor-pointer">
-                                   <input
-                                       type="checkbox"
-                                       checked={useReferenceValidation}
-                                       onChange={(e) => setUseReferenceValidation(e.target.checked)}
-                                       className="w-3.5 h-3.5 text-teal-600 rounded focus:ring-teal-500"
-                                   />
-                                   <span className="text-[10px] font-bold text-teal-600 uppercase tracking-wider flex items-center gap-1">
-                                       <IoBookOutline /> Use Reference
-                                   </span>
-                               </label>
-                           </div>
-                           <div className="flex items-center gap-2">
-                                                             <input
-                                                                 type="file"
-                                                                 ref={referenceFileInputRef}
-                                                                 className="hidden"
-                                                                 onChange={handleReferenceFileSelect}
-                                                                 accept=".txt,image/*,.pdf"
-                                                                 multiple
-                                                             />
-                               {initialReferenceFiles && initialReferenceFiles.length > 0 && (
-                                   <button
-                                       onClick={() => {
-                                           setReferenceFiles(initialReferenceFiles);
-                                           setCurrentReferenceName(referenceFileName || "Workspace Reference");
-                                           setUseReferenceValidation(true);
-                                       }}
-                                       title="Load Workspace Reference"
-                                       className="text-gray-400 hover:text-teal-600 transition-colors text-[10px] px-2 py-1 rounded bg-gray-50 hover:bg-teal-50"
-                                   >
-                                       Load Workspace
-                                   </button>
-                               )}
-                               <button
-                                onClick={() => referenceFileInputRef.current?.click()}
-                                title="Upload Reference File"
-                                className="text-gray-400 hover:text-teal-600 transition-colors"
-                               >
-                                   <IoAttachOutline className="text-base rotate-45"/>
-                               </button>
-                               <button
-                                onClick={handleSaveClick}
-                                title="Save to References"
-                                className="text-gray-400 hover:text-teal-600 transition-colors"
-                               >
-                                   <IoSaveOutline className="text-base"/>
-                               </button>
-                               <button onClick={() => {
-                                   setShowReferenceInput(false);
-                                   setReferenceText("");
-                                   setReferenceFiles([]);
-                                   setCurrentReferenceName("");
-                                   setUseReferenceValidation(false);
-                               }} className="text-gray-400 hover:text-red-500" title="Close and clear reference">
-                                   <IoCloseCircle className="text-base" />
-                               </button>
-                           </div>
-                       </div>
-
-                       <textarea
-                           value={referenceText}
-                           onChange={(e) => setReferenceText(e.target.value)}
-                           placeholder="Enter reference text or answer key (optional)..."
-                           className="w-full border border-gray-200 rounded-lg p-2 text-xs focus:ring-2 focus:ring-teal-200 focus:border-teal-400 outline-none resize-none mb-2"
-                           rows={3}
-                       />
-
-                       {currentReferenceName && (
-                           <div className="mb-2 px-1 text-[10px] text-teal-600 font-medium">
-                               Loaded: {currentReferenceName}
-                           </div>
-                       )}
-                       {referenceFiles.length > 0 && (
-                           <div className="mb-2 px-1 text-[10px] text-gray-500 space-y-1">
-                               <div>{referenceFiles.length} file(s) attached</div>
-                               <ul className="list-disc pl-4">
-                                   {referenceFiles.map((f, i) => (
-                                       <li key={`${f.name}-${i}`} className="truncate">{f.name}</li>
-                                   ))}
-                               </ul>
-                           </div>
-                       )}
-
-                       {!useReferenceValidation && (
-                           <div className="px-1 text-[10px] text-orange-500 italic bg-orange-50 rounded p-2 mt-1">
-                               ⚠️ Reference validation disabled. Check "Use Reference" to validate content accuracy.
-                           </div>
-                       )}
-                       {useReferenceValidation && !referenceText && referenceFiles.length === 0 && (
-                           <div className="px-1 text-[10px] text-gray-400 italic">
-                               Add reference text or upload files to validate content accuracy
-                           </div>
-                       )}
-
-                  </div>
-              )}
 
               {selectedFile && (
                   <div className="absolute -top-10 left-0 bg-teal-50 text-teal-700 px-3 py-1 rounded-lg text-xs font-medium flex items-center gap-2 shadow-sm border border-teal-100">
@@ -1644,14 +1734,6 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
                   />
 
                   <div className="flex items-center gap-1 pr-1">
-                      <button
-                        onClick={() => setShowReferenceInput(!showReferenceInput)}
-                        title="Add Reference Material"
-                        className={`p-2 transition-colors rounded-full ${showReferenceInput ? 'bg-teal-50 text-teal-600' : 'text-gray-400 hover:text-teal-600 hover:bg-gray-100'}`}
-                      >
-                          <IoBookOutline className="text-lg" />
-                      </button>
-
                       <button
                         onClick={() => fileInputRef.current?.click()}
                         className="p-2 text-gray-400 hover:text-teal-600 transition-colors rounded-full hover:bg-gray-100"

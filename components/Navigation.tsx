@@ -2,25 +2,29 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  IoSettingsOutline,
   IoCloseOutline,
   IoGridOutline,
   IoAnalyticsOutline,
-  IoCheckmarkDoneOutline,
   IoSchoolOutline,
-  IoLibraryOutline
+  IoLibraryOutline,
+  IoLogOutOutline,
+  IoPersonCircleOutline
 } from "react-icons/io5";
+import { useAuth } from '../context/AuthContext';
 
 interface NavigationProps {
   isMobileOpen: boolean;
   onMobileClose: () => void;
+  onItemClick?: () => void;
 }
 
-const SidebarContent: React.FC<NavigationProps> = ({ isMobileOpen, onMobileClose }) => {
+const SidebarContent: React.FC<NavigationProps> = ({ onItemClick }) => {
+  const { user, signOut } = useAuth();
+
   const NavItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: string }) => (
     <NavLink
         to={to}
-        onClick={onMobileClose}
+        onClick={onItemClick}
         className={({ isActive }) => `
             w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left mb-1
             ${isActive 
@@ -54,12 +58,20 @@ const SidebarContent: React.FC<NavigationProps> = ({ isMobileOpen, onMobileClose
             </div>
         </div>
 
-        <div className="p-4 border-t border-gray-100 flex items-center justify-between shrink-0">
-            <button className="flex items-center gap-2 text-gray-400 hover:text-gray-600 transition-colors">
-                <IoSettingsOutline className="text-lg"/>
-                <span className="text-xs font-medium">Settings</span>
+        <div className="p-4 border-t border-gray-100 shrink-0">
+            <div className="flex items-center gap-2 mb-3">
+                <IoPersonCircleOutline className="text-2xl text-gray-400 shrink-0" />
+                <span className="text-xs text-gray-500 truncate flex-1" title={user?.email ?? ''}>
+                    {user?.email ?? 'Teacher'}
+                </span>
+            </div>
+            <button
+                onClick={signOut}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors text-sm"
+            >
+                <IoLogOutOutline className="text-lg" />
+                <span className="text-xs font-medium">Sign Out</span>
             </button>
-            <div className="text-[10px] font-mono text-gray-300">v1.2.0</div>
         </div>
     </div>
   );
