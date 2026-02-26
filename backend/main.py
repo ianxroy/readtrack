@@ -78,6 +78,7 @@ class TextRequest(BaseModel):
 
 class OCRRequest(BaseModel):
     image: str
+    mimeType: Optional[str] = None
 
 class ReferenceIngestRequest(BaseModel):
     name: Optional[str] = None
@@ -170,8 +171,9 @@ def analyze_student_text(request: TextRequest):
 def extract_text_from_image_endpoint(request: OCRRequest):
 
     try:
-        print("Processing image for OCR")
-        ocr_text = extract_text_from_image(request.image, GEMINI_API_KEY)
+        print(f"Processing image for OCR. Mime: {request.mimeType}")
+        ocr_text = extract_text_from_image(request.image, GEMINI_API_KEY, mime_type=request.mimeType)
+        print(f"Extracted OCR text: {ocr_text}")
         if ocr_text:
             print(f"Extracted {len(ocr_text)} characters from image")
         else:
@@ -207,6 +209,8 @@ def ingest_reference(request: ReferenceIngestRequest):
         print("ERROR in ingest_reference:")
         traceback.print_exc()
         return {"error": str(e), "trace": traceback.format_exc()}
+
+
 
 @app.post("/analyze/complexity")
 def analyze_complexity_text(request: TextRequest):

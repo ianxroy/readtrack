@@ -46,6 +46,8 @@ def extract_text_from_image(base64_string: str, api_key: Optional[str] = None, m
             {"mime_type": final_mime, "data": image_bytes}
         ])
 
+        print(f"DEBUG: Full Gemini API response: {response}")
+
         if not response:
             print("DEBUG: Gemini returned a completely null response object")
             return ""

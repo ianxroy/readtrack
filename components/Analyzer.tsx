@@ -866,6 +866,7 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
   const geminiApiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
 
   const [selectedFile, setSelectedFile] = useState<{base64: string, mimeType: string, name: string} | null>(null);
+  const [uploadedDocumentTitle, setUploadedDocumentTitle] = useState("");
 
   const [activeIssue, setActiveIssue] = useState<ActiveIssueState | null>(null);
 
@@ -1098,7 +1099,55 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
             const reader = new FileReader();
             reader.onload = (e) => setInputText(prev => prev + (e.target?.result as string));
             reader.readAsText(file);
-        } else if (file.type.includes('image') || file.type.includes('pdf')) {
+        } else if (file.type.includes('image')) {
+            setIsLoading(true);
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+                const base64 = (reader.result as string).split(',')[1];
+                setSelectedFile({
+                    base64: base64,
+                    mimeType: file.type,
+                    name: file.name
+                });
+                
+                try {
+                    const text = await extractTextFromImageAPI(base64, file.type);
+                    console.log("OCR Extracted Text:", text); // Added for debugging
+                    if (text) {
+                         // Split text into lines to parse
+                        const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+                        let extractedTitle = "";
+                        let extractedContent = "";
+
+                        // Heuristic for title and content extraction
+                        if (lines.length > 1 && lines[0].toLowerCase().includes('name') && lines[0].toLowerCase().includes('grade')) {
+                            // Skip the first line if it looks like a header (e.g., "Name _______ Grade 7 Reading Comprehension")
+                            if (lines[1]) {
+                                extractedTitle = lines[1];
+                                extractedContent = lines.slice(2).join('\n');
+                            }
+                        } else if (lines.length > 0) {
+                            extractedTitle = lines[0];
+                            extractedContent = lines.slice(1).join('\n');
+                        }
+
+                        // Remove potential footers/copyright info from content
+                        extractedContent = extractedContent.replace(/\s*\u00a9\s*\d{1,4}Worksheets\.com.*|\d+\s*WORKSHEETS\.COM/gis, '').trim();
+                        
+                        setUploadedDocumentTitle(extractedTitle);
+                        setInputText(prev => prev + (prev ? "\n" : "") + extractedContent);
+                    } else {
+                        setErrorMessage("No text found in image.");
+                    }
+                } catch (err) {
+                    console.error("OCR Error:", err);
+                    setErrorMessage("Failed to extract text from image.");
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+            reader.readAsDataURL(file);
+        } else if (file.type.includes('pdf')) {
             const reader = new FileReader();
             reader.onloadend = () => {
                 setSelectedFile({

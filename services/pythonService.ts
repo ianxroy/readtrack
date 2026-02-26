@@ -37,14 +37,14 @@ export const classifyTextComplexityAPI = async (text: string, base64Image?: stri
     return response.json();
 };
 
-export const extractTextFromImageAPI = async (base64Image: string): Promise<string> => {
+export const extractTextFromImageAPI = async (base64Image: string, mimeType?: string): Promise<string> => {
     const response = await fetch('http://localhost:8000/ocr/extract', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'accept': 'application/json'
         },
-        body: JSON.stringify({ image: base64Image }),
+        body: JSON.stringify({ image: base64Image, mimeType }),
     });
 
     if (!response.ok) {
