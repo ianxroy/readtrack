@@ -3,14 +3,14 @@ import {
     TextComplexityResult
 } from "../types";
 
-export const analyzeStudentWorkAPI = async (text: string, base64Image?: string): Promise<StudentDiagnosisResult> => {
+export const analyzeStudentWorkAPI = async (text: string, base64Image?: string, mimeType?: string): Promise<StudentDiagnosisResult> => {
     const response = await fetch('http://localhost:8000/analyze/student', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'accept': 'application/json'
         },
-        body: JSON.stringify({ text, image: base64Image }),
+        body: JSON.stringify({ text, image: base64Image, mimeType }),
     });
 
     if (!response.ok) {
@@ -20,14 +20,14 @@ export const analyzeStudentWorkAPI = async (text: string, base64Image?: string):
     return response.json();
 };
 
-export const classifyTextComplexityAPI = async (text: string, base64Image?: string): Promise<TextComplexityResult> => {
+export const classifyTextComplexityAPI = async (text: string, base64Image?: string, mimeType?: string): Promise<TextComplexityResult> => {
     const response = await fetch('http://localhost:8000/analyze/complexity', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'accept': 'application/json'
         },
-        body: JSON.stringify({ text, image: base64Image }),
+        body: JSON.stringify({ text, image: base64Image, mimeType }),
     });
 
     if (!response.ok) {

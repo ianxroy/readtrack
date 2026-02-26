@@ -936,8 +936,8 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
     try {
 
       const [diag, comp, grammar] = await Promise.all([
-        analyzeStudentWorkAPI(finalText, selectedFile?.base64),
-        classifyTextComplexityAPI(finalText, selectedFile?.base64),
+        analyzeStudentWorkAPI(finalText, selectedFile?.base64, selectedFile?.mimeType),
+        classifyTextComplexityAPI(finalText, selectedFile?.base64, selectedFile?.mimeType),
         checkGrammar(finalText, geminiApiKey).catch(() => null)
       ]);
 
@@ -1078,16 +1078,23 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
 
     const [isDragging, setIsDragging] = useState(false);
     const [isDropModalOpen, setIsDropModalOpen] = useState(false);
-    const [dragOverTarget, setDragOverTarget] = useState<'student' | 'reference' | null>(null);
+    const [pendingDropFiles, setPendingDropFiles] = useState<File[]>([]);
+    const dragEnterCount = useRef(0);
 
     const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+
+    const isTextFile = (file: File) =>
+        file.type === 'text/plain' ||
+        file.type === 'text/markdown' ||
+        file.name.endsWith('.md') ||
+        file.name.endsWith('.txt');
 
     const processFileAsStudent = (file: File) => {
         if (file.size > MAX_FILE_SIZE_BYTES) {
             setErrorMessage("File size exceeds 10MB limit.");
             return;
         }
-        if (file.type === 'text/plain') {
+        if (isTextFile(file)) {
             const reader = new FileReader();
             reader.onload = (e) => setInputText(prev => prev + (e.target?.result as string));
             reader.readAsText(file);
@@ -1102,7 +1109,7 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
             };
             reader.readAsDataURL(file);
         } else {
-            setErrorMessage("Please upload a text file, image, or PDF.");
+            setErrorMessage("Unsupported file type. Please upload an image, PDF, TXT, or MD file.");
         }
     };
 
@@ -1113,12 +1120,12 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
         }
         setShowReferenceInput(true);
         setCurrentReferenceName(file.name);
-        if (file.type === 'text/plain') {
+        if (isTextFile(file)) {
             const reader = new FileReader();
-            reader.onloadend = async () => {
+            reader.onloadend = () => {
                 try {
                     const base64 = (reader.result as string).split(',')[1];
-                    setReferenceFiles(prev => [...prev, { base64, mimeType: file.type, name: file.name }]);
+                    setReferenceFiles(prev => [...prev, { base64, mimeType: 'text/plain', name: file.name }]);
                     setReferenceText("");
                 } catch (err: any) {
                     setErrorMessage(err?.message || 'Failed to ingest reference text.');
@@ -1127,7 +1134,7 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
             reader.readAsDataURL(file);
         } else if (file.type.includes('image') || file.type.includes('pdf')) {
             const reader = new FileReader();
-            reader.onloadend = async () => {
+            reader.onloadend = () => {
                 try {
                     const base64 = (reader.result as string).split(',')[1];
                     setReferenceFiles(prev => [...prev, { base64, mimeType: file.type, name: file.name }]);
@@ -1138,55 +1145,47 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
             };
             reader.readAsDataURL(file);
         } else {
-            setErrorMessage("Please upload a text file, image, or PDF.");
+            setErrorMessage("Unsupported file type. Please upload an image, PDF, TXT, or MD file.");
         }
+    };
+
+    // Use a counter to ignore dragleave events that fire when entering child elements
+    const handleDragEnter = (e: React.DragEvent) => {
+        e.preventDefault();
+        dragEnterCount.current += 1;
+        if (dragEnterCount.current === 1) setIsDragging(true);
     };
 
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault();
-        e.stopPropagation();
-        setIsDragging(true);
-        setIsDropModalOpen(true);
     };
 
     const handleDragLeave = (e: React.DragEvent) => {
         e.preventDefault();
-        e.stopPropagation();
-        setIsDragging(false);
+        dragEnterCount.current -= 1;
+        if (dragEnterCount.current === 0) setIsDragging(false);
     };
 
     const handleDrop = (e: React.DragEvent) => {
         e.preventDefault();
-        e.stopPropagation();
+        dragEnterCount.current = 0;
         setIsDragging(false);
         setErrorMessage(null);
-        setIsDropModalOpen(true);
+        const files = Array.from(e.dataTransfer.files);
+        if (files.length > 0) {
+            setPendingDropFiles(files);
+            setIsDropModalOpen(true);
+        }
     };
 
-    const handleDropToStudent = (e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const files = e.dataTransfer.files;
-        if (files.length > 0) {
-            processFileAsStudent(files[0]);
+    const handleAssignDropFiles = (target: 'student' | 'reference') => {
+        if (target === 'student') {
+            processFileAsStudent(pendingDropFiles[0]);
+        } else {
+            pendingDropFiles.forEach(f => processFileAsReference(f));
         }
         setIsDropModalOpen(false);
-        setIsDragging(false);
-        setDragOverTarget(null);
-    };
-
-    const handleDropToReference = async (e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const files = e.dataTransfer.files;
-        if (files.length > 0) {
-            for (const file of Array.from(files)) {
-                await processFileAsReference(file);
-            }
-        }
-        setIsDropModalOpen(false);
-        setIsDragging(false);
-        setDragOverTarget(null);
+        setPendingDropFiles([]);
     };
 
   return (
@@ -1229,50 +1228,33 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
 
             {isDropModalOpen && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 p-6 w-[640px] max-w-[90vw]">
-                        <h3 className="text-base font-semibold text-gray-800 mb-1">Drop the file into a target</h3>
-                        <p className="text-xs text-gray-500 mb-4">Drag into one of the boxes to assign the file.</p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div
-                                onDragOver={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    setDragOverTarget('student');
-                                }}
-                                onDragLeave={() => setDragOverTarget(null)}
-                                onDrop={handleDropToStudent}
-                                className={`h-40 rounded-xl border-2 border-dashed flex items-center justify-center text-sm font-semibold text-center transition-all ${
-                                    dragOverTarget === 'student'
-                                        ? 'border-teal-500 bg-teal-100 text-teal-800 shadow-lg'
-                                        : 'border-teal-300 bg-teal-50 text-teal-700'
-                                }`}
+                    <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 p-6 w-[480px] max-w-[90vw]">
+                        <h3 className="text-base font-semibold text-gray-800 mb-1">Where should this file go?</h3>
+                        <p className="text-xs text-gray-500 mb-4">
+                            {pendingDropFiles.length === 1
+                                ? `"${pendingDropFiles[0].name}"`
+                                : `${pendingDropFiles.length} files`}
+                            {' '}&mdash; choose a destination.
+                        </p>
+                        <div className="grid grid-cols-2 gap-3">
+                            <button
+                                onClick={() => handleAssignDropFiles('student')}
+                                className="flex flex-col items-center gap-2 p-5 rounded-xl border-2 border-teal-200 bg-teal-50 text-teal-700 hover:border-teal-400 hover:bg-teal-100 transition-all font-semibold text-sm"
                             >
+                                <span className="text-2xl">📝</span>
                                 Student Output
-                            </div>
-                            <div
-                                onDragOver={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    setDragOverTarget('reference');
-                                }}
-                                onDragLeave={() => setDragOverTarget(null)}
-                                onDrop={handleDropToReference}
-                                className={`h-40 rounded-xl border-2 border-dashed flex items-center justify-center text-sm font-semibold text-center transition-all ${
-                                    dragOverTarget === 'reference'
-                                        ? 'border-blue-500 bg-blue-100 text-blue-800 shadow-lg'
-                                        : 'border-gray-300 bg-gray-50 text-gray-700'
-                                }`}
+                            </button>
+                            <button
+                                onClick={() => handleAssignDropFiles('reference')}
+                                className="flex flex-col items-center gap-2 p-5 rounded-xl border-2 border-gray-200 bg-gray-50 text-gray-700 hover:border-gray-400 hover:bg-gray-100 transition-all font-semibold text-sm"
                             >
+                                <span className="text-2xl">📚</span>
                                 Reference Material
-                            </div>
+                            </button>
                         </div>
                         <button
-                            onClick={() => {
-                                setIsDropModalOpen(false);
-                                setIsDragging(false);
-                                setDragOverTarget(null);
-                            }}
-                            className="mt-4 w-full px-3 py-2 rounded-lg text-xs text-gray-500 hover:text-gray-700"
+                            onClick={() => { setIsDropModalOpen(false); setPendingDropFiles([]); }}
+                            className="mt-4 w-full px-3 py-2 rounded-lg text-xs text-gray-400 hover:text-gray-600"
                         >
                             Cancel
                         </button>
@@ -1299,6 +1281,7 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
         ref={scrollRef}
         onClick={() => setActiveIssue(null)}
         style={{ position: 'relative' }}
+        onDragEnter={handleDragEnter}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -1722,7 +1705,7 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
                   <input
                     type="file" ref={fileInputRef} className="hidden"
                     onChange={handleFileSelect}
-                    accept=".txt,image/*,.pdf"
+                    accept=".txt,.md,image/*,.pdf"
                   />
 
                   <textarea

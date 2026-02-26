@@ -104,6 +104,14 @@ export interface TextComplexityResult {
   };
 }
 
+export interface LibraryMaterial {
+  id: string;
+  name: string;
+  text: string;
+  uploadedAt: Date;
+  complexityResult: TextComplexityResult;
+}
+
 export interface ReferenceFile {
   id: string;
   name: string;

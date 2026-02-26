@@ -74,6 +74,7 @@ student_model = StudentProficiencySVM()
 class TextRequest(BaseModel):
     text: str
     image: Optional[str] = None
+    mimeType: Optional[str] = None
 
 class OCRRequest(BaseModel):
     image: str
@@ -137,14 +138,19 @@ def analyze_student_text(request: TextRequest):
     try:
         text_to_analyze = request.text
         if request.image:
-            print("Processing image for student analysis")
-            ocr_text = extract_text_from_image(request.image, GEMINI_API_KEY)
+            mime = (request.mimeType or "").lower()
+            if mime == "application/pdf":
+                print("Processing PDF for student analysis")
+                ocr_text = extract_text_from_pdf(request.image)
+            else:
+                print("Processing image for student analysis")
+                ocr_text = extract_text_from_image(request.image, GEMINI_API_KEY, mime_type=mime)
 
             if ocr_text:
-                print(f"Extracted {len(ocr_text)} characters from image")
+                print(f"Extracted {len(ocr_text)} characters from file")
                 text_to_analyze = (text_to_analyze + "\n" + ocr_text).strip()
             else:
-                print("Warning: No text extracted from image")
+                print("Warning: No text extracted from file")
 
         from grammar_service import detect_language
         detected_lang = detect_language(text_to_analyze)
@@ -189,7 +195,7 @@ def ingest_reference(request: ReferenceIngestRequest):
             if request.mimeType == "application/pdf":
                 text = extract_text_from_pdf(request.file)
             elif request.mimeType.startswith("image/"):
-                text = extract_text_from_image(request.file, GEMINI_API_KEY)
+                text = extract_text_from_image(request.file, GEMINI_API_KEY, mime_type=request.mimeType)
             elif request.mimeType.startswith("text/"):
                 decoded = base64.b64decode(request.file)
                 text = decoded.decode("utf-8", errors="replace")
@@ -204,10 +210,15 @@ def ingest_reference(request: ReferenceIngestRequest):
 
 @app.post("/analyze/complexity")
 def analyze_complexity_text(request: TextRequest):
+    print(f"DEBUG: analyze_complexity_text called. Has image: {bool(request.image)}, Has text: {bool(request.text)}")
     try:
         text_to_analyze = request.text
         if request.image:
-            ocr_text = extract_text_from_image(request.image, GEMINI_API_KEY)
+            mime = (request.mimeType or "").lower()
+            if mime == "application/pdf":
+                ocr_text = extract_text_from_pdf(request.image)
+            else:
+                ocr_text = extract_text_from_image(request.image, GEMINI_API_KEY, mime_type=mime)
             if ocr_text:
                 text_to_analyze = (text_to_analyze + "\n" + ocr_text).strip()
 

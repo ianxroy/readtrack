@@ -1,13 +1,27 @@
-import React, { useState } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { Navigation } from "./components/Navigation";
 import { Dashboard } from "./components/Dashboard";
 import { ModelEvaluation } from "./components/ModelEvaluation";
 import GrammarChecker from "./components/GrammarChecker";
 import { StudentGrading } from "./components/StudentGrading";
-import { MaterialChecker } from "./components/MaterialChecker";
+import { MaterialLibrary } from "./components/MaterialLibrary";
 import Login from "./components/Login";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { CachedAnalysis } from "./types";
+
+const HISTORY_KEY = "readtrack_history";
+
+function loadHistory(): CachedAnalysis[] {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return parsed.map((a: any) => ({ ...a, timestamp: new Date(a.timestamp) }));
+  } catch {
+    return [];
+  }
+}
 
 // Wraps any route — redirects to /login if the user is not authenticated
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -30,6 +44,30 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
 const AppRoutes: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [history, setHistory] = useState<CachedAnalysis[]>(loadHistory);
+  const [selectedAnalysis, setSelectedAnalysis] = useState<CachedAnalysis | null>(null);
+  const navigate = useNavigate();
+
+  // Persist history changes to localStorage
+  useEffect(() => {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+  }, [history]);
+
+  const handleSaveAnalysis = (analysis: CachedAnalysis) => {
+    setHistory(prev => [analysis, ...prev].slice(0, 50));
+  };
+
+  const handleSelectHistory = (analysis: CachedAnalysis) => {
+    setSelectedAnalysis(analysis);
+    navigate("/student");
+    setIsMobileMenuOpen(false);
+  };
+
+  const handleDeleteHistory = (id: string) => {
+    setHistory(prev => prev.filter(a => a.id !== id));
+    if (selectedAnalysis?.id === id) setSelectedAnalysis(null);
+  };
+
   const toggleMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
 
   return (
@@ -37,7 +75,7 @@ const AppRoutes: React.FC = () => {
       {/* Public route */}
       <Route path="/login" element={<Login />} />
 
-      {/* Protected shell — all app pages live here */}
+      {/* Protected shell */}
       <Route
         path="/*"
         element={
@@ -47,6 +85,9 @@ const AppRoutes: React.FC = () => {
                 <Navigation
                   isMobileOpen={isMobileMenuOpen}
                   onMobileClose={() => setIsMobileMenuOpen(false)}
+                  history={history}
+                  onSelectHistory={handleSelectHistory}
+                  onDeleteHistory={handleDeleteHistory}
                 />
 
                 <main className="flex-1 h-full overflow-hidden flex flex-col relative bg-[#F2F2F7]">
@@ -57,11 +98,17 @@ const AppRoutes: React.FC = () => {
                     />
                     <Route
                       path="/student"
-                      element={<StudentGrading onMenuClick={() => setIsMobileMenuOpen(true)} />}
+                      element={
+                        <StudentGrading
+                          onMenuClick={() => setIsMobileMenuOpen(true)}
+                          onSaveAnalysis={handleSaveAnalysis}
+                          selectedAnalysis={selectedAnalysis}
+                        />
+                      }
                     />
                     <Route
                       path="/material"
-                      element={<MaterialChecker onMenuClick={() => setIsMobileMenuOpen(true)} />}
+                      element={<MaterialLibrary onMenuClick={() => setIsMobileMenuOpen(true)} />}
                     />
                     <Route path="/grammar" element={<GrammarChecker />} />
                     <Route
