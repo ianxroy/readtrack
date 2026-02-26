@@ -23,7 +23,7 @@ import {
   LearningBand,
   PhilIriLevel
 } from '../types';
-import { analyzeStudentWorkAPI, classifyTextComplexityAPI } from '../services/pythonService';
+import { analyzeStudentWorkAPI, classifyTextComplexityAPI, extractTextFromImageAPI } from '../services/pythonService';
 
 interface StudentEssay {
   id: string;
@@ -175,13 +175,41 @@ export const StudentGrading: React.FC = () => {
       
       setIsUploading(true);
       try {
-        // Extract text immediately for preview and editing
-        // Pass the correct mimeType to the API
-        const result = await classifyTextComplexityAPI('', base64, mimeType);
-        if (result.analyzed_text) {
-          setUploadText(result.analyzed_text);
+        if (isImage) {
+           const text = await extractTextFromImageAPI(base64, mimeType);
+           if (text) {
+             const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+             let extractedTitle = "";
+             let extractedContent = "";
+
+             // Heuristic for title and content extraction
+             if (lines.length > 1 && lines[0].toLowerCase().includes('name') && lines[0].toLowerCase().includes('grade')) {
+                 if (lines[1]) {
+                     extractedTitle = lines[1];
+                     extractedContent = lines.slice(2).join('\n');
+                 }
+             } else if (lines.length > 0) {
+                 extractedTitle = lines[0];
+                 extractedContent = lines.slice(1).join('\n');
+             }
+
+             // Remove potential footers/copyright info from content
+             extractedContent = extractedContent.replace(/\s*\u00a9\s*\d{1,4}Worksheets\.com.*|\d+\s*WORKSHEETS\.COM/gis, '').trim();
+
+             setUploadTitle(extractedTitle || file.name.replace(/\.[^.]+$/, ''));
+             setUploadText(extractedContent);
+           } else {
+             setUploadError("No text found in image.");
+           }
+        } else {
+            // Existing logic for PDF or fallback
+            const result = await classifyTextComplexityAPI('', base64, mimeType);
+            if (result.analyzed_text) {
+              setUploadText(result.analyzed_text);
+            }
         }
       } catch (e: any) {
+        console.error("Extraction error:", e);
         setUploadError("Failed to extract text from file.");
       } finally {
         setIsUploading(false);
