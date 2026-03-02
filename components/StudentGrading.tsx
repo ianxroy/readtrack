@@ -1,6 +1,6 @@
 
 
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { 
   IoCloudUploadOutline, 
   IoPersonCircleOutline, 
@@ -53,7 +53,35 @@ interface Student {
   essays: StudentEssay[];
 }
 
+interface StudentGradingProps {
+  onMenuClick?: () => void;
+  onSaveAnalysis?: (analysis: CachedAnalysis) => void;
+  selectedAnalysis?: CachedAnalysis | null;
+}
+
 const STORAGE_KEY = 'readtrack_student_essays';
+
+const SHA256_HEX_REGEX = /^[a-f0-9]{64}$/i;
+
+const normalizeStudentName = (name: string) => name.trim().replace(/\s+/g, ' ').toLowerCase();
+
+const isSha256Hex = (value: string) => SHA256_HEX_REGEX.test(value);
+
+const formatStudentName = (value: string) => {
+  if (!value) return 'Student';
+  return isSha256Hex(value)
+    ? `Student ${value.slice(0, 10).toUpperCase()}`
+    : value;
+};
+
+async function hashStudentName(name: string): Promise<string> {
+  const normalized = normalizeStudentName(name);
+  const encoded = new TextEncoder().encode(normalized);
+  const digest = await crypto.subtle.digest('SHA-256', encoded);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
 
 function loadStudents(): Student[] {
   try {
@@ -67,7 +95,7 @@ function saveStudents(students: Student[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(students));
 }
 
-export const StudentGrading: React.FC = () => {
+export const StudentGrading: React.FC<StudentGradingProps> = ({ onSaveAnalysis, selectedAnalysis }) => {
   const [students, setStudents] = useState<Student[]>(loadStudents());
   const [showUpload, setShowUpload] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -85,12 +113,43 @@ export const StudentGrading: React.FC = () => {
   const [uploadStudent, setUploadStudent] = useState('');
   const [isNewStudent, setIsNewStudent] = useState(false);
 
+  useEffect(() => {
+    const migrateLegacyNames = async () => {
+      const legacy = students.filter((student) => !isSha256Hex(student.name));
+      if (legacy.length === 0) return;
+
+      const migrated = await Promise.all(
+        students.map(async (student) => {
+          if (isSha256Hex(student.name)) return student;
+          return {
+            ...student,
+            name: await hashStudentName(student.name),
+          };
+        })
+      );
+
+      setStudents(migrated);
+      saveStudents(migrated);
+    };
+
+    migrateLegacyNames();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedAnalysis) return;
+    setShowUpload(true);
+    setUploadTitle(selectedAnalysis.title || 'Recovered analysis');
+    setUploadText(selectedAnalysis.studentText || '');
+    setIsNewStudent(true);
+    setUploadStudent('Recovered Student');
+  }, [selectedAnalysis]);
+
   // Filtered students
   const filteredStudents = useMemo(() => {
     if (!searchQuery.trim()) return students;
     const q = searchQuery.toLowerCase();
     return students.filter(s => 
-      s.name.toLowerCase().includes(q) || 
+      formatStudentName(s.name).toLowerCase().includes(q) || 
       s.essays.some(e => e.title.toLowerCase().includes(q))
     );
   }, [students, searchQuery]);
@@ -108,10 +167,15 @@ export const StudentGrading: React.FC = () => {
         classifyTextComplexityAPI(uploadText)
       ]);
 
-      let student = students.find(s => s.name === uploadStudent);
+      const normalizedStudentInput = uploadStudent.trim();
+      const studentIdentifier = isNewStudent
+        ? await hashStudentName(normalizedStudentInput)
+        : normalizedStudentInput;
+
+      let student = students.find(s => s.name === studentIdentifier);
       let newStudents = [...students];
       if (!student) {
-        student = { id: Date.now().toString(), name: uploadStudent, essays: [] };
+        student = { id: Date.now().toString(), name: studentIdentifier, essays: [] };
         newStudents.push(student);
       }
       const essay: StudentEssay = {
@@ -125,6 +189,16 @@ export const StudentGrading: React.FC = () => {
       student.essays = [essay, ...student.essays];
       setStudents(newStudents);
       saveStudents(newStudents);
+      if (onSaveAnalysis) {
+        onSaveAnalysis({
+          id: essay.id,
+          timestamp: essay.uploadedAt,
+          title: `${formatStudentName(student.name)} • ${essay.title}`,
+          studentText: essay.text,
+          diagnosisResult: diag,
+          complexityResult: comp,
+        });
+      }
       setShowUpload(false);
       setUploadText('');
       setUploadTitle('');
@@ -304,7 +378,7 @@ export const StudentGrading: React.FC = () => {
                   <IoPersonCircleOutline className="text-3xl" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-bold text-lg text-gray-900 truncate group-hover:text-teal-600 transition-colors">{student.name}</div>
+                  <div className="font-bold text-lg text-gray-900 truncate group-hover:text-teal-600 transition-colors">{formatStudentName(student.name)}</div>
                   <div className="text-xs text-gray-500 font-medium">{student.essays.length} essay{student.essays.length !== 1 ? 's' : ''} recorded</div>
                 </div>
                 <div className="flex flex-col items-end gap-2">
@@ -430,7 +504,7 @@ export const StudentGrading: React.FC = () => {
                       }}
                     >
                       <option value="">Select an existing student...</option>
-                      {students.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                      {students.map(s => <option key={s.id} value={s.name}>{formatStudentName(s.name)}</option>)}
                       <option value="__new__">+ Add new student...</option>
                     </select>
                     <IoChevronDownOutline className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
@@ -512,7 +586,7 @@ export const StudentGrading: React.FC = () => {
                 <div className="flex-1 min-w-0 pr-4">
                   <div className="flex items-center gap-3 mb-2">
                     <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-50 text-teal-700 border border-teal-100 text-[10px] font-black uppercase tracking-widest">
-                      <IoPersonCircleOutline /> {student.name}
+                      <IoPersonCircleOutline /> {formatStudentName(student.name)}
                     </div>
                     {dr && (
                       <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${pMeta?.bg} ${pMeta?.color} ${pMeta?.border}`}>

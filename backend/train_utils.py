@@ -2,8 +2,30 @@ import pandas as pd
 import numpy as np
 import os
 import pickle
+import json
 from joblib import Parallel, delayed
 from preprocessing import extract_features
+
+def save_model_metrics(model_key, metrics):
+    base_dir = os.path.dirname(__file__)
+    models_dir = os.path.join(base_dir, 'models')
+    os.makedirs(models_dir, exist_ok=True)
+    metrics_path = os.path.join(models_dir, 'evaluation_metrics.json')
+
+    existing = {}
+    if os.path.exists(metrics_path):
+        try:
+            with open(metrics_path, 'r') as f:
+                existing = json.load(f)
+        except Exception:
+            existing = {}
+
+    existing[model_key] = metrics
+
+    with open(metrics_path, 'w') as f:
+        json.dump(existing, f, indent=4)
+
+    print(f"Saved {model_key} metrics to {metrics_path}")
 
 def process_single_essay(row):
     """Helper function for parallel processing"""

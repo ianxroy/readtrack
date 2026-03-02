@@ -6,6 +6,7 @@ import { ModelEvaluation } from "./components/ModelEvaluation";
 import GrammarChecker from "./components/GrammarChecker";
 import { StudentGrading } from "./components/StudentGrading";
 import { MaterialLibrary } from "./components/MaterialLibrary";
+import { About } from "./components/About";
 import Login from "./components/Login";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { CachedAnalysis } from "./types";
@@ -114,6 +115,10 @@ const AppRoutes: React.FC = () => {
                     <Route
                       path="/evaluation"
                       element={<ModelEvaluation onMenuClick={() => setIsMobileMenuOpen(true)} />}
+                    />
+                    <Route
+                      path="/about"
+                      element={<About onMenuClick={() => setIsMobileMenuOpen(true)} />}
                     />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>

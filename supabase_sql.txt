@@ -10,6 +10,7 @@
 CREATE TABLE IF NOT EXISTS teacher_evaluations (
   id              UUID        DEFAULT gen_random_uuid() PRIMARY KEY,
   teacher_id      UUID        REFERENCES auth.users(id) ON DELETE SET NULL,
+  student_name_sha TEXT,
   student_text    TEXT        NOT NULL,
   proficiency_level TEXT      NOT NULL,
   nat_score       NUMERIC(5, 2),
@@ -18,24 +19,31 @@ CREATE TABLE IF NOT EXISTS teacher_evaluations (
   created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
+ALTER TABLE teacher_evaluations
+  ADD COLUMN IF NOT EXISTS student_name_sha TEXT;
+
 -- Row Level Security
 ALTER TABLE teacher_evaluations ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Teachers can view own evaluations" ON teacher_evaluations;
 -- Authenticated teachers can read their own rows
 CREATE POLICY "Teachers can view own evaluations"
   ON teacher_evaluations FOR SELECT
   USING (auth.uid() = teacher_id);
 
+DROP POLICY IF EXISTS "Teachers can insert own evaluations" ON teacher_evaluations;
 -- Authenticated teachers can insert their own evaluations
 CREATE POLICY "Teachers can insert own evaluations"
   ON teacher_evaluations FOR INSERT
   WITH CHECK (auth.uid() = teacher_id);
 
+DROP POLICY IF EXISTS "Teachers can update own evaluations" ON teacher_evaluations;
 -- Authenticated teachers can update their own evaluations
 CREATE POLICY "Teachers can update own evaluations"
   ON teacher_evaluations FOR UPDATE
   USING (auth.uid() = teacher_id);
 
+DROP POLICY IF EXISTS "Teachers can delete own evaluations" ON teacher_evaluations;
 -- Authenticated teachers can delete their own evaluations
 CREATE POLICY "Teachers can delete own evaluations"
   ON teacher_evaluations FOR DELETE
@@ -59,10 +67,12 @@ CREATE TABLE IF NOT EXISTS teacher_profiles (
 
 ALTER TABLE teacher_profiles ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Teachers can view own profile" ON teacher_profiles;
 CREATE POLICY "Teachers can view own profile"
   ON teacher_profiles FOR SELECT
   USING (auth.uid() = id);
 
+DROP POLICY IF EXISTS "Teachers can update own profile" ON teacher_profiles;
 CREATE POLICY "Teachers can update own profile"
   ON teacher_profiles FOR UPDATE
   USING (auth.uid() = id);

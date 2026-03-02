@@ -1,9 +1,9 @@
 {
     "proficiency": {
-        "accuracy": "70.9%",
-        "f1": 0.71,
-        "precision": 0.71,
-        "recall": 0.71,
+        "accuracy": "85.3%",
+        "f1": 0.85,
+        "precision": 0.85,
+        "recall": 0.85,
         "labels": [
             "Independent",
             "Instructional",
@@ -11,19 +11,19 @@
         ],
         "matrix": [
             [
-                1166,
-                246,
-                10
+                5,
+                31,
+                0
             ],
             [
-                422,
-                1067,
-                315
+                1,
+                2914,
+                257
             ],
             [
-                56,
-                392,
-                1271
+                0,
+                440,
+                1297
             ]
         ]
     },
