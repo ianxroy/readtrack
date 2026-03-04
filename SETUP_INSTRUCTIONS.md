@@ -5,18 +5,10 @@
 - **Node.js** v18 or higher ([Download](https://nodejs.org/))
 - **Python** 3.8 or higher ([Download](https://www.python.org/downloads/))
 - **Git** (for cloning the repository)
-- **Docker Desktop** (optional, for containerized setup)
-
-## Setup Options
-
-Choose one of the following setup methods:
-
-- **[Quick Start](#quick-start)** - Standard development setup
-- **[Docker Setup](#docker-setup)** - Containerized setup with hot-reload
 
 ---
 
-## Quick Start
+## Setup Guide
 
 ### 1. Clone the Repository
 
@@ -156,22 +148,6 @@ npm run dev
 ```
 
 ✅ **Frontend runs at:** http://localhost:3000
-
----
-
-## Docker Setup
-
-For a containerized setup with Docker, see [DOCKER_SETUP.md](DOCKER_SETUP.md) for detailed instructions.
-
-**Quick Docker commands:**
-
-```bash
-# Development mode (with hot-reload)
-docker-compose --profile dev up
-
-# Production mode
-docker-compose up --build
-```
 
 ---
 
@@ -318,7 +294,6 @@ npm run preview
 - **[Backend README](backend/README.md)** - Backend-specific setup and troubleshooting
 - **[Machine Learning Guide](backend/ML_README.md)** - Model training and evaluation
 - **[Tagalog Service](backend/TAGALOG_SERVICE_README.md)** - Tagalog NLP features
-- **[Docker Setup](DOCKER_SETUP.md)** - Containerized deployment
 - **[System Documentation](System%20Documentation.md)** - Architecture and design
 
 ---
