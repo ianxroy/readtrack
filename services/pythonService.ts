@@ -17,7 +17,11 @@ export const analyzeStudentWorkAPI = async (text: string, base64Image?: string, 
         const errorData = await response.json();
         throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
     }
-    return response.json();
+    const data = await response.json();
+    if (data?.error) {
+        throw new Error(data.error);
+    }
+    return data;
 };
 
 export const classifyTextComplexityAPI = async (text: string, base64Image?: string, mimeType?: string): Promise<TextComplexityResult> => {
@@ -34,7 +38,11 @@ export const classifyTextComplexityAPI = async (text: string, base64Image?: stri
         const errorData = await response.json();
         throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
     }
-    return response.json();
+    const data = await response.json();
+    if (data?.error) {
+        throw new Error(data.error);
+    }
+    return data;
 };
 
 export const extractTextFromImageAPI = async (base64Image: string, mimeType?: string): Promise<string> => {
@@ -53,6 +61,9 @@ export const extractTextFromImageAPI = async (base64Image: string, mimeType?: st
     }
 
     const data = await response.json();
+    if (data?.error) {
+        throw new Error(data.error);
+    }
     return data.text || '';
 };
 
@@ -76,5 +87,9 @@ export const ingestReferenceAPI = async (payload: {
         throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
     }
 
-    return response.json();
+    const data = await response.json();
+    if (data?.error) {
+        throw new Error(data.error);
+    }
+    return data;
 };

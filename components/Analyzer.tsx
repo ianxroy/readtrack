@@ -327,7 +327,7 @@ const GrammarScoreCard = ({ grammarResult }: { grammarResult: GrammarCheckRespon
 };
 
 const VerdictCard = ({ result, issueCount, detectedLanguage }: { result: StudentDiagnosisResult, issueCount: number, detectedLanguage?: string }) => {
-    const isGood = result.proficiency === ProficiencyLevel.PROFICIENT || result.proficiency === ProficiencyLevel.ADVANCED;
+    const isGood = result.proficiency === ProficiencyLevel.INSTRUCTIONAL || result.proficiency === ProficiencyLevel.INDEPENDENT;
     const [activeStat, setActiveStat] = useState<'score' | 'issues' | null>(null);
 
     const languageDisplay = detectedLanguage === 'tl' ? '🇵🇭 Filipino' :

@@ -12,7 +12,11 @@ import {
   IoCheckmarkCircleOutline,
   IoAlertCircleOutline,
   IoTimeOutline,
-  IoBookOutline
+  IoBookOutline,
+  IoMenuOutline,
+  IoFunnelOutline,
+  IoStar,
+  IoStarOutline
 } from 'react-icons/io5';
 import { 
   CachedAnalysis, 
@@ -24,6 +28,7 @@ import {
   PhilIriLevel
 } from '../types';
 import { analyzeStudentWorkAPI, classifyTextComplexityAPI, extractTextFromImageAPI } from '../services/pythonService';
+import { saveStudentGradingUpload, saveTeacherEvaluation } from '../services/supabaseService';
 
 interface StudentEssay {
   id: string;
@@ -32,13 +37,14 @@ interface StudentEssay {
   uploadedAt: Date;
   diagnosisResult?: StudentDiagnosisResult;
   complexityResult?: TextComplexityResult;
+  teacherRating?: number;
+  teacherComment?: string;
 }
 
 const proficiencyMeta = {
-  [ProficiencyLevel.BEGINNING]: { color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-100', dot: 'bg-red-500' },
-  [ProficiencyLevel.DEVELOPING]: { color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-100', dot: 'bg-orange-500' },
-  [ProficiencyLevel.PROFICIENT]: { color: 'text-teal-600', bg: 'bg-teal-50', border: 'border-teal-100', dot: 'bg-teal-500' },
-  [ProficiencyLevel.ADVANCED]: { color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100', dot: 'bg-blue-500' },
+  [ProficiencyLevel.FRUSTRATION]: { color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-100', dot: 'bg-red-500' },
+  [ProficiencyLevel.INSTRUCTIONAL]: { color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-100', dot: 'bg-orange-500' },
+  [ProficiencyLevel.INDEPENDENT]: { color: 'text-teal-600', bg: 'bg-teal-50', border: 'border-teal-100', dot: 'bg-teal-500' },
 };
 
 const complexityMeta = {
@@ -59,28 +65,45 @@ interface StudentGradingProps {
   selectedAnalysis?: CachedAnalysis | null;
 }
 
+type StudentSortKey = 'newest' | 'oldest' | 'name' | 'essays';
+
 const STORAGE_KEY = 'readtrack_student_essays';
 
-const SHA256_HEX_REGEX = /^[a-f0-9]{64}$/i;
+const formatStudentName = (value: string) => value?.trim() || 'Student';
 
-const normalizeStudentName = (name: string) => name.trim().replace(/\s+/g, ' ').toLowerCase();
+function normalizeEssayText(text: string): string {
+  const normalized = text.replace(/\r\n?/g, '\n').trim();
+  if (!normalized) return '';
 
-const isSha256Hex = (value: string) => SHA256_HEX_REGEX.test(value);
+  const paragraphs = normalized
+    .split(/\n\s*\n+/)
+    .map((paragraph) => paragraph.split('\n').map((line) => line.trim()).filter(Boolean));
 
-const formatStudentName = (value: string) => {
-  if (!value) return 'Student';
-  return isSha256Hex(value)
-    ? `Student ${value.slice(0, 10).toUpperCase()}`
-    : value;
-};
+  const rebuilt = paragraphs.map((lines) => {
+    if (lines.length <= 1) return lines[0] || '';
 
-async function hashStudentName(name: string): Promise<string> {
-  const normalized = normalizeStudentName(name);
-  const encoded = new TextEncoder().encode(normalized);
-  const digest = await crypto.subtle.digest('SHA-256', encoded);
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
+    let merged = lines[0];
+    for (let i = 1; i < lines.length; i += 1) {
+      const prevLine = lines[i - 1];
+      const currentLine = lines[i];
+
+      const prevEndsSentence = /[.!?]["')\]]?$/.test(prevLine);
+      const prevEndsHyphen = /-$/.test(prevLine);
+      const currentIsList = /^[-•*]/.test(currentLine) || /^\d+[.)]\s/.test(currentLine);
+
+      if (prevEndsHyphen) {
+        merged = `${merged.slice(0, -1)}${currentLine}`;
+      } else if (prevEndsSentence || currentIsList) {
+        merged = `${merged}\n${currentLine}`;
+      } else {
+        merged = `${merged} ${currentLine}`;
+      }
+    }
+
+    return merged;
+  });
+
+  return rebuilt.filter(Boolean).join('\n\n');
 }
 
 function loadStudents(): Student[] {
@@ -95,47 +118,37 @@ function saveStudents(students: Student[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(students));
 }
 
-export const StudentGrading: React.FC<StudentGradingProps> = ({ onSaveAnalysis, selectedAnalysis }) => {
+export const StudentGrading: React.FC<StudentGradingProps> = ({ onMenuClick, onSaveAnalysis, selectedAnalysis }) => {
   const [students, setStudents] = useState<Student[]>(loadStudents());
   const [showUpload, setShowUpload] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [showEssayModal, setShowEssayModal] = useState<{studentId: string, essayId: string} | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [proficiencyFilter, setProficiencyFilter] = useState<ProficiencyLevel | 'all'>('all');
+  const [sortKey, setSortKey] = useState<StudentSortKey>('newest');
+  const [showSortMenu, setShowSortMenu] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const dragCount = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const hasMounted = useRef(false);
 
   // Upload state
   const [uploadText, setUploadText] = useState('');
   const [uploadTitle, setUploadTitle] = useState('');
   const [uploadStudent, setUploadStudent] = useState('');
   const [isNewStudent, setIsNewStudent] = useState(false);
+  const [teacherRating, setTeacherRating] = useState(0);
+  const [teacherComment, setTeacherComment] = useState('');
+  const [isSavingEvaluation, setIsSavingEvaluation] = useState(false);
+  const [evaluationMessage, setEvaluationMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    const migrateLegacyNames = async () => {
-      const legacy = students.filter((student) => !isSha256Hex(student.name));
-      if (legacy.length === 0) return;
-
-      const migrated = await Promise.all(
-        students.map(async (student) => {
-          if (isSha256Hex(student.name)) return student;
-          return {
-            ...student,
-            name: await hashStudentName(student.name),
-          };
-        })
-      );
-
-      setStudents(migrated);
-      saveStudents(migrated);
-    };
-
-    migrateLegacyNames();
-  }, []);
-
-  useEffect(() => {
+    if (!hasMounted.current) {
+      hasMounted.current = true;
+      return;
+    }
     if (!selectedAnalysis) return;
     setShowUpload(true);
     setUploadTitle(selectedAnalysis.title || 'Recovered analysis');
@@ -144,15 +157,71 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({ onSaveAnalysis, 
     setUploadStudent('Recovered Student');
   }, [selectedAnalysis]);
 
-  // Filtered students
-  const filteredStudents = useMemo(() => {
-    if (!searchQuery.trim()) return students;
-    const q = searchQuery.toLowerCase();
-    return students.filter(s => 
-      formatStudentName(s.name).toLowerCase().includes(q) || 
-      s.essays.some(e => e.title.toLowerCase().includes(q))
-    );
-  }, [students, searchQuery]);
+  useEffect(() => {
+    if (!showEssayModal) {
+      setTeacherRating(0);
+      setTeacherComment('');
+      setEvaluationMessage(null);
+      return;
+    }
+
+    const student = students.find((s) => s.id === showEssayModal.studentId);
+    const essay = student?.essays.find((e) => e.id === showEssayModal.essayId);
+    setTeacherRating(essay?.teacherRating ?? 0);
+    setTeacherComment(essay?.teacherComment ?? '');
+    setEvaluationMessage(null);
+  }, [showEssayModal, students]);
+
+  const sortLabels: Record<StudentSortKey, string> = {
+    newest: 'Newest first',
+    oldest: 'Oldest first',
+    name: 'Name A → Z',
+    essays: 'Most essays',
+  };
+
+  const displayedStudents = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+
+    const filtered = students.filter((student) => {
+      const matchesSearch =
+        !q ||
+        formatStudentName(student.name).toLowerCase().includes(q) ||
+        student.essays.some((essay) => essay.title.toLowerCase().includes(q));
+
+      const matchesProficiency =
+        proficiencyFilter === 'all' ||
+        student.essays.some((essay) => essay.diagnosisResult?.proficiency === proficiencyFilter);
+
+      return matchesSearch && matchesProficiency;
+    });
+
+    const sorted = [...filtered];
+    switch (sortKey) {
+      case 'name':
+        sorted.sort((a, b) => formatStudentName(a.name).localeCompare(formatStudentName(b.name)));
+        break;
+      case 'essays':
+        sorted.sort((a, b) => b.essays.length - a.essays.length);
+        break;
+      case 'oldest':
+        sorted.sort((a, b) => {
+          const aTime = a.essays[0] ? +new Date(a.essays[0].uploadedAt) : 0;
+          const bTime = b.essays[0] ? +new Date(b.essays[0].uploadedAt) : 0;
+          return aTime - bTime;
+        });
+        break;
+      case 'newest':
+      default:
+        sorted.sort((a, b) => {
+          const aTime = a.essays[0] ? +new Date(a.essays[0].uploadedAt) : 0;
+          const bTime = b.essays[0] ? +new Date(b.essays[0].uploadedAt) : 0;
+          return bTime - aTime;
+        });
+        break;
+    }
+
+    return sorted;
+  }, [students, searchQuery, proficiencyFilter, sortKey]);
 
   // Handle upload
   const handleUpload = async () => {
@@ -162,15 +231,14 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({ onSaveAnalysis, 
     try {
       // Run analysis on the current textarea content (uploadText)
       // This ensures any manual edits to OCR text are preserved
+      const textForAnalysis = normalizeEssayText(uploadText);
+
       const [diag, comp] = await Promise.all([
-        analyzeStudentWorkAPI(uploadText),
-        classifyTextComplexityAPI(uploadText)
+        analyzeStudentWorkAPI(textForAnalysis),
+        classifyTextComplexityAPI(textForAnalysis)
       ]);
 
-      const normalizedStudentInput = uploadStudent.trim();
-      const studentIdentifier = isNewStudent
-        ? await hashStudentName(normalizedStudentInput)
-        : normalizedStudentInput;
+      const studentIdentifier = uploadStudent.trim();
 
       let student = students.find(s => s.name === studentIdentifier);
       let newStudents = [...students];
@@ -181,7 +249,7 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({ onSaveAnalysis, 
       const essay: StudentEssay = {
         id: Date.now().toString(),
         title: uploadTitle || `Essay ${student.essays.length + 1}`,
-        text: diag.analyzed_text || comp.analyzed_text || uploadText,
+        text: normalizeEssayText(diag.analyzed_text || comp.analyzed_text || textForAnalysis),
         uploadedAt: new Date(),
         diagnosisResult: diag,
         complexityResult: comp
@@ -189,6 +257,21 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({ onSaveAnalysis, 
       student.essays = [essay, ...student.essays];
       setStudents(newStudents);
       saveStudents(newStudents);
+
+      const { error: uploadSaveError } = await saveStudentGradingUpload({
+        student_name: student.name,
+        essay_title: essay.title,
+        essay_text: essay.text,
+        proficiency_level: diag.proficiency,
+        nat_score: diag.natScore,
+        diagnosis_result: diag,
+        complexity_result: comp,
+      });
+
+      if (uploadSaveError) {
+        setUploadError(`Saved locally, but database sync failed: ${uploadSaveError}`);
+      }
+
       if (onSaveAnalysis) {
         onSaveAnalysis({
           id: essay.id,
@@ -209,6 +292,57 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({ onSaveAnalysis, 
       alert("Failed to analyze essay. Please try again.");
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleSaveTeacherEvaluation = async () => {
+    if (!showEssayModal) return;
+    if (teacherRating < 1 || teacherRating > 5) {
+      setEvaluationMessage('Please select a rating from 1 to 5 stars.');
+      return;
+    }
+
+    const student = students.find((s) => s.id === showEssayModal.studentId);
+    const essay = student?.essays.find((e) => e.id === showEssayModal.essayId);
+    if (!student || !essay || !essay.diagnosisResult) {
+      setEvaluationMessage('Unable to save evaluation for this essay.');
+      return;
+    }
+
+    setIsSavingEvaluation(true);
+    setEvaluationMessage(null);
+    try {
+      const updatedStudents = students.map((s) => {
+        if (s.id !== student.id) return s;
+        return {
+          ...s,
+          essays: s.essays.map((e) => e.id === essay.id ? {
+            ...e,
+            teacherRating,
+            teacherComment: teacherComment.trim() || undefined,
+          } : e),
+        };
+      });
+
+      setStudents(updatedStudents);
+      saveStudents(updatedStudents);
+
+      const { error } = await saveTeacherEvaluation({
+        student_text: essay.text,
+        student_name: student.name,
+        proficiency_level: essay.diagnosisResult.proficiency,
+        nat_score: essay.diagnosisResult.natScore,
+        rating: teacherRating,
+        comment: teacherComment.trim() || undefined,
+      });
+
+      if (error) {
+        setEvaluationMessage(`Saved locally, but database sync failed: ${error}`);
+      } else {
+        setEvaluationMessage('Teacher rating saved.');
+      }
+    } finally {
+      setIsSavingEvaluation(false);
     }
   };
 
@@ -271,7 +405,7 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({ onSaveAnalysis, 
              extractedContent = extractedContent.replace(/\s*\u00a9\s*\d{1,4}Worksheets\.com.*|\d+\s*WORKSHEETS\.COM/gis, '').trim();
 
              setUploadTitle(extractedTitle || file.name.replace(/\.[^.]+$/, ''));
-             setUploadText(extractedContent);
+             setUploadText(normalizeEssayText(extractedContent));
            } else {
              setUploadError("No text found in image.");
            }
@@ -279,7 +413,7 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({ onSaveAnalysis, 
             // Existing logic for PDF or fallback
             const result = await classifyTextComplexityAPI('', base64, mimeType);
             if (result.analyzed_text) {
-              setUploadText(result.analyzed_text);
+              setUploadText(normalizeEssayText(result.analyzed_text));
             }
         }
       } catch (e: any) {
@@ -341,36 +475,113 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({ onSaveAnalysis, 
 
   // Render
   return (
-    <div className="h-full flex flex-col p-6 max-w-7xl mx-auto w-full">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-        <div>
-          <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">Student Grading</h2>
-          <p className="text-sm text-gray-500 mt-1">Manage and analyze student essays</p>
+    <div className="flex flex-col h-full bg-[#F2F2F7]">
+      <header className="h-14 flex items-center justify-between px-5 border-b border-gray-100 bg-white shadow-sm shrink-0">
+        <div className="flex items-center gap-2">
+          {onMenuClick && (
+            <button onClick={onMenuClick} className="md:hidden text-gray-500 hover:text-gray-700">
+              <IoMenuOutline className="text-2xl" />
+            </button>
+          )}
+          <IoPersonCircleOutline className="text-teal-500 text-xl" />
+          <h1 className="text-base font-bold text-gray-800">Student Grading</h1>
+          <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{students.length}</span>
         </div>
-        
-        <div className="flex items-center gap-3">
-          <div className="relative flex-1 md:w-64">
-            <IoSearchOutline className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input 
-              type="text" 
-              placeholder="Search students or essays..." 
-              className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:bg-white transition-all outline-none"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-            />
-          </div>
-          <button className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 shadow-lg shadow-teal-600/20 transition-all font-bold text-sm" onClick={() => setShowUpload(true)}>
-            <IoCloudUploadOutline className="text-lg" /> Upload Essay
-          </button>
-        </div>
-      </div>
+        <button
+          onClick={() => setShowUpload(true)}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-teal-500 hover:bg-teal-600 text-white text-xs font-semibold transition-colors"
+        >
+          <IoCloudUploadOutline className="text-base" />
+          Upload Essay
+        </button>
+      </header>
 
-      {/* Student Cards - MaterialLibrary style */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredStudents.map(student => {
-          // Compute average score if available
-          const allScores = student.essays.map(e => e.complexityResult?.score).filter(s => typeof s === 'number');
-          const avgScore = allScores.length ? (allScores.reduce((a, b) => a + (b as number), 0) / allScores.length).toFixed(1) : 'N/A';
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-5xl mx-auto px-5 py-5 space-y-4">
+          <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-xs text-blue-700 leading-relaxed">
+            <span className="font-semibold">Student Grading</span> analyzes student essays by proficiency and text complexity levels, while keeping upload and review history per student.
+          </div>
+
+          <div className="flex gap-3">
+            <div className="flex-1 relative">
+              <IoSearchOutline className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
+              <input
+                type="text"
+                placeholder="Search students or essays..."
+                className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-300"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <div className="relative">
+              <button
+                onClick={() => setShowSortMenu((s) => !s)}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:border-teal-300 transition-colors"
+              >
+                <IoFunnelOutline className="text-sm" />
+                {sortLabels[sortKey]}
+                <IoChevronDownOutline className={`text-xs transition-transform ${showSortMenu ? 'rotate-180' : ''}`} />
+              </button>
+              {showSortMenu && (
+                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-100 rounded-xl shadow-lg z-20 min-w-[170px] overflow-hidden">
+                  {(Object.entries(sortLabels) as [StudentSortKey, string][]).map(([key, label]) => (
+                    <button
+                      key={key}
+                      onClick={() => { setSortKey(key); setShowSortMenu(false); }}
+                      className={`w-full text-left px-4 py-2.5 text-xs hover:bg-gray-50 transition-colors ${sortKey === key ? 'text-teal-600 font-semibold bg-teal-50' : 'text-gray-600'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex gap-2 flex-wrap">
+            {([
+              { key: 'all' as const, label: 'All Proficiency' },
+              { key: ProficiencyLevel.FRUSTRATION, label: 'Frustration' },
+              { key: ProficiencyLevel.INSTRUCTIONAL, label: 'Instructional' },
+              { key: ProficiencyLevel.INDEPENDENT, label: 'Independent' },
+            ]).map(({ key, label }) => {
+              const isActive = proficiencyFilter === key;
+              const meta = key !== 'all' ? proficiencyMeta[key] : null;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setProficiencyFilter(key)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                    isActive
+                      ? meta ? `${meta.bg} ${meta.color} ${meta.border}` : 'bg-teal-50 text-teal-700 border-teal-200'
+                      : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  {meta && <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />}
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
+          {students.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-60 rounded-2xl border-2 border-dashed border-gray-200 bg-white">
+              <IoCloudUploadOutline className="text-4xl mb-3 text-gray-300" />
+              <p className="text-sm font-semibold text-gray-500">Upload your first essay</p>
+              <p className="text-xs text-gray-400 mt-1">Add student writing and grade it automatically</p>
+            </div>
+          )}
+
+          {/* Student Cards - MaterialLibrary style */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {displayedStudents.map(student => {
+          const latestComplexity = student.essays[0]?.complexityResult?.level ?? 'N/A';
+          const allRatings = student.essays
+            .map(e => e.teacherRating)
+            .filter((r): r is number => typeof r === 'number' && r > 0);
+          const avgRating = allRatings.length
+            ? (allRatings.reduce((a, b) => a + b, 0) / allRatings.length).toFixed(1)
+            : 'N/A';
           return (
             <div key={student.id} className={`rounded-2xl border border-gray-100 shadow-sm bg-white hover:shadow-xl transition-all cursor-pointer relative p-0 overflow-hidden group`} onClick={() => handleStudentClick(student.id)}>
               <div className="flex items-center gap-4 px-6 pt-6 pb-2">
@@ -396,11 +607,18 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({ onSaveAnalysis, 
                       <span className="text-xs text-gray-700 font-medium">{new Date(student.essays[0].uploadedAt).toLocaleDateString()}</span>
                     </div>
                     <div className="flex flex-col items-end">
-                      <span className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Avg Complexity</span>
-                      <span className="text-xs font-bold text-teal-600">{avgScore}</span>
+                      <span className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Complexity</span>
+                      <span className="text-xs font-bold text-teal-600">{latestComplexity}</span>
                     </div>
                   </div>
                 )}
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Avg Teacher Rating</span>
+                  <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-500">
+                    <IoStar className="text-[12px]" />
+                    {avgRating}
+                  </span>
+                </div>
                 <div className="flex gap-2 flex-wrap mt-2">
                   {student.essays.slice(0, 3).map(essay => (
                     <span key={essay.id} className="bg-gray-50 text-gray-600 border border-gray-100 px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer hover:bg-teal-50 hover:text-teal-700 hover:border-teal-100 transition-all" onClick={e => { e.stopPropagation(); setShowEssayModal({studentId: student.id, essayId: essay.id}); }}>
@@ -441,6 +659,14 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({ onSaveAnalysis, 
             </div>
           );
         })}
+          </div>
+
+          {students.length > 0 && displayedStudents.length === 0 && (
+            <div className="text-center py-12 text-sm text-gray-400">
+              No students match your current search.
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Upload Modal */}
@@ -609,12 +835,34 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({ onSaveAnalysis, 
               <div className="flex-1 overflow-y-auto p-8 space-y-8">
                 {/* Scoring Grid */}
                 {dr && (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {[
-                      { label: 'NAT Predicted', value: dr.natScore, icon: IoStatsChartOutline, meta: pMeta },
-                      { label: 'Learning Band', value: dr.learningBand.split(' ')[0], icon: IoCheckmarkCircleOutline, meta: pMeta },
-                      { label: 'Phil-IRI', value: dr.philIriLevel, icon: IoBookOutline, meta: pMeta },
-                      { label: 'Complexity', value: cr?.score ?? 'N/A', icon: IoTimeOutline, meta: cMeta }
+                      {
+                        label: 'Proficiency',
+                        value: dr.proficiency,
+                        definition:
+                          dr.proficiency === ProficiencyLevel.FRUSTRATION
+                            ? 'Needs intensive support and guided intervention.'
+                            : dr.proficiency === ProficiencyLevel.INSTRUCTIONAL
+                              ? 'Can progress with teacher scaffolding and practice.'
+                              : 'Can work independently on grade-level tasks.',
+                        icon: IoCheckmarkCircleOutline,
+                        meta: pMeta,
+                      },
+                      {
+                        label: 'Complexity',
+                        value: cr?.level ?? 'N/A',
+                        definition:
+                          cr?.level === ComplexityLevel.LITERAL
+                            ? 'Straightforward text with direct meaning.'
+                            : cr?.level === ComplexityLevel.INFERENTIAL
+                              ? 'Requires some interpretation and reading between lines.'
+                              : cr?.level === ComplexityLevel.EVALUATIVE
+                                ? 'Requires critical analysis and deeper reasoning.'
+                                : 'No complexity level available for this essay.',
+                        icon: IoTimeOutline,
+                        meta: cMeta,
+                      }
                     ].map((item, idx) => (
                       <div key={idx} className={`p-4 rounded-2xl border ${item.meta?.border || 'border-gray-100'} ${item.meta?.bg || 'bg-gray-50'}`}>
                         <div className="flex items-center gap-2 mb-2">
@@ -622,6 +870,7 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({ onSaveAnalysis, 
                           <span className={`text-[10px] font-bold uppercase tracking-widest ${item.meta?.color || 'text-gray-400'}`}>{item.label}</span>
                         </div>
                         <div className={`text-xl font-black ${item.meta?.color || 'text-gray-900'}`}>{item.value}</div>
+                        <p className="mt-2 text-[11px] text-gray-600 leading-relaxed">{item.definition}</p>
                       </div>
                     ))}
                   </div>
@@ -631,9 +880,9 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({ onSaveAnalysis, 
                   {/* Left Column: Metrics & Feedback */}
                   <div className="space-y-6">
                     {dr && (
-                      <div className="bg-gray-900 rounded-[24px] p-6 text-white shadow-xl shadow-gray-900/10">
+                      <div className="bg-white border border-gray-100 rounded-[24px] p-6 shadow-sm">
                         <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4 flex items-center gap-2">
-                          <IoStatsChartOutline className="text-teal-400" /> Performance Metrics
+                          <IoStatsChartOutline className="text-teal-500" /> Performance Metrics
                         </h4>
                         <div className="space-y-4">
                           {[
@@ -643,11 +892,11 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({ onSaveAnalysis, 
                             { label: 'Structure & Cohesion', val: dr.metrics.structureCohesion }
                           ].map((m, i) => (
                             <div key={i}>
-                              <div className="flex justify-between text-xs font-bold mb-1.5">
+                              <div className="flex justify-between text-xs font-bold text-gray-700 mb-1.5">
                                 <span>{m.label}</span>
-                                <span className="text-teal-400">{m.val}%</span>
+                                <span className="text-teal-600">{m.val}%</span>
                               </div>
-                              <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                                 <div className="h-full bg-teal-500 rounded-full" style={{ width: `${m.val}%` }} />
                               </div>
                             </div>
@@ -674,6 +923,44 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({ onSaveAnalysis, 
                     <div className="flex-1 bg-gray-50 border border-gray-100 rounded-[24px] p-6 text-xs text-gray-700 leading-relaxed font-mono whitespace-pre-wrap max-h-[400px] overflow-y-auto">
                       {essay.text}
                     </div>
+                  </div>
+                </div>
+
+                {/* Teacher Rating */}
+                <div className="bg-white border border-gray-100 rounded-[24px] p-6">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">Teacher Star Rating</h4>
+                  <div className="flex items-center gap-2 mb-3">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        onClick={() => setTeacherRating(star)}
+                        className="text-2xl text-amber-400 hover:text-amber-500 transition-colors"
+                        aria-label={`Rate ${star} star${star > 1 ? 's' : ''}`}
+                      >
+                        {star <= teacherRating ? <IoStar /> : <IoStarOutline />}
+                      </button>
+                    ))}
+                    <span className="text-xs font-semibold text-gray-600 ml-1">{teacherRating ? `${teacherRating}/5` : 'Not rated'}</span>
+                  </div>
+
+                  <textarea
+                    className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs text-gray-700 leading-relaxed min-h-[90px] outline-none focus:ring-1 focus:ring-teal-500"
+                    placeholder="Optional teacher comment..."
+                    value={teacherComment}
+                    onChange={(e) => setTeacherComment(e.target.value)}
+                  />
+
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <button
+                      onClick={handleSaveTeacherEvaluation}
+                      disabled={isSavingEvaluation}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${isSavingEvaluation ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-teal-600 text-white hover:bg-teal-700'}`}
+                    >
+                      {isSavingEvaluation ? 'Saving…' : 'Save Teacher Rating'}
+                    </button>
+                    {evaluationMessage && (
+                      <p className="text-[10px] text-gray-500 font-medium">{evaluationMessage}</p>
+                    )}
                   </div>
                 </div>
 

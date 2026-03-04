@@ -16,12 +16,24 @@ from google import generativeai as genai
 client = None
 model_name = "gemini-flash-lite-latest"
 
+NLTK_DATA_DIR = os.path.join(os.path.dirname(__file__), "nltk_data")
+os.makedirs(NLTK_DATA_DIR, exist_ok=True)
+if NLTK_DATA_DIR not in nltk.data.path:
+    nltk.data.path.insert(0, NLTK_DATA_DIR)
+existing_nltk_data = os.environ.get("NLTK_DATA")
+if existing_nltk_data:
+    os.environ["NLTK_DATA"] = os.pathsep.join([NLTK_DATA_DIR, existing_nltk_data])
+else:
+    os.environ["NLTK_DATA"] = NLTK_DATA_DIR
+
 try:
-    nltk.data.find('corpora/wordnet.zip')
+    nltk.data.find('corpora/wordnet.zip', paths=[NLTK_DATA_DIR])
+    nltk.data.find('corpora/omw-1.4.zip', paths=[NLTK_DATA_DIR])
 except LookupError:
     try:
-        nltk.download('wordnet')
-        nltk.download('omw-1.4')
+        print(f"Downloading NLTK data to: {NLTK_DATA_DIR}")
+        nltk.download('wordnet', download_dir=NLTK_DATA_DIR)
+        nltk.download('omw-1.4', download_dir=NLTK_DATA_DIR)
     except Exception as e:
         print(f"Error downloading WordNet: {e}")
 from nltk.corpus import wordnet

@@ -33,8 +33,12 @@ class BaseModel:
     def ml_predict(self, vector):
 
         if self.model and hasattr(self.model, 'predict'):
-            vector_scaled = self.scaler.transform(vector)
-            idx = self.model.predict(vector_scaled)[0]
+            try:
+                vector_scaled = self.scaler.transform(vector)
+                idx = self.model.predict(vector_scaled)[0]
+            except Exception as exc:
+                print(f"Warning: ML inference skipped, falling back to heuristics ({exc})")
+                return None
 
             if isinstance(idx, (int, np.integer)):
                 return self.labels[idx]

@@ -9,9 +9,27 @@ export interface TeacherEvaluation {
   student_text: string;
   student_name?: string;
   proficiency_level: string;
-  nat_score: number;
+  nat_score?: number | null;
   rating: number; // 1-5 stars
   comment?: string;
+}
+
+export interface StudentGradingUpload {
+  student_name: string;
+  essay_title: string;
+  essay_text: string;
+  proficiency_level?: string;
+  nat_score?: number | null;
+  diagnosis_result?: unknown;
+  complexity_result?: unknown;
+}
+
+export interface MaterialUpload {
+  material_name: string;
+  material_text: string;
+  complexity_level?: string;
+  complexity_score?: number | null;
+  complexity_result?: unknown;
 }
 
 function normalizeStudentName(name: string): string {
@@ -41,6 +59,40 @@ export async function saveTeacherEvaluation(evaluation: TeacherEvaluation): Prom
     comment: evaluation.comment,
     student_name_sha: studentNameSha,
     teacher_id: user?.id ?? null,
+  }]);
+
+  return { error: error ? error.message : null };
+}
+
+export async function saveStudentGradingUpload(upload: StudentGradingUpload): Promise<{ error: string | null }> {
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const studentNameSha = await sha256Hex(normalizeStudentName(upload.student_name));
+
+  const { error } = await supabase.from('student_grading_uploads').insert([{
+    teacher_id: user?.id ?? null,
+    student_name_sha: studentNameSha,
+    essay_title: upload.essay_title,
+    essay_text: upload.essay_text,
+    proficiency_level: upload.proficiency_level ?? null,
+    nat_score: upload.nat_score ?? null,
+    diagnosis_result: upload.diagnosis_result ?? null,
+    complexity_result: upload.complexity_result ?? null,
+  }]);
+
+  return { error: error ? error.message : null };
+}
+
+export async function saveMaterialUpload(upload: MaterialUpload): Promise<{ error: string | null }> {
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const { error } = await supabase.from('material_uploads').insert([{
+    teacher_id: user?.id ?? null,
+    material_name: upload.material_name,
+    material_text: upload.material_text,
+    complexity_level: upload.complexity_level ?? null,
+    complexity_score: upload.complexity_score ?? null,
+    complexity_result: upload.complexity_result ?? null,
   }]);
 
   return { error: error ? error.message : null };

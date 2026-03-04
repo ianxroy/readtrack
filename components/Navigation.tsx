@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   IoCloseOutline,
   IoGridOutline,
-  IoAnalyticsOutline,
   IoSchoolOutline,
   IoLibraryOutline,
   IoLogOutOutline,
@@ -105,8 +104,6 @@ const SidebarContent: React.FC<NavigationProps> = ({
           <NavItem to="/" icon={IoGridOutline} label="Dashboard" />
           <NavItem to="/student" icon={IoSchoolOutline} label="Student Grading" />
           <NavItem to="/material" icon={IoLibraryOutline} label="Material Library" />
-          <NavItem to="/evaluation" icon={IoAnalyticsOutline} label="Model Performance" />
-          <NavItem to="/about" icon={IoInformationCircleOutline} label="About" />
         </div>
 
         {/* History section */}
@@ -168,6 +165,7 @@ const SidebarContent: React.FC<NavigationProps> = ({
             )}
           </div>
         )}
+
       </div>
 
       {/* User footer */}
@@ -178,6 +176,20 @@ const SidebarContent: React.FC<NavigationProps> = ({
             {user?.email ?? 'Teacher'}
           </span>
         </div>
+        <NavLink
+          to="/about"
+          onClick={onItemClick}
+          className={({ isActive }) =>
+            `w-full flex items-center gap-2 px-3 py-2 rounded-xl mb-1 transition-colors ${
+              isActive
+                ? 'bg-teal-50 text-teal-700 font-semibold'
+                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+            }`
+          }
+        >
+          <IoInformationCircleOutline className="text-lg" />
+          <span className="text-xs font-medium">About</span>
+        </NavLink>
         <button
           onClick={signOut}
           className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors"

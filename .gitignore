@@ -35,3 +35,29 @@ backend/models/asap_linguistic_features.npy
 
 backend/models/proficiency_hybrid_model.pkl
 backend/models/asap_deberta_embeddings.npy
+
+# NLTK data (auto-generated)
+backend/nltk_data/
+
+# Docker files
+Dockerfile
+docker-compose.yml
+.dockerignore
+backend/Dockerfile
+backend/.dockerignore
+DOCKER_README.md
+DOCKER_SETUP.md
+
+# Documentation files (not for git)
+thesis-audit.md
+Software_Development_Agreement.md
+Chapter*.md
+INVOICE_*.txt
+implementationInstruction.txt
+grammar_test_samples.txt
+test_pronoun.ps1
+baseline.txt
+services.txt
+Procfile
+railway.toml
+render.yaml

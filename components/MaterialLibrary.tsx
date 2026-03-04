@@ -12,7 +12,8 @@ import {
   IoChevronDownOutline,
 } from 'react-icons/io5';
 import { LibraryMaterial, TextComplexityResult, ComplexityLevel } from '../types';
-import { classifyTextComplexityAPI } from '../services/pythonService';
+import { classifyTextComplexityAPI, extractTextFromImageAPI } from '../services/pythonService';
+import { saveMaterialUpload } from '../services/supabaseService';
 
 const LIBRARY_KEY = 'readtrack_material_library';
 
@@ -26,6 +27,41 @@ function loadLibrary(): LibraryMaterial[] {
 
 function saveLibrary(materials: LibraryMaterial[]) {
   localStorage.setItem(LIBRARY_KEY, JSON.stringify(materials));
+}
+
+function normalizeMaterialText(text: string): string {
+  const normalized = text.replace(/\r\n?/g, '\n').trim();
+  if (!normalized) return '';
+
+  const paragraphs = normalized
+    .split(/\n\s*\n+/)
+    .map((paragraph) => paragraph.split('\n').map((line) => line.trim()).filter(Boolean));
+
+  const rebuilt = paragraphs.map((lines) => {
+    if (lines.length <= 1) return lines[0] || '';
+
+    let merged = lines[0];
+    for (let i = 1; i < lines.length; i += 1) {
+      const prevLine = lines[i - 1];
+      const currentLine = lines[i];
+
+      const prevEndsSentence = /[.!?]["')\]]?$/.test(prevLine);
+      const prevEndsHyphen = /-$/.test(prevLine);
+      const currentIsList = /^[-•*]/.test(currentLine) || /^\d+[.)]\s/.test(currentLine);
+
+      if (prevEndsHyphen) {
+        merged = `${merged.slice(0, -1)}${currentLine}`;
+      } else if (prevEndsSentence || currentIsList) {
+        merged = `${merged}\n${currentLine}`;
+      } else {
+        merged = `${merged} ${currentLine}`;
+      }
+    }
+
+    return merged;
+  });
+
+  return rebuilt.filter(Boolean).join('\n\n');
 }
 
 const levelMeta = {
@@ -278,8 +314,18 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
       
       // CRITICAL: Ensure we use the analyzed_text if it exists, otherwise fall back.
       // If it's still empty, it means analysis failed or text was truly empty.
-      const extractedText = result.analyzed_text || text;
+      let extractedText = result.analyzed_text || text;
+
+      if ((!extractedText || extractedText.trim().length === 0) && base64 && (isImage || isPdf)) {
+        try {
+          extractedText = await extractTextFromImageAPI(base64, mimeType);
+        } catch {
+          // Preserve original error flow below
+        }
+      }
       
+      extractedText = normalizeMaterialText(extractedText);
+
       if (!extractedText || extractedText.trim().length === 0) {
         throw new Error("No text could be extracted from this file. Please ensure it contains readable text.");
       }
@@ -292,6 +338,18 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
         complexityResult: result,
       };
       persist([material, ...materials]);
+
+      const { error } = await saveMaterialUpload({
+        material_name: material.name,
+        material_text: material.text,
+        complexity_level: material.complexityResult.level,
+        complexity_score: material.complexityResult.score,
+        complexity_result: material.complexityResult,
+      });
+
+      if (error) {
+        setUploadError(`Saved locally, but database sync failed: ${error}`);
+      }
     } catch (e: any) {
       setUploadError(e.message || 'Analysis failed.');
     } finally {

@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { IoMenuOutline } from "react-icons/io5";
+import { EvaluationApiResponse } from "../types";
 
 interface AboutProps {
   onMenuClick?: () => void;
@@ -12,8 +13,46 @@ const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title
   </div>
 );
 
-export const About: React.FC<AboutProps> = ({ onMenuClick }) => (
-  <div className="flex flex-col h-full bg-[#F2F2F7]">
+const DEFAULT_METRICS: EvaluationApiResponse = {
+  proficiency: {
+    accuracy: "85.3%",
+    f1: 0.85,
+    precision: 0.85,
+    recall: 0.85,
+    labels: ["Independent", "Instructional", "Frustration"],
+    matrix: [],
+  },
+  complexity: {
+    accuracy: "98.41%",
+    f1: 0.98,
+    precision: 0.98,
+    recall: 0.98,
+    labels: ["Literal", "Inferential", "Evaluative"],
+    matrix: [],
+  },
+};
+
+export const About: React.FC<AboutProps> = ({ onMenuClick }) => {
+  const [metrics, setMetrics] = useState<EvaluationApiResponse>(DEFAULT_METRICS);
+  const [isOfflineMetrics, setIsOfflineMetrics] = useState(false);
+
+  useEffect(() => {
+    const loadMetrics = async () => {
+      try {
+        const response = await fetch("http://localhost:8000/api/evaluation");
+        if (!response.ok) throw new Error("Failed to fetch model metrics");
+        const data = await response.json();
+        setMetrics(data);
+      } catch {
+        setIsOfflineMetrics(true);
+      }
+    };
+
+    loadMetrics();
+  }, []);
+
+  return (
+    <div className="flex flex-col h-full bg-[#F2F2F7]">
     {/* Header */}
     <header className="h-14 flex items-center gap-3 px-5 border-b border-gray-100 bg-white shadow-sm shrink-0">
       {onMenuClick && (
@@ -30,18 +69,17 @@ export const About: React.FC<AboutProps> = ({ onMenuClick }) => (
         {/* Overview */}
         <Section title="Overview">
           <p className="text-xs text-gray-500 leading-relaxed">
-            ReadTrack is a hybrid AI system that combines a trained{" "}
-            <strong className="text-gray-700">Support Vector Machine (SVM)</strong> with{" "}
-            <strong className="text-gray-700">Gemini 2.5 Flash</strong> to assess the reading
-            complexity of teaching materials and the writing proficiency of student essays —
-            aligned with Philippine curriculum standards (Phil-IRI, DepEd, CEFR).
+            ReadTrack uses two trained machine-learning models for classroom analysis:
+            one for <strong className="text-gray-700">student proficiency</strong> and one for
+            <strong className="text-gray-700"> text complexity</strong>. Input text is processed
+            with spaCy + CEFR features, then classified into educational levels. For image/PDF
+            inputs, Gemini OCR extracts text before model inference.
           </p>
           <div className="mt-4 bg-blue-50 border border-blue-100 rounded-xl p-4 text-xs text-blue-800 leading-relaxed">
             <span className="font-semibold">Complexity</span> measures if a reading material is
             appropriate for Grade 7 students (Literal → easy, Inferential → moderate, Evaluative →
-            difficult). <span className="font-semibold">Proficiency</span> is a separate model that
-            scores student-written essays and estimates NAT scores. These two models are
-            independent.
+            difficult). <span className="font-semibold">Proficiency</span> classifies student
+            writing into Phil-IRI aligned levels (Frustration / Instructional / Independent).
           </div>
         </Section>
 
@@ -49,10 +87,10 @@ export const About: React.FC<AboutProps> = ({ onMenuClick }) => (
         <Section title="Technology">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {[
-              { label: "Algorithm", value: "SVM", color: "text-teal-600 bg-teal-50 border-teal-100" },
-              { label: "Kernel", value: "RBF", color: "text-blue-600 bg-blue-50 border-blue-100" },
-              { label: "AI Validator", value: "Gemini 2.5 Flash", color: "text-purple-600 bg-purple-50 border-purple-100" },
-              { label: "Language", value: "EN & Filipino", color: "text-orange-600 bg-orange-50 border-orange-100" },
+              { label: "Proficiency Model", value: "HistGradientBoosting", color: "text-teal-600 bg-teal-50 border-teal-100" },
+              { label: "Complexity Model", value: "Linear SVC", color: "text-blue-600 bg-blue-50 border-blue-100" },
+              { label: "NLP Features", value: "spaCy + CEFRpy", color: "text-purple-600 bg-purple-50 border-purple-100" },
+              { label: "OCR", value: "Gemini 2.5 Flash", color: "text-orange-600 bg-orange-50 border-orange-100" },
             ].map(({ label, value, color }) => (
               <div key={label} className={`border rounded-xl p-3 text-center ${color}`}>
                 <div className="text-[9px] font-bold uppercase tracking-widest opacity-60 mb-0.5">{label}</div>
@@ -80,7 +118,8 @@ export const About: React.FC<AboutProps> = ({ onMenuClick }) => (
               </p>
               <div className="space-y-1.5 border-t border-gray-100 pt-3 text-[10px]">
                 {[
-                  ["Features", "Lexical, Syntactic, Readability"],
+                  ["Algorithm", "SVC (linear kernel)"],
+                  ["Features", "24 linguistic + readability features"],
                   ["Output", "Literal / Inferential / Evaluative"],
                   ["Indices", "Flesch-Kincaid, Gunning Fog"],
                 ].map(([k, v]) => (
@@ -96,20 +135,21 @@ export const About: React.FC<AboutProps> = ({ onMenuClick }) => (
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-7 h-7 rounded-lg bg-teal-50 flex items-center justify-center text-sm">📝</div>
                 <div>
-                  <div className="text-xs font-bold text-gray-800">Student Proficiency SVM</div>
+                  <div className="text-xs font-bold text-gray-800">Student Proficiency Model</div>
                   <div className="text-[9px] text-teal-500 font-semibold uppercase tracking-wider">Essay Scoring</div>
                 </div>
               </div>
               <p className="text-[11px] text-gray-500 leading-relaxed mb-3">
-                Scores student essays as{" "}
-                <strong className="text-gray-700">Beginning → Advanced</strong> and estimates
-                their <strong className="text-gray-700">NAT score</strong>.
+                Classifies student essays into Phil-IRI aligned levels:
+                <strong className="text-gray-700"> Frustration</strong>,
+                <strong className="text-gray-700"> Instructional</strong>, and
+                <strong className="text-gray-700"> Independent</strong>.
               </p>
               <div className="space-y-1.5 border-t border-gray-100 pt-3 text-[10px]">
                 {[
-                  ["Output", "Beginning / Developing / Proficient / Advanced"],
-                  ["NAT Score", "Estimated 0–100 scale"],
-                  ["Standards", "Phil-IRI / DepEd / CEFR"],
+                  ["Algorithm", "HistGradientBoosting + RobustScaler"],
+                  ["Output", "Frustration / Instructional / Independent"],
+                  ["Fallback", "Heuristic scoring when model unavailable"],
                 ].map(([k, v]) => (
                   <div key={k} className="flex justify-between">
                     <span className="text-gray-400">{k}</span>
@@ -130,8 +170,9 @@ export const About: React.FC<AboutProps> = ({ onMenuClick }) => (
                 <span className="text-[9px] font-bold text-teal-500 bg-white border border-teal-200 px-1.5 py-0.5 rounded uppercase tracking-wider">Kaggle</span>
               </div>
               <p className="text-[11px] text-teal-800/70 leading-relaxed">
-                Automated Student Assessment Prize 2 — large-scale student essays scored by human
-                raters, used to train and validate proficiency and complexity scoring models.
+                Automated Student Assessment Prize 2 essay dataset (`ASAP2_train_sourcetexts.csv`) is
+                used to train the proficiency model. Human score labels are mapped to
+                Frustration/Instructional/Independent classes.
               </p>
             </div>
             <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
@@ -140,11 +181,53 @@ export const About: React.FC<AboutProps> = ({ onMenuClick }) => (
                 <span className="text-[9px] font-bold text-blue-500 bg-white border border-blue-200 px-1.5 py-0.5 rounded uppercase tracking-wider">Library</span>
               </div>
               <p className="text-[11px] text-blue-800/70 leading-relaxed">
-                Curated reading passages graded by complexity level, used to calibrate readability
-                indices and lexical difficulty thresholds across grade levels.
+                Complexity training uses the CommonLit-style readability dataset
+                (`train_word_frequencies (1).csv` fallback) and maps target readability into
+                Literal/Inferential/Evaluative classes.
               </p>
             </div>
           </div>
+        </Section>
+
+        <Section title="Feature Set">
+          <div className="grid sm:grid-cols-2 gap-3 text-[11px] text-gray-600">
+            <div className="bg-gray-50 border border-gray-100 rounded-xl p-3">
+              <div className="font-semibold text-gray-700 mb-1">Core linguistic features</div>
+              <p>Type-token ratio, average sentence length, difficult-word ratio, clause density, POS ratios, dependency distance.</p>
+            </div>
+            <div className="bg-gray-50 border border-gray-100 rounded-xl p-3">
+              <div className="font-semibold text-gray-700 mb-1">Readability + CEFR features</div>
+              <p>Flesch-Kincaid, Gunning Fog, CEFR A1–C2 ratios, advanced-word count, stopword and punctuation density.</p>
+            </div>
+          </div>
+        </Section>
+
+        <Section title="Current Metrics">
+          <div className="grid sm:grid-cols-2 gap-3 text-[10px]">
+            <div className="bg-gray-50 border border-gray-100 rounded-xl p-4">
+              <div className="text-[9px] uppercase tracking-widest text-gray-400 font-bold mb-2">Proficiency</div>
+              <div className="space-y-1 text-gray-600">
+                <div className="flex justify-between"><span>Accuracy</span><span className="font-semibold">{metrics.proficiency.accuracy}</span></div>
+                <div className="flex justify-between"><span>F1</span><span className="font-semibold">{metrics.proficiency.f1}</span></div>
+                <div className="flex justify-between"><span>Precision</span><span className="font-semibold">{metrics.proficiency.precision}</span></div>
+                <div className="flex justify-between"><span>Recall</span><span className="font-semibold">{metrics.proficiency.recall}</span></div>
+              </div>
+            </div>
+            <div className="bg-gray-50 border border-gray-100 rounded-xl p-4">
+              <div className="text-[9px] uppercase tracking-widest text-gray-400 font-bold mb-2">Complexity</div>
+              <div className="space-y-1 text-gray-600">
+                <div className="flex justify-between"><span>Accuracy</span><span className="font-semibold">{metrics.complexity.accuracy}</span></div>
+                <div className="flex justify-between"><span>F1</span><span className="font-semibold">{metrics.complexity.f1}</span></div>
+                <div className="flex justify-between"><span>Precision</span><span className="font-semibold">{metrics.complexity.precision}</span></div>
+                <div className="flex justify-between"><span>Recall</span><span className="font-semibold">{metrics.complexity.recall}</span></div>
+              </div>
+            </div>
+          </div>
+          {isOfflineMetrics && (
+            <div className="mt-3 text-[10px] text-orange-500 font-medium">
+              Using cached metrics (backend unavailable).
+            </div>
+          )}
         </Section>
 
         {/* Pipeline */}
@@ -153,10 +236,11 @@ export const About: React.FC<AboutProps> = ({ onMenuClick }) => (
             {[
               ["Input", "Text / Image / PDF"],
               ["OCR", "Gemini Vision"],
+              ["Detect", "Language"],
               ["NLP", "spaCy"],
               ["Extract", "Features"],
-              ["SVM", "Predict"],
-              ["Validate", "Gemini AI"],
+              ["Model", "Classify"],
+              ["Fallback", "Heuristic"],
               ["Output", "Results"],
             ].map(([label, sub], i, arr) => (
               <React.Fragment key={label}>
@@ -173,4 +257,5 @@ export const About: React.FC<AboutProps> = ({ onMenuClick }) => (
       </div>
     </div>
   </div>
-);
+  );
+};

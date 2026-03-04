@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { Navigation } from "./components/Navigation";
 import { Dashboard } from "./components/Dashboard";
-import { ModelEvaluation } from "./components/ModelEvaluation";
 import GrammarChecker from "./components/GrammarChecker";
 import { StudentGrading } from "./components/StudentGrading";
 import { MaterialLibrary } from "./components/MaterialLibrary";
@@ -114,7 +113,7 @@ const AppRoutes: React.FC = () => {
                     <Route path="/grammar" element={<GrammarChecker />} />
                     <Route
                       path="/evaluation"
-                      element={<ModelEvaluation onMenuClick={() => setIsMobileMenuOpen(true)} />}
+                      element={<Navigate to="/about" replace />}
                     />
                     <Route
                       path="/about"

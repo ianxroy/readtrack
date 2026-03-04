@@ -228,8 +228,8 @@ const VerdictCard = ({
   detectedLanguage?: string;
 }) => {
   const isGood =
-    result.proficiency === ProficiencyLevel.PROFICIENT ||
-    result.proficiency === ProficiencyLevel.ADVANCED;
+    result.proficiency === ProficiencyLevel.INSTRUCTIONAL ||
+    result.proficiency === ProficiencyLevel.INDEPENDENT;
   const [activeStat, setActiveStat] = useState<"score" | "issues" | null>(null);
 
   const languageDisplay =

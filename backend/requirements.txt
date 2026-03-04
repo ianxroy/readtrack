@@ -5,6 +5,7 @@ python-dotenv
 fastapi
 uvicorn
 spacy
+setuptools
 calamancy==0.2.2
 cefrpy
 pydantic

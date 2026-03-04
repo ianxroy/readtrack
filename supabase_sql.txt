@@ -55,6 +55,90 @@ CREATE INDEX IF NOT EXISTS idx_teacher_evaluations_teacher_id
 
 
 -- ----------------------------------------------------------------
+-- 1B. STUDENT GRADING UPLOADS
+--     Stores uploaded essays + model outputs (student name hashed)
+-- ----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS student_grading_uploads (
+  id                UUID        DEFAULT gen_random_uuid() PRIMARY KEY,
+  teacher_id        UUID        REFERENCES auth.users(id) ON DELETE SET NULL,
+  student_name_sha  TEXT        NOT NULL,
+  essay_title       TEXT,
+  essay_text        TEXT        NOT NULL,
+  proficiency_level TEXT,
+  nat_score         NUMERIC(5, 2),
+  diagnosis_result  JSONB,
+  complexity_result JSONB,
+  created_at        TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE student_grading_uploads ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Teachers can view own student grading uploads" ON student_grading_uploads;
+CREATE POLICY "Teachers can view own student grading uploads"
+  ON student_grading_uploads FOR SELECT
+  USING (auth.uid() = teacher_id);
+
+DROP POLICY IF EXISTS "Teachers can insert own student grading uploads" ON student_grading_uploads;
+CREATE POLICY "Teachers can insert own student grading uploads"
+  ON student_grading_uploads FOR INSERT
+  WITH CHECK (auth.uid() = teacher_id);
+
+DROP POLICY IF EXISTS "Teachers can update own student grading uploads" ON student_grading_uploads;
+CREATE POLICY "Teachers can update own student grading uploads"
+  ON student_grading_uploads FOR UPDATE
+  USING (auth.uid() = teacher_id);
+
+DROP POLICY IF EXISTS "Teachers can delete own student grading uploads" ON student_grading_uploads;
+CREATE POLICY "Teachers can delete own student grading uploads"
+  ON student_grading_uploads FOR DELETE
+  USING (auth.uid() = teacher_id);
+
+CREATE INDEX IF NOT EXISTS idx_student_grading_uploads_teacher_id
+  ON student_grading_uploads (teacher_id);
+
+
+-- ----------------------------------------------------------------
+-- 1C. MATERIAL UPLOADS
+--     Stores uploaded material text + model complexity output
+-- ----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS material_uploads (
+  id                UUID        DEFAULT gen_random_uuid() PRIMARY KEY,
+  teacher_id        UUID        REFERENCES auth.users(id) ON DELETE SET NULL,
+  material_name     TEXT        NOT NULL,
+  material_text     TEXT        NOT NULL,
+  complexity_level  TEXT,
+  complexity_score  NUMERIC(6, 2),
+  complexity_result JSONB,
+  created_at        TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE material_uploads ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Teachers can view own material uploads" ON material_uploads;
+CREATE POLICY "Teachers can view own material uploads"
+  ON material_uploads FOR SELECT
+  USING (auth.uid() = teacher_id);
+
+DROP POLICY IF EXISTS "Teachers can insert own material uploads" ON material_uploads;
+CREATE POLICY "Teachers can insert own material uploads"
+  ON material_uploads FOR INSERT
+  WITH CHECK (auth.uid() = teacher_id);
+
+DROP POLICY IF EXISTS "Teachers can update own material uploads" ON material_uploads;
+CREATE POLICY "Teachers can update own material uploads"
+  ON material_uploads FOR UPDATE
+  USING (auth.uid() = teacher_id);
+
+DROP POLICY IF EXISTS "Teachers can delete own material uploads" ON material_uploads;
+CREATE POLICY "Teachers can delete own material uploads"
+  ON material_uploads FOR DELETE
+  USING (auth.uid() = teacher_id);
+
+CREATE INDEX IF NOT EXISTS idx_material_uploads_teacher_id
+  ON material_uploads (teacher_id);
+
+
+-- ----------------------------------------------------------------
 -- 2. TEACHER PROFILES  (optional – extends Supabase auth.users)
 --    Stores display name / school info for each teacher account
 -- ----------------------------------------------------------------

@@ -1,9 +1,8 @@
 
 export enum ProficiencyLevel {
-  BEGINNING = "Beginning",
-  DEVELOPING = "Developing",
-  PROFICIENT = "Proficient",
-  ADVANCED = "Advanced"
+  FRUSTRATION = "Frustration",
+  INSTRUCTIONAL = "Instructional",
+  INDEPENDENT = "Independent"
 }
 
 export enum ComplexityLevel {

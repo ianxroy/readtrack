@@ -19,7 +19,7 @@ from grammar_service import router as grammar_router
 load_dotenv('.env.local')
 load_dotenv('.env')
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", os.getenv("API_KEY", ""))
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 if GEMINI_API_KEY:
     print(f"Loaded Gemini API key: {GEMINI_API_KEY[:8]}...")
 else:
@@ -108,6 +108,11 @@ def generate_reference_title(text: str, name: Optional[str] = None) -> str:
 @app.get("/")
 def read_root():
     return {"message": "FastAPI backend is running!"}
+
+@app.get("/health")
+def health_check():
+    """Health check endpoint for Docker and load balancers."""
+    return {"status": "healthy", "service": "readtrack-backend"}
 
 @app.post("/test-complexity")
 def test_complexity(request: TextRequest):

@@ -18,7 +18,7 @@ def extract_text_from_image(base64_string: str, api_key: Optional[str] = None, m
     if genai is None:
         return ""
 
-    api_key = api_key or os.getenv("GEMINI_API_KEY", os.getenv("API_KEY", ""))
+        api_key = api_key or os.getenv("GEMINI_API_KEY", "")
     if not api_key:
         print("⚠ Warning: No Gemini API key available for OCR")
         return ""
