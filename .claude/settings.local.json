@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc -l \"/Users/ianxroy/readtrack/Chapter 1-5 \\(draft\\).md\")"
+    ]
+  }
+}
