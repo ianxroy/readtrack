@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(wc -l \"/Users/ianxroy/readtrack/Chapter 1-5 \\(draft\\).md\")"
+      "Bash(wc -l \"/Users/ianxroy/readtrack/Chapter 1-5 \\(draft\\).md\")",
+      "Bash(python train_proficiency_svm.py)"
     ]
   }
 }

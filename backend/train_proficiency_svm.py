@@ -26,14 +26,14 @@ import seaborn as sns
 from svm_models import StudentProficiencySVM
 from train_utils import load_asap_data, save_model_metrics
 
-def train_proficiency():
+def train_proficiency_svm():
     base_dir = os.path.dirname(__file__)
     models_dir = os.path.join(base_dir, 'models')
     os.makedirs(models_dir, exist_ok=True)
 
     # Load ASAP2 dataset
     asap_path = os.path.join(base_dir, "ASAP2_train_sourcetexts.csv")
-
+    
     if os.path.exists(asap_path):
         print(f"Using ASAP2 Dataset: {asap_path}")
         X, y_prof = load_asap_data(asap_path)
@@ -48,19 +48,19 @@ def train_proficiency():
     X_train, X_test, y_train, y_test = train_test_split(
         X, y_prof, test_size=0.2, random_state=174
     )
-
+    
     print(f"\n=== Data Summary ===")
     print(f"  Training samples: {len(X_train)}")
     print(f"  Test samples: {len(X_test)}")
     print(f"  Features: {X_train.shape[1]}")
-
+    
     proficiency_model = StudentProficiencySVM()
     scaler = RobustScaler()
 
     # Scale data
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
-
+    
     print(f"\n=== Training SVM (RBF Kernel) with GridSearchCV ===")
 
     param_grid = {
@@ -95,22 +95,22 @@ def train_proficiency():
     # Test set evaluation
     y_pred = best_model.predict(X_test_scaled)
     best_acc = accuracy_score(y_test, y_pred)
-
+    
     print(f"\n=== Test Results ===")
     print(f"Model Accuracy: {best_acc*100:.2f}%")
     print("\nClassification Report:")
     print(classification_report(y_test, y_pred, target_names=proficiency_model.labels))
-
+    
     # Confusion Matrix
     cm = confusion_matrix(y_test, y_pred)
     plt.figure(figsize=(8, 6))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
                 xticklabels=proficiency_model.labels,
                 yticklabels=proficiency_model.labels)
     plt.title('Proficiency Model (SVM) - Confusion Matrix')
     plt.ylabel('True Label')
     plt.xlabel('Predicted Label')
-
+    
     cm_path = os.path.join(models_dir, 'proficiency_confusion_matrix.png')
     plt.savefig(cm_path, dpi=100, bbox_inches='tight')
     print(f"Confusion matrix saved to {cm_path}")
@@ -130,7 +130,7 @@ def train_proficiency():
     }
 
     save_model_metrics("proficiency", metrics)
-
+    
     # Save model
     model_path = os.path.join(models_dir, 'proficiency_model.pkl')
     with open(model_path, 'wb') as f:
@@ -138,15 +138,15 @@ def train_proficiency():
             'model': best_model,
             'scaler': scaler
         }, f)
-
+    
     print(f"Model saved to {model_path}")
-
+    
     if best_acc >= 0.85:
         print(f"\n✓ SUCCESS: Achieved {best_acc*100:.2f}%")
     else:
         print(f"\n✗ Below 85%: {best_acc*100:.2f}%")
-
+    
     return best_acc
 
 if __name__ == "__main__":
-    train_proficiency()
+    train_proficiency_svm()

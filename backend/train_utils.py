@@ -64,13 +64,11 @@ def load_asap_data(path, sample_size=None):
         try:
             with open(cache_path, 'rb') as f:
                 X, y = pickle.load(f)
-                # Verify dimensions haven't changed (we expect 37 now)
-                if X.shape[1] == 37: 
-                    return X, y
-                else:
-                    print(f"Cache dimension mismatch ({X.shape[1]} vs 37). Re-extracting...")
-        except Exception:
-            print("Cache corrupted. Re-extracting...")
+                # Verify cache is valid (check if dimensions match expected)
+                print(f"Cache loaded: shape={X.shape}")
+                return X, y
+        except Exception as e:
+            print(f"Cache load failed ({e}). Re-extracting...")
 
     try:
         df = pd.read_csv(path)

@@ -2,8 +2,6 @@ import numpy as np
 import pickle
 import json
 import os
-from sklearn.svm import SVC
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 
 class BaseModel:
@@ -71,8 +69,6 @@ class BaseModel:
 class StudentProficiencySVM(BaseModel):
     def __init__(self):
         super().__init__()
-        # Switched to RandomForest for better non-linear performance
-        self.model = RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42)
         self.labels = ["Independent", "Instructional", "Frustration"]
 
     def get_performance_metrics(self):
@@ -141,7 +137,6 @@ class StudentProficiencySVM(BaseModel):
 class TextComplexitySVM(BaseModel):
     def __init__(self):
         super().__init__()
-        self.model = SVC(kernel='linear', probability=True)
         self.labels = ["Literal", "Inferential", "Evaluative"]
 
     def get_performance_metrics(self):
