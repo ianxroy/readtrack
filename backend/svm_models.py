@@ -85,21 +85,27 @@ class StudentProficiencySVM(BaseModel):
         advanced_count = metrics.get('advancedWordCount', 0)
 
         cefr_boost = min(15, advanced_count * 2) if advanced_count > 0 else 0
-        score = (vocab_rich * 0.4) + (struct_coh * 0.6) + cefr_boost
+        calculated_score = (vocab_rich * 0.5) + (struct_coh * 0.5) + cefr_boost
 
         if ml_result:
             proficiency = ml_result
-
-            label_map = {"Independent": 90, "Instructional": 65, "Frustration": 35}
-            nat = label_map.get(proficiency, score)
+            # Instead of fixed 35/65/90, use the ML category to 'clamp' the calculated score
+            # This ensures a 'Frustration' essay stays in the lower range but has a unique score
+            if proficiency == "Independent":
+                nat = max(75, calculated_score)
+            elif proficiency == "Instructional":
+                nat = max(45, min(79, calculated_score))
+            else: # Frustration
+                nat = min(44, calculated_score)
         else:
-            if score >= 80:
+            # Fallback to pure heuristic if ML fails
+            if calculated_score >= 75:
                 proficiency = "Independent"
-            elif score >= 50:
+            elif calculated_score >= 45:
                 proficiency = "Instructional"
             else:
                 proficiency = "Frustration"
-            nat = score
+            nat = calculated_score
 
         band_map = {
             "Independent": ("Enhancement", "Independent"),
