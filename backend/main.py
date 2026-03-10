@@ -139,39 +139,48 @@ def get_evaluation_metrics():
     }
 
 @app.post("/analyze/student")
-def analyze_student_text(request: TextRequest):
-
+async def analyze_student_text(request: TextRequest): # Added async to handle await
     try:
         text_to_analyze = request.text
         if request.image:
             mime = (request.mimeType or "").lower()
             if mime == "application/pdf":
-                print("Processing PDF for student analysis")
                 ocr_text = extract_text_from_pdf(request.image)
             else:
-                print("Processing image for student analysis")
                 ocr_text = extract_text_from_image(request.image, GEMINI_API_KEY, mime_type=mime)
 
             if ocr_text:
-                print(f"Extracted {len(ocr_text)} characters from file")
                 text_to_analyze = (text_to_analyze + "\n" + ocr_text).strip()
-            else:
-                print("Warning: No text extracted from file")
 
-        from grammar_service import detect_language
+        from grammar_service import detect_language, check_grammar, GrammarCheckRequest
         detected_lang = detect_language(text_to_analyze)
+        
+        # 1. NEW: Get real grammar data from the service
+        # This replaces the hard-coded 85.0 accuracy in the model
+        grammar_result = await check_grammar(GrammarCheckRequest(
+            text=text_to_analyze, 
+            language=detected_lang
+        ))
+        
+        # 2. Extract features as usual
         features = extract_features(text_to_analyze, language=detected_lang)
-        result = student_model.predict(features, text_to_analyze)
+        
+        # 3. MODIFIED: Pass the grammar results into the prediction model
+        # This allows the classifier and metrics to work together for the score
+        result = student_model.predict(
+            features, 
+            text_to_analyze, 
+            grammar_data=grammar_result.dict()
+        )
 
         result["analyzed_text"] = text_to_analyze
-
         return result
+        
     except Exception as e:
         import traceback
         print("ERROR in analyze_student_text:")
         traceback.print_exc()
         return {"error": str(e), "trace": traceback.format_exc()}
-
 @app.post("/ocr/extract")
 def extract_text_from_image_endpoint(request: OCRRequest):
 

@@ -1093,7 +1093,7 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {[
                         {
-                          label: "NAT Score",
+                          label: "Suggested Score",
                           value: `${dr.natScore}%`,
                           definition:
                             "Numerical proficiency rating based on linguistic richness and structural cohesion.",

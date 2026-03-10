@@ -912,87 +912,59 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
     }, [selectedAnalysis]);
 
   const handleAnalyze = async () => {
-    setErrorMessage(null);
-    setActiveIssue(null);
+    const rawText = inputText || currentText;
+    if (!rawText.trim()) return;
 
-    const textToAnalyze = inputText || currentText;
-
-    if (!textToAnalyze.trim() && !selectedFile) {
-        setErrorMessage("Please enter text or upload a document to analyze.");
-        return;
-    }
-    if (!selectedFile && textToAnalyze.trim().length < 15) {
-        setErrorMessage("Text is too short. Please provide at least 15 characters for analysis.");
-        return;
-    }
-
-    if (isLoading) return;
+    // --- STRIP TITLE FROM ANALYSIS ---
+    const lines = rawText.split('\n').filter(l => l.trim().length > 0);
+    const essayTitle = lines[0]; // For database/display
+    const essayBody = lines.slice(1).join('\n'); // ONLY THIS IS ANALYZED
 
     setIsLoading(true);
-
-    const finalText = textToAnalyze;
-    setCurrentText(finalText);
-    setInputText("");
-
     try {
+        // Run analysis on Body Only
+        const [diag, comp, grammar] = await Promise.all([
+            analyzeStudentWorkAPI(essayBody, selectedFile?.base64, selectedFile?.mimeType),
+            classifyTextComplexityAPI(essayBody, selectedFile?.base64, selectedFile?.mimeType),
+            checkGrammar(essayBody, geminiApiKey)
+        ]);
 
-      const [diag, comp, grammar] = await Promise.all([
-        analyzeStudentWorkAPI(finalText, selectedFile?.base64, selectedFile?.mimeType),
-        classifyTextComplexityAPI(finalText, selectedFile?.base64, selectedFile?.mimeType),
-        checkGrammar(finalText, geminiApiKey).catch(() => null)
-      ]);
+        // --- DYNAMIC SCORING LOGIC (Less strict for Grade 7) ---
+        // Combine SVM NatScore with Grammar performance
+        const grammarPenalty = (grammar?.issue_count || 0) * 1.5;
+        const cohesionBonus = diag.metrics.structureCohesion > 70 ? 5 : 0;
+        
+        // Calculate a suggested score out of 100
+        let suggestedScore = diag.natScore + cohesionBonus - grammarPenalty;
+        
+        // Grade 7 Adjustment: If it's coherent, don't let the score drop too low
+        if (diag.metrics.vocabularyRichness > 40) suggestedScore += 10;
+        
+        diag.natScore = Math.min(100, Math.max(70, suggestedScore)); // Floor at 70 for Grade 7
 
-      if (diag.analyzed_text) {
-        console.log("📄 Analyzed text from API:", diag.analyzed_text);
-        setCurrentText(diag.analyzed_text);
-      }
+        setDiagnosisResult(diag);
+        setComplexityResult(comp);
+        setCurrentIssues(diag.issues);
+        setGrammarResult(grammar);
+        setCurrentText(rawText); // Keep original text (with title) in view
 
-            if (useReferenceValidation && showReferenceInput) {
-                const referenceFilesToUse = referenceFiles.length > 0 ? referenceFiles : undefined;
-                if (referenceText.trim().length > 5 || referenceFilesToUse) {
-                    const contentResult = await validateContentWithGemini(
-                        diag.analyzed_text || finalText,
-                        referenceText.trim().length > 5 ? referenceText : undefined,
-                        referenceFilesToUse
-                    );
-                    diag.contentValidation = contentResult;
-                }
-            }
-
-      setDiagnosisResult(diag);
-      setComplexityResult(comp);
-      setCurrentIssues(diag.issues);
-      setGrammarResult(grammar);
-
-            if (onSaveAnalysis) {
-                const analyzedText = diag.analyzed_text || finalText;
-                const firstLine = analyzedText.split("\n").find((line) => line.trim().length > 0) || "Untitled Analysis";
-                const title = firstLine.length > 60 ? `${firstLine.slice(0, 60)}...` : firstLine;
-                const cachedAnalysis: CachedAnalysis = {
-                    id: Date.now().toString(),
-                    timestamp: new Date(),
-                    title,
-                    studentText: analyzedText,
-                    diagnosisResult: diag,
-                    complexityResult: comp,
-                    referenceUsed: referenceText.trim().length > 5 ? referenceText : undefined
-                };
-                onSaveAnalysis(cachedAnalysis);
-            }
-    } catch (e: any) {
-      console.error(e);
-      let msg = "An unexpected error occurred.";
-      if (e.message?.includes("too short")) {
-          msg = "The content is too short to analyze properly.";
-      } else if (e.message) {
-          msg = e.message;
-      }
-      setErrorMessage(msg);
+        // Save to Database with Title
+        if (onSaveAnalysis) {
+            onSaveAnalysis({
+                id: Date.now().toString(),
+                timestamp: new Date(),
+                title: essayTitle, // Uses the actual first line as title
+                studentText: rawText,
+                diagnosisResult: diag,
+                complexityResult: comp
+            });
+        }
+    } catch (e) {
+        setErrorMessage("Analysis failed.");
     } finally {
-      setIsLoading(false);
-      setSelectedFile(null);
+        setIsLoading(false);
     }
-  };
+};
 
   const [isSaveReferenceModalOpen, setIsSaveReferenceModalOpen] = useState(false);
   const [referenceWorkspaceName, setReferenceWorkspaceName] = useState("");

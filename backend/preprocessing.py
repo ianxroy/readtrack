@@ -176,6 +176,9 @@ def extract_features(text, language="en"):
 
         clause_density = verb_count / sentence_count if sentence_count > 0 else 0
         structure_score = min(100, (clause_density * 10) + (avg_sentence_length * 2))
+        sentence_complexity_score = min(100, (avg_sentence_length * 4))
+        
+
 
     diff_ratio = (len(difficult_words) / word_count) * 100 if word_count > 0 else 0
 
@@ -225,6 +228,7 @@ def extract_features(text, language="en"):
             "avgSentenceLength": avg_sentence_length,
             "vocabularyRichness": ttr * 100,
             "difficultWordRatio": diff_ratio,
+            "sentenceComplexity": sentence_complexity_score,
             "structureCohesion": structure_score,
             "difficultWords": difficult_words,
             "cefrDistribution": cefr_dist,

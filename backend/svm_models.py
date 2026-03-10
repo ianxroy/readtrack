@@ -74,34 +74,57 @@ class StudentProficiencySVM(BaseModel):
     def get_performance_metrics(self):
         return self._load_metrics("proficiency")
 
-    def predict(self, features_data, text_content):
+    def predict(self, features_data, text_content, grammar_data=None):
+        """
+        Refactored to integrate real grammar results and Grade 7 specific scaling.
+        """
         vector = features_data['vector']
         metrics = features_data['metrics']
 
-        ml_result = self.ml_predict(vector)
+        # 1. Real Grammar Scoring
+        # Instead of a hard-coded 85.0, we calculate a score based on real issues
+        if grammar_data and 'issue_count' in grammar_data:
+            word_count = metrics.get('wordCount', 1)
+            # Weighted error calculation: Errors are penalized more than warnings
+            error_count = len([i for i in grammar_data.get('issues', []) if i.get('severity') == 'error'])
+            warning_count = grammar_data.get('issue_count', 0) - error_count
+            
+            # Penalty per word (scaled so it's not too punishing for Grade 7)
+            penalty = ((error_count * 3.0) + (warning_count * 1.0)) / max(word_count, 1) * 100
+            grammar_score = max(0, min(100, 100 - penalty))
+        else:
+            grammar_score = 70.0  # Neutral fallback
 
+        # 2. Heuristic Calculation for Grade 7 (Less Strict)
         vocab_rich = metrics['vocabularyRichness']
         struct_coh = metrics['structureCohesion']
         advanced_count = metrics.get('advancedWordCount', 0)
 
-        cefr_boost = min(15, advanced_count * 2) if advanced_count > 0 else 0
-        calculated_score = (vocab_rich * 0.5) + (struct_coh * 0.5) + cefr_boost
+        # Grade 7 specific boost: Encourage using varied words even if not "C2" level
+        # We consider B2 as "Advanced" for a 7th Grader
+        cefr_boost = min(20, advanced_count * 4) 
+        
+        # Weighted average for the base score
+        # Grammar and Cohesion now heavily influence the calculated_score
+        calculated_score = (vocab_rich * 0.3) + (struct_coh * 0.3) + (grammar_score * 0.4) + cefr_boost
 
+        # 3. Hybrid ML-Heuristic Decision
+        ml_result = self.ml_predict(vector)
+        
+        # Less strict classification thresholds for Grade 7
+        # Independent: 70+ (was 75) | Instructional: 35+ (was 45)
         if ml_result:
             proficiency = ml_result
-            # Instead of fixed 35/65/90, use the ML category to 'clamp' the calculated score
-            # This ensures a 'Frustration' essay stays in the lower range but has a unique score
             if proficiency == "Independent":
-                nat = max(75, calculated_score)
+                nat = max(70, calculated_score)
             elif proficiency == "Instructional":
-                nat = max(45, min(79, calculated_score))
-            else: # Frustration
-                nat = min(44, calculated_score)
+                nat = max(35, min(74, calculated_score))
+            else:
+                nat = min(34, calculated_score)
         else:
-            # Fallback to pure heuristic if ML fails
-            if calculated_score >= 75:
+            if calculated_score >= 70:
                 proficiency = "Independent"
-            elif calculated_score >= 45:
+            elif calculated_score >= 35:
                 proficiency = "Instructional"
             else:
                 proficiency = "Frustration"
@@ -114,32 +137,23 @@ class StudentProficiencySVM(BaseModel):
         }
         band, iri = band_map.get(proficiency, ("Intervention", "Frustration"))
 
-        feedback_str = f"Rated as {proficiency}. "
-        if advanced_count > 0:
-            feedback_str += f"Detected {advanced_count} CEFR Advanced (C1/C2) words. "
-
-        issues = []
-        if "very good" in text_content.lower():
-            issues.append({"original": "very good", "suggestion": "excellent", "category": "VOCABULARY"})
-
         return {
             "proficiency": proficiency,
-            "feedback": feedback_str,
+            "feedback": f"Rated as {proficiency}. Grammar Accuracy: {round(grammar_score, 1)}%.",
             "metrics": {
-                "vocabularyRichness": min(100, round(vocab_rich + cefr_boost, 2)),
-                "sentenceComplexity": round(metrics['avgSentenceLength'] * 2, 2),
-                "grammarAccuracy": 85.0,
-                "structureCohesion": round(struct_coh, 2),
+                "vocabularyRichness": min(100, round(vocab_rich, 2)),
+                "sentenceComplexity": round(metrics.get('sentenceComplexity', 0), 2),
+                "grammarAccuracy": round(grammar_score, 2), # Now dynamic
+                "structureCohesion": round(metrics.get('structureCohesion', 0), 2),
                 "cefrDistribution": metrics.get('cefrDistribution', {}),
                 "advancedWords": metrics.get('advancedWords', []),
                 "readability": metrics.get('readabilityIndices', {})
             },
-            "issues": issues,
-            "natScore": min(99, round(nat, 2)),
+            "issues": grammar_data.get('issues', []) if grammar_data else [],
+            "natScore": min(100, round(nat, 2)),
             "learningBand": band,
             "philIriLevel": iri
         }
-
 class TextComplexitySVM(BaseModel):
     def __init__(self):
         super().__init__()
