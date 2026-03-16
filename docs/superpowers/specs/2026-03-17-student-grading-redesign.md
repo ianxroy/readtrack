@@ -40,16 +40,7 @@ interface Subject {
 
 `language` controls which LanguageTool grammar model is invoked during analysis — `'english'` for English-language essays, `'filipino'` for Filipino-language essays. It does **not** refer to the subject's teaching language.
 
-Default subjects seeded on first load (if `readtrack_subjects` is empty):
-
-| Name     | language   | Rationale |
-|----------|-----------|-----------|
-| English  | english   | Essays written in English |
-| Filipino | filipino  | Essays written in Filipino |
-| AP       | filipino  | Araling Panlipunan essays typically in Filipino |
-| Math     | english   | Math written responses typically in English |
-
-No sentinel values.
+No default subjects are seeded. The teacher must create all subjects manually via "⚙ Manage Subjects". Each subject requires both a name and a language selection before it can be saved.
 
 ### Modified: `Student`
 Add `sectionId` field. Stored in `readtrack_student_essays` (existing key).
@@ -87,13 +78,20 @@ interface StudentEssay {
 
 ## App Startup Sequence
 
-On first launch (no sections exist yet):
+On first launch (no sections or subjects exist yet), the app shows a two-step blocking setup screen before the main UI is accessible:
 
-1. App shows a **blocking "Create your first section" screen** before anything else is accessible.
-2. Teacher types a section name and clicks Create.
-3. App proceeds to the main three-panel view with that section selected.
+**Step 1 — Create first section:**
+- Teacher types a section name and clicks Create.
+- At least one section is required to proceed.
 
-This ensures no student can ever be created without a section.
+**Step 2 — Create first subject:**
+- Teacher types a subject name and selects a language (English 🇺🇸 / Filipino 🇵🇭) from a dropdown.
+- Both fields are required. At least one subject is required to proceed.
+- Teacher may add multiple subjects before continuing.
+
+After both steps are complete, the app proceeds to the main three-panel view.
+
+This ensures neither students nor essays can be created without a section and subject already in place.
 
 ---
 
@@ -179,7 +177,7 @@ Three-area layout inside the existing page shell:
 1. Click "⚙ Manage Subjects" in page header.
 2. Modal lists all global subjects with their language tag.
 3. Teacher can:
-   - **Add** a new subject: name field + language dropdown (English 🇺🇸 / Filipino 🇵🇭).
+   - **Add** a new subject: name field (required) + language dropdown — English 🇺🇸 / Filipino 🇵🇭 (required, no default selected). Save button disabled until both fields are filled.
    - **Rename** an existing subject inline.
    - **Delete** a subject:
      - If no essays are tagged to it: delete immediately.
