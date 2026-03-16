@@ -37,6 +37,13 @@ export const StudentGrid: React.FC<StudentGridProps> = ({
 }) => {
   const [menuStudentId, setMenuStudentId] = React.useState<string | null>(null);
 
+  React.useEffect(() => {
+    if (!menuStudentId) return;
+    const handler = () => setMenuStudentId(null);
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [menuStudentId]);
+
   // Students in current section who have at least one essay in selected subject (or all students if no subject filter)
   const filtered = students
     .filter(s => selectedSection ? s.sectionId === selectedSection.id : true)
@@ -52,18 +59,23 @@ export const StudentGrid: React.FC<StudentGridProps> = ({
       return s.name.toLowerCase().includes(searchQuery.toLowerCase());
     });
 
-  const sorted = [...filtered].sort((a, b) => {
-    if (sortKey === 'name') return a.name.localeCompare(b.name);
-    if (sortKey === 'essays') return b.essays.length - a.essays.length;
-    const aTime = a.essays[0] ? +new Date(a.essays[0].uploadedAt) : 0;
-    const bTime = b.essays[0] ? +new Date(b.essays[0].uploadedAt) : 0;
-    return sortKey === 'oldest' ? aTime - bTime : bTime - aTime;
-  });
-
   const subjectEssayCount = (student: Student) =>
     selectedSubject
       ? student.essays.filter(e => e.subjectId === selectedSubject.id).length
       : student.essays.length;
+
+  const getMaxDate = (s: Student) =>
+    s.essays.length ? Math.max(...s.essays.map(e => +new Date(e.uploadedAt))) : 0;
+  const getMinDate = (s: Student) =>
+    s.essays.length ? Math.min(...s.essays.map(e => +new Date(e.uploadedAt))) : 0;
+
+  const sorted = [...filtered].sort((a, b) => {
+    if (sortKey === 'name') return a.name.localeCompare(b.name);
+    if (sortKey === 'essays') return subjectEssayCount(b) - subjectEssayCount(a);
+    if (sortKey === 'newest') return getMaxDate(b) - getMaxDate(a);
+    if (sortKey === 'oldest') return getMinDate(a) - getMinDate(b);
+    return 0;
+  });
 
   const avgRating = (student: Student) => {
     const essays = selectedSubject
@@ -192,7 +204,7 @@ export const StudentGrid: React.FC<StudentGridProps> = ({
                     <IoEllipsisHorizontal className="text-sm" />
                   </button>
                   {isMenuOpen && (
-                    <div className="absolute right-0 top-full mt-1 bg-white border border-gray-100 rounded-lg shadow-xl z-20 min-w-[160px] overflow-hidden">
+                    <div onClick={e => e.stopPropagation()} className="absolute right-0 top-full mt-1 bg-white border border-gray-100 rounded-lg shadow-xl z-20 min-w-[160px] overflow-hidden">
                       <div className="px-3 py-1.5 text-[9px] font-bold text-gray-400 uppercase">Move to Section</div>
                       {sections.filter(sec => sec.id !== student.sectionId).map(sec => (
                         <button
