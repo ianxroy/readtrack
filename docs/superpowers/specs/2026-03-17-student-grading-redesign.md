@@ -23,27 +23,40 @@ interface Section {
 }
 ```
 
+Sentinel value: `id: "unassigned"`, `name: "Unassigned"` — reserved for backward compat. Never created by the user.
+
 ### New: `Subject`
 Global — shared across all sections. Stored in localStorage under `readtrack_subjects`.
 
 ```ts
 interface Subject {
   id: string;
-  name: string;                    // e.g. "English", "AP", "Filipino", "Math"
-  language: 'english' | 'filipino'; // grading language tag
+  name: string;                     // e.g. "English", "AP", "Filipino", "Math"
+  language: 'english' | 'filipino'; // which grammar model to use for essay analysis
 }
 ```
 
-Default subjects seeded on first load: English (english), Filipino (filipino), AP (filipino), Math (english).
+`language` controls which LanguageTool grammar model is invoked during analysis — `'english'` for English-language essays, `'filipino'` for Filipino-language essays. It does **not** refer to the subject's teaching language.
+
+Default subjects seeded on first load (if `readtrack_subjects` is empty):
+
+| Name     | language   | Rationale |
+|----------|-----------|-----------|
+| English  | english   | Essays written in English |
+| Filipino | filipino  | Essays written in Filipino |
+| AP       | filipino  | Araling Panlipunan essays typically in Filipino |
+| Math     | english   | Math written responses typically in English |
+
+Sentinel value: `id: "unassigned"`, `name: "Unassigned"` — reserved for backward compat.
 
 ### Modified: `Student`
-Add `sectionId` field. Stored in `readtrack_student_essays` (existing key, no migration needed beyond adding the field).
+Add `sectionId` field. Stored in `readtrack_student_essays` (existing key).
 
 ```ts
 interface Student {
   id: string;
   name: string;
-  sectionId: string;  // NEW — references a Section.id
+  sectionId: string;  // NEW — references a Section.id; "unassigned" for migrated students
   essays: StudentEssay[];
 }
 ```
@@ -51,15 +64,15 @@ interface Student {
 A student belongs to exactly one section.
 
 ### Modified: `StudentEssay`
-Add `subjectId` field.
+Add `subjectId` field. Note: `uploadedAt` is stored as an ISO 8601 string in localStorage and parsed to `Date` on load (existing `loadStudents()` already handles this pattern).
 
 ```ts
 interface StudentEssay {
   id: string;
   title: string;
   text: string;
-  subjectId: string;           // NEW — references a Subject.id
-  uploadedAt: Date;
+  subjectId: string;           // NEW — references a Subject.id; "unassigned" for migrated essays
+  uploadedAt: Date;            // stored as ISO string, parsed on load
   diagnosisResult?: StudentDiagnosisResult;
   complexityResult?: TextComplexityResult;
   teacherRating?: number;
@@ -94,10 +107,13 @@ Three-area layout inside the existing page shell:
 
 ### Sidebar
 - Lists all sections; each is expandable/collapsible (chevron toggle).
-- Expanded section shows the global subject list beneath it, indented, each with a language pill (🇺🇸 / 🇵🇭).
-- Clicking a subject row selects it — updates the center grid to show students in that section who have essays for that subject.
-- "+ New Section" button at the bottom.
-- "Manage Subjects" button in the page header (opens a modal to add/rename/delete subjects globally and set their language tag).
+- The "Unassigned" sentinel section appears **only when it has at least one student**. It is automatically hidden when empty (e.g. all students have been moved to real sections).
+- Expanded section shows the global subject list beneath it, indented, each with a language pill (🇺🇸 / 🇵🇭). The "Unassigned" sentinel subject appears in the sidebar tree only when at least one essay has `subjectId: "unassigned"`.
+- The "Unassigned" sentinel section/subject is **not** shown in any dropdown picker (essay upload subject selector, student section picker) — it only appears in the sidebar tree for navigation.
+- Clicking a subject row selects it — updates the center grid.
+- Each real (non-sentinel) section row has a `⋯` context menu (appears on hover) with: **Rename** (inline edit) and **Delete** (with confirmation: "This will remove the section. Students will be moved to Unassigned.").
+- "+ New Section" button at the bottom of the sidebar.
+- "⚙ Manage Subjects" button in the page header.
 
 ### Student Grid (center)
 - Breadcrumb at top: `Section Name › Subject Name [lang pill] · N students`
@@ -107,8 +123,9 @@ Three-area layout inside the existing page shell:
   - Student name
   - Essay count for the selected subject · avg teacher rating
   - Latest proficiency badge (Independent / Instructional / Frustration)
+  - `⋯` menu (hover): **Move to section** (opens section picker), **Delete student**
 - Selected card has indigo border + highlight.
-- Last card in grid is an "+ Add Student" dashed card that opens the add-student modal.
+- Last card in grid is a "+ Add Student" dashed card that opens the add-student modal.
 - Empty state when no students in section: prompt to add students.
 
 ### Essay Panel (right, slides in on student select)
@@ -132,23 +149,38 @@ Three-area layout inside the existing page shell:
 ## Interactions
 
 ### Creating a Section
-1. Click "+ New Section" in sidebar or "+ Add" label.
-2. Inline input appears in sidebar — type name, press Enter or click ✓.
-3. Section saved to localStorage, sidebar updates.
+1. Click "+ New Section" at the bottom of the sidebar.
+2. Inline input appears — type name, press Enter or click ✓ to save, Escape to cancel.
+3. Section saved to `readtrack_sections`, sidebar updates. New section auto-selected.
+
+### Renaming / Deleting a Section
+- **Rename:** Click `⋯` on the section row → Rename → inline edit → Enter to save.
+- **Delete:** Click `⋯` → Delete → confirmation dialog: "Delete [name]? Students in this section will be moved to Unassigned." On confirm, section removed; affected students get `sectionId: "unassigned"`.
+- "Unassigned" sentinel section cannot be renamed or deleted.
 
 ### Managing Subjects
 1. Click "⚙ Manage Subjects" in page header.
 2. Modal lists all global subjects with their language tag.
-3. Teacher can add new subject (name + language dropdown: English 🇺🇸 / Filipino 🇵🇭), rename, or delete.
-4. Deleting a subject that has essays attached shows a warning: "X essays are tagged to this subject. Deleting it will remove the subject tag from those essays."
+3. Teacher can:
+   - **Add** a new subject: name field + language dropdown (English 🇺🇸 / Filipino 🇵🇭).
+   - **Rename** an existing subject inline.
+   - **Delete** a subject:
+     - If no essays are tagged: delete immediately.
+     - If essays are tagged: show "X essays use this subject. Delete anyway? Their subject tag will be set to Unassigned." Confirm → delete subject, set affected `subjectId` to `"unassigned"`. Cancel → no change.
+4. "Unassigned" sentinel subject cannot be renamed or deleted.
 
 ### Adding a Student
 1. Click the "+ Add Student" dashed card in the student grid.
-2. Modal: name field + section pre-selected to the current sidebar selection.
-3. Student saved with `sectionId` set.
+2. Modal: name field. Section is pre-set to current sidebar selection (shown read-only).
+3. Student saved with the correct `sectionId`.
+
+### Moving a Student to Another Section
+- Student card `⋯` menu → "Move to section" → dropdown of all sections → confirm.
+- Updates `student.sectionId`. Student disappears from the current grid view and appears in the target section.
+- This is the primary mechanism for migrating Unassigned students to real sections.
 
 ### Uploading an Essay
-1. Click "+ Upload Essay" in the essay panel (pre-fills student and subject from context), OR click the global "＋ Upload Essay" button in the header (requires selecting student and subject manually).
+1. Click "+ Upload Essay for [student]" in the essay panel (pre-fills student + subject from context), OR click the global "＋ Upload Essay" button in the header (requires manual selection).
 2. Upload modal fields:
    - Student (dropdown, pre-filled if coming from panel)
    - Subject (dropdown of all global subjects, pre-filled if coming from panel)
@@ -156,18 +188,21 @@ Three-area layout inside the existing page shell:
    - File upload zone (PDF, image, TXT) or text paste area
 3. After upload + analysis, essay appears in the panel.
 
-### Selecting Section/Subject/Student
-- Selecting a section collapses all others and expands the clicked one; defaults to the first subject.
-- Switching subject updates the student grid immediately (no loading state — purely filtered from in-memory data).
-- Clicking a student selects them and slides in the essay panel; clicking again deselects and hides the panel.
+### Selecting Section / Subject / Student
+- Clicking a section row expands it (collapses all others) and auto-selects the first subject. The essay panel closes and selected student is cleared.
+- Switching subject updates the student grid immediately (in-memory filter, no loading state). The essay panel closes and selected student is cleared.
+- Clicking a student selects them and slides in the essay panel; clicking the same student again deselects and hides the panel.
 
 ---
 
 ## Backward Compatibility
 
-Existing students in localStorage have no `sectionId`. On load, any student missing `sectionId` is placed into an auto-created "Unassigned" section. The teacher can then reassign them via the student card menu (⋯ → Move to section).
+On load, `loadStudents()` applies these migrations immediately and writes the result back to localStorage before rendering:
 
-Existing essays have no `subjectId`. They are treated as having `subjectId: null` and shown under an "Unassigned" pseudo-subject in the sidebar. Teacher can re-tag them.
+1. **Students without `sectionId`** — set `sectionId: "unassigned"`.
+2. **Essays without `subjectId`** — set `subjectId: "unassigned"`.
+
+The "Unassigned" sentinel section and subject are not stored in localStorage — they are synthetic objects constructed at runtime from the presence of data with sentinel ids. `loadSections()` returns real sections from `readtrack_sections` plus the sentinel if any student has `sectionId: "unassigned"`. `loadSubjects()` returns real subjects from `readtrack_subjects` plus the sentinel if any essay has `subjectId: "unassigned"`.
 
 ---
 
@@ -176,13 +211,12 @@ Existing essays have no `subjectId`. They are treated as having `subjectId: null
 - The essay viewer modal interior (analysis tabs, grammar highlights, teacher rating, side-by-side original/scanned view).
 - The backend API calls (`analyzeStudentWorkAPI`, `classifyTextComplexityAPI`, `checkGrammar`).
 - Supabase save functions (`saveStudentGradingUpload`, `saveTeacherEvaluation`).
-- Tagalog label translations already added in the previous session.
+- Tagalog label translations already added.
 - The "Result (Resulta)" score label rename.
 
 ---
 
 ## Out of Scope
 
-- Cross-section student transfers (can be added later).
 - Subject-level analytics or class averages dashboard (separate feature).
 - Server-side persistence of sections/subjects (currently localStorage only).
