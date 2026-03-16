@@ -37,6 +37,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (showNewInput) newInputRef.current?.focus();
   }, [showNewInput]);
 
+  useEffect(() => {
+    if (!menuOpenId) return;
+    const handler = (e: MouseEvent) => {
+      setMenuOpenId(null);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [menuOpenId]);
+
   const toggleSection = (section: Section) => {
     const isExpanded = expandedSections.has(section.id);
     if (isExpanded) {
@@ -105,19 +114,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div key={section.id} className="mb-0.5">
               {/* Section row */}
               <div className="flex items-center gap-1 group">
-                <button
-                  onClick={() => toggleSection(section)}
-                  className={`flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-left transition-colors ${
-                    selectedSectionId === section.id
-                      ? 'bg-indigo-50 text-indigo-700'
-                      : 'hover:bg-gray-100 text-gray-700'
-                  }`}
-                >
-                  {isExpanded
-                    ? <IoChevronDownOutline className="text-[11px] flex-shrink-0" />
-                    : <IoChevronForwardOutline className="text-[11px] flex-shrink-0" />
-                  }
-                  {isRenaming ? (
+                {isRenaming ? (
+                  <div className="flex-1 flex items-center gap-1.5 px-2 py-1.5">
                     <input
                       autoFocus
                       className="flex-1 text-xs font-semibold bg-white border border-indigo-300 rounded px-1 outline-none"
@@ -127,26 +125,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         if (e.key === 'Enter') handleRenameConfirm();
                         if (e.key === 'Escape') setRenaming(null);
                       }}
-                      onClick={e => e.stopPropagation()}
                     />
-                  ) : (
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => toggleSection(section)}
+                    className={`flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-left transition-colors ${
+                      selectedSectionId === section.id
+                        ? 'bg-indigo-50 text-indigo-700'
+                        : 'hover:bg-gray-100 text-gray-700'
+                    }`}
+                  >
+                    {isExpanded
+                      ? <IoChevronDownOutline className="text-[11px] flex-shrink-0" />
+                      : <IoChevronForwardOutline className="text-[11px] flex-shrink-0" />
+                    }
                     <span className="flex-1 text-xs font-bold truncate">{section.name}</span>
-                  )}
-                  <span className="text-[9px] bg-indigo-100 text-indigo-600 font-bold px-1.5 rounded-full ml-auto">
-                    {count}
-                  </span>
-                </button>
+                    <span className="text-[9px] bg-indigo-100 text-indigo-600 font-bold px-1.5 rounded-full ml-auto">
+                      {count}
+                    </span>
+                  </button>
+                )}
 
                 {/* ⋯ menu */}
                 <div className="relative">
                   <button
-                    onClick={() => setMenuOpenId(isMenuOpen ? null : section.id)}
+                    onClick={(e) => { e.stopPropagation(); setMenuOpenId(isMenuOpen ? null : section.id); }}
                     className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-gray-200 text-gray-500 transition-opacity"
                   >
                     <IoEllipsisHorizontal className="text-sm" />
                   </button>
                   {isMenuOpen && (
-                    <div className="absolute right-0 top-full mt-1 bg-white border border-gray-100 rounded-lg shadow-xl z-30 min-w-[130px] overflow-hidden">
+                    <div className="absolute right-0 top-full mt-1 bg-white border border-gray-100 rounded-lg shadow-xl z-30 min-w-[130px] overflow-hidden" onClick={e => e.stopPropagation()}>
                       <button
                         className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50 text-gray-700"
                         onClick={() => { setRenaming({ id: section.id, name: section.name }); setMenuOpenId(null); }}
@@ -229,12 +239,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Add section button */}
       <div className="p-2 border-t border-gray-100">
-        <button
-          onClick={() => setShowNewInput(true)}
-          className="w-full flex items-center justify-center gap-1.5 py-2 border-2 border-dashed border-gray-200 hover:border-teal-300 hover:text-teal-600 text-gray-400 rounded-xl text-xs font-bold transition-colors"
-        >
-          <IoAddOutline /> New Section
-        </button>
+        {!showNewInput && (
+          <button
+            onClick={() => setShowNewInput(true)}
+            className="w-full flex items-center justify-center gap-1.5 py-2 border-2 border-dashed border-gray-200 hover:border-teal-300 hover:text-teal-600 text-gray-400 rounded-xl text-xs font-bold transition-colors"
+          >
+            <IoAddOutline /> New Section
+          </button>
+        )}
       </div>
     </div>
   );
