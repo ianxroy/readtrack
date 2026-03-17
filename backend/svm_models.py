@@ -74,7 +74,7 @@ class StudentProficiencySVM(BaseModel):
     def get_performance_metrics(self):
         return self._load_metrics("proficiency")
 
-    def predict(self, features_data, text_content, grammar_data=None):
+    def predict(self, features_data, text_content, grammar_data=None, rubric_score=None):
         """
         Refactored to integrate real grammar results and Grade 7 specific scaling.
         """
@@ -137,9 +137,33 @@ class StudentProficiencySVM(BaseModel):
         }
         band, iri = band_map.get(proficiency, ("Intervention", "Frustration"))
 
+        # If we have a Gemini rubric score (1-5), blend it into natScore
+        # rubric is context-aware (PH G7 calibrated); heuristic is structural
+        if rubric_score is not None:
+            rubric_nat = round((rubric_score / 5.0) * 100, 2)
+            nat = round((rubric_nat * 0.6) + (nat * 0.4), 2)
+            if nat >= 70:
+                proficiency = "Independent"
+            elif nat >= 35:
+                proficiency = "Instructional"
+            else:
+                proficiency = "Frustration"
+            band_map = {
+                "Independent": ("Enhancement", "Independent"),
+                "Instructional": ("Consolidation", "Instructional"),
+                "Frustration": ("Intervention", "Frustration")
+            }
+            band, iri = band_map.get(proficiency, ("Intervention", "Frustration"))
+
         return {
             "proficiency": proficiency,
-            "feedback": f"Rated as {proficiency}. Grammar Accuracy: {round(grammar_score, 1)}%.",
+            "feedback": (
+                f"Antas: {proficiency}. "
+                f"Katumpakan ng Gramatika: {round(grammar_score, 1)}%. "
+                f"Kayamanan ng Talasalitaan: {round(vocab_rich, 1)}%. "
+                f"Istruktura at Pagkakaisa: {round(struct_coh, 1)}%. "
+                f"Para sa detalyadong rubrik ng DepEd, tingnan ang Analysis tab."
+            ),
             "metrics": {
                 "vocabularyRichness": min(100, round(vocab_rich, 2)),
                 "sentenceComplexity": round(metrics.get('sentenceComplexity', 0), 2),
