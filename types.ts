@@ -59,6 +59,23 @@ export interface LinguisticMetrics {
   advancedWords?: string[];
 }
 
+export interface DepEdRubricDimension {
+  score: number;       // 1–5
+  rationale: string;   // one-sentence explanation
+}
+
+export interface DepEdRubricScore {
+  content: DepEdRubricDimension;
+  organization: DepEdRubricDimension;
+  languageVocab: DepEdRubricDimension;
+  grammar: DepEdRubricDimension;
+  mechanics: DepEdRubricDimension;
+  overallScore: number;        // average of 5 dimensions, 1–5
+  overallFeedback: string;     // 2–3 sentence teacher-facing summary
+  gradeLevel: string;          // e.g. "Grade 7"
+  language: 'english' | 'filipino';
+}
+
 export interface ContentValidation {
   hasReference: boolean;
   accuracyScore: number;
@@ -74,6 +91,7 @@ export interface StudentDiagnosisResult {
   issues: GrammarIssue[];
   contentValidation?: ContentValidation;
   analyzed_text?: string;
+  rubricScore?: DepEdRubricScore;
 
   natScore: number;
   learningBand: LearningBand;
