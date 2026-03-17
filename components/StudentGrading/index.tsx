@@ -34,7 +34,14 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
   // ── Data ──────────────────────────────────────────────
   const [sections, setSections] = useState<Section[]>(loadSections);
   const [subjects, setSubjects] = useState<Subject[]>(loadSubjects);
-  const [students, setStudents] = useState<Student[]>(loadStudents);
+
+  const initialStudentsRef = React.useRef<Student[] | null>(null);
+  if (initialStudentsRef.current === null) {
+    initialStudentsRef.current = loadStudents();
+  }
+  const initialStudents = initialStudentsRef.current;
+
+  const [students, setStudents] = useState<Student[]>(initialStudents);
 
   // ── Navigation state ──────────────────────────────────
   const [selectedSectionId, setSelectedSectionId] = useState<string>(sections[0]?.id ?? '');
@@ -49,14 +56,17 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
   const [showSubjectManager, setShowSubjectManager] = useState(false);
   const [showAddStudent, setShowAddStudent] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
-  const [showMigration, setShowMigration] = useState(() => needsMigration(loadStudents()));
+  const [showMigration, setShowMigration] = useState(() => needsMigration(initialStudents));
 
   // ── Derived ───────────────────────────────────────────
   const needsSetup = sections.length === 0 || subjects.length === 0;
   const selectedSection = useMemo(() => sections.find(s => s.id === selectedSectionId) ?? null, [sections, selectedSectionId]);
   const selectedSubject = useMemo(() => subjects.find(s => s.id === selectedSubjectId) ?? null, [subjects, selectedSubjectId]);
   const selectedStudent = useMemo(() => students.find(s => s.id === selectedStudentId) ?? null, [students, selectedStudentId]);
-  const selectedEssay = useMemo(() => selectedStudent?.essays.find(e => e.id === selectedEssayId) ?? null, [selectedStudent, selectedEssayId]);
+  const selectedEssay = useMemo(
+    () => selectedStudent?.essays.find(e => e.id === selectedEssayId && e.subjectId === selectedSubjectId) ?? null,
+    [selectedStudent, selectedEssayId, selectedSubjectId]
+  );
 
   // ── Persist helpers ───────────────────────────────────
   const updateSections = useCallback((next: Section[]) => { setSections(next); saveSections(next); }, []);
@@ -114,8 +124,10 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
   };
 
   const handleDeleteSubject = (id: string) => {
-    updateSubjects(subjects.filter(s => s.id !== id));
-    if (selectedSubjectId === id) setSelectedSubjectId(subjects.find(s => s.id !== id)?.id ?? '');
+    const next = subjects.filter(s => s.id !== id);
+    updateSubjects(next);
+    if (selectedSubjectId === id)
+      setSelectedSubjectId(next[0]?.id ?? '');
   };
 
   // ── Student actions ───────────────────────────────────
