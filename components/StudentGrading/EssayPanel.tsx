@@ -4,9 +4,9 @@ import { Student, Subject } from './types';
 import { ProficiencyLevel } from '../../types';
 
 const profBadge: Record<string, string> = {
-  [ProficiencyLevel.INDEPENDENT]:   'bg-green-100 text-green-700',
-  [ProficiencyLevel.INSTRUCTIONAL]: 'bg-amber-100 text-amber-700',
-  [ProficiencyLevel.FRUSTRATION]:   'bg-red-100 text-red-700',
+  [ProficiencyLevel.MAHUSAY]:     'bg-green-100 text-green-700',
+  [ProficiencyLevel.PAPAUNLAD]:   'bg-amber-100 text-amber-700',
+  [ProficiencyLevel.NAGSISIMULA]: 'bg-red-100 text-red-700',
 };
 
 interface EssayPanelProps {
@@ -83,9 +83,9 @@ export const EssayPanel: React.FC<EssayPanelProps> = ({
                         {essay.diagnosisResult?.natScore !== undefined && (
                           <span className="text-[9px] text-gray-500">{essay.diagnosisResult.natScore}%</span>
                         )}
-                        {essay.teacherRating ? (
+                        {essay.teacherRubricScores ? (
                           <span className="text-[9px] text-amber-500 flex items-center gap-0.5">
-                            <IoStar className="text-[9px]" />{essay.teacherRating}
+                            <IoStar className="text-[9px]" />{essay.teacherRubricScores.overall.toFixed(1)}/4
                           </span>
                         ) : null}
                       </div>

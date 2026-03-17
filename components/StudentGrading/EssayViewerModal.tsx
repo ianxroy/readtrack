@@ -25,19 +25,19 @@ interface EssayViewerModalProps {
 }
 
 const proficiencyMeta = {
-  [ProficiencyLevel.FRUSTRATION]: {
+  [ProficiencyLevel.NAGSISIMULA]: {
     color: 'text-red-600',
     bg: 'bg-red-50',
     border: 'border-red-100',
     dot: 'bg-red-500',
   },
-  [ProficiencyLevel.INSTRUCTIONAL]: {
+  [ProficiencyLevel.PAPAUNLAD]: {
     color: 'text-orange-600',
     bg: 'bg-orange-50',
     border: 'border-orange-100',
     dot: 'bg-orange-500',
   },
-  [ProficiencyLevel.INDEPENDENT]: {
+  [ProficiencyLevel.MAHUSAY]: {
     color: 'text-teal-600',
     bg: 'bg-teal-50',
     border: 'border-teal-100',
@@ -304,9 +304,9 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
                       label: 'Antas ng Kahusayan', // Proficiency
                       value: dr.proficiency,
                       definition:
-                        dr.proficiency === ProficiencyLevel.FRUSTRATION
+                        dr.proficiency === ProficiencyLevel.NAGSISIMULA
                           ? 'Nangangailangan ng matinding suporta at gabay ng guro.' // Needs intensive support and guided intervention.
-                          : dr.proficiency === ProficiencyLevel.INSTRUCTIONAL
+                          : dr.proficiency === ProficiencyLevel.PAPAUNLAD
                             ? 'Maaaring sumulong sa tulong ng guro at pagsasanay.' // Can progress with teacher scaffolding and practice.
                             : 'Kaya niyang magtrabaho nang mag-isa sa mga gawaing angkop sa kanyang antas.', // Can work independently on grade-level tasks.
                       icon: IoCheckmarkCircleOutline,
