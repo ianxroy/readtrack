@@ -354,7 +354,6 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
                 </div>
               </div>
 
-
             </div>
           )}
         </div>
