@@ -4,13 +4,13 @@ import {
   IoCloseOutline,
   IoStatsChartOutline,
   IoCheckmarkCircleOutline,
-  IoAlertCircleOutline,
   IoBookOutline,
   IoStar,
   IoStarOutline,
 } from 'react-icons/io5';
 
 import { Student, Subject, StudentEssay } from './types';
+import { GrammarHighlightedText } from './GrammarHighlightedText';
 import {
   ProficiencyLevel,
 } from '../../types';
@@ -182,11 +182,11 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
                   {/* Right: extracted text */}
                   <div className="flex-1 min-w-0">
                     <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">Extracted Text</p>
-                    <div className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{essay.text}</div>
+                    <GrammarHighlightedText text={essay.text} issues={dr?.issues ?? []} />
                   </div>
                 </div>
               ) : (
-                <div className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{essay.text}</div>
+                <GrammarHighlightedText text={essay.text} issues={dr?.issues ?? []} />
               )}
             </div>
           )}
@@ -354,38 +354,7 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
                 </div>
               </div>
 
-              {/* Grammar / Linguistic Issues */}
-              {dr?.issues && dr.issues.length > 0 && (
-                <div className="space-y-4">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1 flex items-center gap-2">
-                    <IoAlertCircleOutline className="text-red-500" />{' '}
-                    Mga Isyung Pangwika na Natagpuan ({dr.issues.length}) {/* Linguistic Issues Found */}
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {dr.issues.map((issue, i) => (
-                      <div
-                        key={i}
-                        className="p-4 bg-white border border-gray-100 rounded-2xl shadow-sm flex items-start gap-3"
-                      >
-                        <div className="w-2 h-2 rounded-full bg-red-400 mt-1.5 shrink-0" />
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-[10px] font-black text-red-500 line-through opacity-50">
-                              {issue.original}
-                            </span>
-                            <span className="text-[10px] font-black text-teal-600">
-                              → {issue.suggestion}
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-gray-500 font-medium">
-                            {issue.context}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+
             </div>
           )}
         </div>
