@@ -69,7 +69,7 @@ class BaseModel:
 class StudentProficiencySVM(BaseModel):
     def __init__(self):
         super().__init__()
-        self.labels = ["Independent", "Instructional", "Frustration"]
+        self.labels = ["Mahusay", "Papaunlad", "Nagsisimula"]
 
     def get_performance_metrics(self):
         return self._load_metrics("proficiency")
@@ -115,43 +115,43 @@ class StudentProficiencySVM(BaseModel):
         # Independent: 70+ (was 75) | Instructional: 35+ (was 45)
         if ml_result:
             proficiency = ml_result
-            if proficiency == "Independent":
+            if proficiency == "Mahusay":
                 nat = max(70, calculated_score)
-            elif proficiency == "Instructional":
+            elif proficiency == "Papaunlad":
                 nat = max(35, min(74, calculated_score))
             else:
                 nat = min(34, calculated_score)
         else:
             if calculated_score >= 70:
-                proficiency = "Independent"
+                proficiency = "Mahusay"
             elif calculated_score >= 35:
-                proficiency = "Instructional"
+                proficiency = "Papaunlad"
             else:
-                proficiency = "Frustration"
+                proficiency = "Nagsisimula"
             nat = calculated_score
 
         band_map = {
-            "Independent": ("Enhancement", "Independent"),
-            "Instructional": ("Consolidation", "Instructional"),
-            "Frustration": ("Intervention", "Frustration")
+            "Mahusay":     ("Enhancement",   "Independent"),
+            "Papaunlad":   ("Consolidation", "Instructional"),
+            "Nagsisimula": ("Intervention",  "Frustration"),
         }
         band, iri = band_map.get(proficiency, ("Intervention", "Frustration"))
 
         # If we have a Gemini rubric score (1-5), blend it into natScore
         # rubric is context-aware (PH G7 calibrated); heuristic is structural
         if rubric_score is not None:
-            rubric_nat = round((rubric_score / 5.0) * 100, 2)
+            rubric_nat = round((rubric_score / 4.0) * 100, 2)
             nat = round((rubric_nat * 0.6) + (nat * 0.4), 2)
             if nat >= 70:
-                proficiency = "Independent"
+                proficiency = "Mahusay"
             elif nat >= 35:
-                proficiency = "Instructional"
+                proficiency = "Papaunlad"
             else:
-                proficiency = "Frustration"
+                proficiency = "Nagsisimula"
             band_map = {
-                "Independent": ("Enhancement", "Independent"),
-                "Instructional": ("Consolidation", "Instructional"),
-                "Frustration": ("Intervention", "Frustration")
+                "Mahusay":     ("Enhancement",   "Independent"),
+                "Papaunlad":   ("Consolidation", "Instructional"),
+                "Nagsisimula": ("Intervention",  "Frustration"),
             }
             band, iri = band_map.get(proficiency, ("Intervention", "Frustration"))
 
