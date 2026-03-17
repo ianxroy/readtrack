@@ -18,8 +18,8 @@ import { AddStudentModal } from './AddStudentModal';
 import { UploadModal } from './UploadModal';
 import { EssayViewerModal } from './EssayViewerModal';
 
-import { ProficiencyLevel, CachedAnalysis } from '../../types';
-import { analyzeStudentWorkAPI, classifyTextComplexityAPI } from '../../services/pythonService';
+import { ProficiencyLevel, CachedAnalysis, StudentDiagnosisResult, DepEdRubricScore } from '../../types';
+import { analyzeStudentWorkAPI, classifyTextComplexityAPI, evaluateDepEdRubricAPI } from '../../services/pythonService';
 import { saveStudentGradingUpload, saveTeacherEvaluation } from '../../services/supabaseService';
 
 interface StudentGradingProps {
@@ -169,10 +169,27 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
     studentId: string; subjectId: string; title: string; text: string;
     originalFile?: { base64: string; mimeType: string; name: string };
   }) => {
-    const [diag, comp] = await Promise.all([
+    const [diagnosisResult, comp] = await Promise.all([
       analyzeStudentWorkAPI(params.text, params.originalFile?.base64),
       classifyTextComplexityAPI(params.text, params.originalFile?.base64),
     ]);
+
+    // Non-blocking rubric evaluation
+    const selectedSubjectForUpload = subjects.find(s => s.id === params.subjectId);
+    let rubricScore: DepEdRubricScore | undefined;
+    try {
+      rubricScore = await evaluateDepEdRubricAPI(
+        params.text,
+        selectedSubjectForUpload?.language ?? 'filipino',
+        'Grade 7'
+      );
+    } catch (err) {
+      console.warn('Rubric evaluation failed (non-blocking):', err);
+    }
+
+    const diag: StudentDiagnosisResult = rubricScore
+      ? { ...diagnosisResult, rubricScore }
+      : diagnosisResult;
 
     const essay: StudentEssay = {
       id: Date.now().toString(),
