@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { IoCloseOutline, IoCloudUploadOutline } from 'react-icons/io5';
 import { Student, Subject, Section } from './types';
 import { extractTextFromImageAPI } from '../../services/pythonService';
@@ -34,6 +34,9 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => { setStudentId(prefilledStudentId ?? ''); }, [prefilledStudentId]);
+  useEffect(() => { setSubjectId(prefilledSubjectId ?? ''); }, [prefilledSubjectId]);
+
   const canSubmit = !!studentId && !!subjectId && (!!text.trim() || !!originalFile) && !isUploading;
 
   const handleFile = async (file: File) => {
@@ -51,7 +54,11 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         try {
           const extracted = await extractTextFromImageAPI(base64, file.type);
           if (extracted?.text) setText(extracted.text);
-          if (extracted?.warning) setError(extracted.warning);
+          if (extracted?.warning) {
+            setError(extracted.warning);
+          } else if (!extracted?.text?.trim()) {
+            setError('Could not extract text from this file. Please paste the text manually.');
+          }
         } catch { /* OCR failure is non-fatal */ }
       };
       reader.readAsDataURL(file);
@@ -106,7 +113,11 @@ export const UploadModal: React.FC<UploadModalProps> = ({
             }`}
             onDragEnter={() => setIsDragging(true)}
             onDragOver={e => e.preventDefault()}
-            onDragLeave={() => setIsDragging(false)}
+            onDragLeave={e => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                setIsDragging(false);
+              }
+            }}
             onDrop={handleDrop}
             onClick={() => fileRef.current?.click()}
           >
