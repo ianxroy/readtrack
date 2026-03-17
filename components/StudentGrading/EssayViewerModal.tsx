@@ -9,7 +9,7 @@ import {
   IoStarOutline,
 } from 'react-icons/io5';
 
-import { Student, Subject, StudentEssay } from './types';
+import { Student, Subject, StudentEssay, TeacherRubricScores } from './types';
 import { GrammarHighlightedText } from './GrammarHighlightedText';
 import {
   ProficiencyLevel,
@@ -20,7 +20,7 @@ interface EssayViewerModalProps {
   student: Student;
   essay: StudentEssay;
   subject: Subject | null;
-  onSaveEvaluation: (essayId: string, rating: number, comment: string) => Promise<void>;
+  onSaveEvaluation: (essayId: string, rubricScores: TeacherRubricScores, comment: string) => Promise<void>;
   onClose: () => void;
 }
 
@@ -138,7 +138,19 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
   onSaveEvaluation,
   onClose,
 }) => {
-  const [teacherRating, setTeacherRating] = useState(essay.teacherRating ?? 0);
+  const defaultDims = { content: 0, organization: 0, languageVocab: 0, grammar: 0, mechanics: 0 };
+
+  const [teacherDims, setTeacherDims] = useState<typeof defaultDims>(
+    essay.teacherRubricScores
+      ? {
+          content:      essay.teacherRubricScores.content,
+          organization: essay.teacherRubricScores.organization,
+          languageVocab:essay.teacherRubricScores.languageVocab,
+          grammar:      essay.teacherRubricScores.grammar,
+          mechanics:    essay.teacherRubricScores.mechanics,
+        }
+      : { ...defaultDims }
+  );
   const [teacherComment, setTeacherComment] = useState(essay.teacherComment ?? '');
   const [isSavingEvaluation, setIsSavingEvaluation] = useState(false);
   const [evaluationMessage, setEvaluationMessage] = useState<string | null>(null);
@@ -146,27 +158,53 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
   const [activeTab, setActiveTab] = useState<'original' | 'analysis'>('original');
 
   useEffect(() => {
-    setTeacherRating(essay.teacherRating ?? 0);
+    setTeacherDims(
+      essay.teacherRubricScores
+        ? {
+            content:      essay.teacherRubricScores.content,
+            organization: essay.teacherRubricScores.organization,
+            languageVocab:essay.teacherRubricScores.languageVocab,
+            grammar:      essay.teacherRubricScores.grammar,
+            mechanics:    essay.teacherRubricScores.mechanics,
+          }
+        : { ...defaultDims }
+    );
     setTeacherComment(essay.teacherComment ?? '');
     setEvaluationMessage(null);
     setActiveTab('original');
   }, [essay.id]);
 
   const handleSaveTeacherEvaluation = async () => {
-    if (teacherRating < 1 || teacherRating > 5) {
+    const dims = ['content', 'organization', 'languageVocab', 'grammar', 'mechanics'] as const;
+    const allSet = dims.every(d => teacherDims[d] >= 1 && teacherDims[d] <= 4);
+    if (!allSet) {
       setEvaluationError(true);
-      setEvaluationMessage('Please select a rating from 1 to 5 stars.');
+      setEvaluationMessage('I-rate ang lahat ng 5 dimensyon bago i-save.');
       return;
     }
     setIsSavingEvaluation(true);
     setEvaluationMessage(null);
     try {
-      await onSaveEvaluation(essay.id, teacherRating, teacherComment.trim());
+      const overall = parseFloat(
+        (dims.reduce((sum, d) => sum + teacherDims[d], 0) / 5).toFixed(2)
+      );
+      const percentage = parseFloat(((overall / 4) * 100).toFixed(2));
+      const transmuted = percentage >= 60
+        ? parseFloat((((percentage - 60) / 40) * 25 + 75).toFixed(2))
+        : parseFloat((((percentage) / 60) * 74).toFixed(2));
+
+      const rubricScores: TeacherRubricScores = {
+        ...teacherDims,
+        overall,
+        percentage,
+        transmuted,
+      };
+      await onSaveEvaluation(essay.id, rubricScores, teacherComment.trim());
       setEvaluationError(false);
-      setEvaluationMessage('Teacher rating saved.');
+      setEvaluationMessage('Nai-save ang marka ng guro.');
     } catch {
       setEvaluationError(true);
-      setEvaluationMessage('Failed to save rating.');
+      setEvaluationMessage('Hindi nai-save. Subukan muli.');
     } finally {
       setIsSavingEvaluation(false);
     }
@@ -396,35 +434,91 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
                   )}
                 </div>
 
-                {/* Teacher Rating */}
-                <div className="bg-white border border-gray-100 rounded-[24px] p-6">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">
-                    Star Rating ng Guro {/* Teacher Star Rating */}
+                {/* Teacher Rubric Rating */}
+                <div className="bg-white border border-gray-100 rounded-[24px] p-6 space-y-4">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                    Marka ng Guro — DepEd Rubrik
                   </h4>
-                  <div className="flex items-center gap-2 mb-3">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        key={star}
-                        onClick={() => setTeacherRating(star)}
-                        className="text-2xl text-amber-400 hover:text-amber-500 transition-colors"
-                        aria-label={`I-rate ng ${star} bituin`}
-                      >
-                        {star <= teacherRating ? <IoStar /> : <IoStarOutline />}
-                      </button>
-                    ))}
-                    <span className="text-xs font-semibold text-gray-600 ml-1">
-                      {teacherRating ? `${teacherRating}/5` : 'Hindi pa na-rate'}
-                    </span>
+
+                  {/* Column headers */}
+                  <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 items-center mb-1">
+                    <span />
+                    <span className="text-[9px] font-bold text-gray-400 text-center">Sistema</span>
+                    <span className="text-[9px] font-bold text-gray-400 text-center">Guro</span>
                   </div>
 
+                  {/* 5 dimension rows */}
+                  {(['content', 'organization', 'languageVocab', 'grammar', 'mechanics'] as const).map(dim => {
+                    const meta = DIMENSION_META[dim];
+                    const rubricDim = dr?.rubricScore ? (dr.rubricScore as Record<string, any>)[dim] : undefined;
+                    const sysScore: number = rubricDim?.score ?? 0;
+                    const teacherScore = teacherDims[dim];
+                    return (
+                      <div key={dim} className="grid grid-cols-[1fr_auto_auto] gap-x-4 items-center">
+                        <div>
+                          <span className="text-xs font-semibold text-gray-700">{meta.labelFil}</span>
+                          <span className="text-[9px] text-gray-400 ml-1">({meta.label})</span>
+                        </div>
+                        <div className="flex gap-0.5">
+                          {[1, 2, 3, 4].map(n => (
+                            <div
+                              key={n}
+                              className={`w-2 h-2 rounded-full ${n <= sysScore ? 'bg-teal-500' : 'bg-gray-200'}`}
+                            />
+                          ))}
+                        </div>
+                        <div className="flex gap-0.5">
+                          {[1, 2, 3, 4].map(n => (
+                            <button
+                              key={n}
+                              onClick={() => setTeacherDims(prev => ({ ...prev, [dim]: n }))}
+                              className={`text-base transition-colors ${
+                                n <= teacherScore ? 'text-amber-400' : 'text-gray-200 hover:text-amber-300'
+                              }`}
+                              aria-label={`${meta.labelFil} ${n}/4`}
+                            >
+                              {n <= teacherScore ? <IoStar /> : <IoStarOutline />}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Overall row */}
+                  {(() => {
+                    const dims = ['content', 'organization', 'languageVocab', 'grammar', 'mechanics'] as const;
+                    const sysAvg = dr?.rubricScore
+                      ? parseFloat(
+                          (dims.reduce((s, d) => s + ((dr.rubricScore as Record<string, any>)[d]?.score ?? 0), 0) / 5).toFixed(1)
+                        )
+                      : null;
+                    const teacherAvg = dims.every(d => teacherDims[d] > 0)
+                      ? parseFloat((dims.reduce((s, d) => s + teacherDims[d], 0) / 5).toFixed(1))
+                      : null;
+                    return (
+                      <div className="pt-2 border-t border-gray-100 grid grid-cols-[1fr_auto_auto] gap-x-4 items-center">
+                        <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Kabuuan</span>
+                        <span className="text-xs font-bold text-teal-600 text-center">
+                          {sysAvg !== null ? `${sysAvg}/4` : '—'}
+                        </span>
+                        <span className="text-xs font-bold text-amber-500 text-center">
+                          {teacherAvg !== null ? `${teacherAvg}/4` : '—'}
+                        </span>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Comment */}
                   <textarea
-                    className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs text-gray-700 leading-relaxed min-h-[90px] outline-none focus:ring-1 focus:ring-teal-500"
-                    placeholder="Opsyonal na komento ng guro..." // Optional teacher comment...
+                    className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs text-gray-700 leading-relaxed min-h-[70px] outline-none focus:ring-1 focus:ring-teal-500"
+                    placeholder="Opsyonal na komento ng guro…"
                     value={teacherComment}
-                    onChange={(e) => setTeacherComment(e.target.value)}
+                    onChange={e => setTeacherComment(e.target.value)}
                   />
 
-                  <div className="mt-3 flex items-center justify-between gap-3">
+                  {/* Save */}
+                  <div className="flex items-center justify-between gap-3">
                     <button
                       onClick={handleSaveTeacherEvaluation}
                       disabled={isSavingEvaluation}
@@ -434,10 +528,12 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
                           : 'bg-teal-600 text-white hover:bg-teal-700'
                       }`}
                     >
-                      {isSavingEvaluation ? 'Nag-iimbak…' : 'I-save ang Rating ng Guro'} {/* Save Teacher Rating */}
+                      {isSavingEvaluation ? 'Nag-iimbak…' : 'I-save ang Marka ng Guro'}
                     </button>
                     {evaluationMessage && (
-                      <p className={`text-[10px] font-medium ${evaluationError ? 'text-red-500' : 'text-green-600'}`}>{evaluationMessage}</p>
+                      <p className={`text-[10px] font-medium ${evaluationError ? 'text-red-500' : 'text-green-600'}`}>
+                        {evaluationMessage}
+                      </p>
                     )}
                   </div>
                 </div>
