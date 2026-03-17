@@ -9,6 +9,7 @@ interface UploadModalProps {
   subjects: Subject[];
   prefilledStudentId?: string;
   prefilledSubjectId?: string;
+  prefilledText?: string;
   onUpload: (params: {
     studentId: string;
     subjectId: string;
@@ -21,7 +22,7 @@ interface UploadModalProps {
 
 export const UploadModal: React.FC<UploadModalProps> = ({
   students, sections, subjects,
-  prefilledStudentId, prefilledSubjectId,
+  prefilledStudentId, prefilledSubjectId, prefilledText,
   onUpload, onClose,
 }) => {
   const [studentId, setStudentId] = useState(prefilledStudentId ?? '');
@@ -36,6 +37,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
   useEffect(() => { setStudentId(prefilledStudentId ?? ''); }, [prefilledStudentId]);
   useEffect(() => { setSubjectId(prefilledSubjectId ?? ''); }, [prefilledSubjectId]);
+  useEffect(() => { if (prefilledText) setText(prefilledText); }, [prefilledText]);
 
   const canSubmit = !!studentId && !!subjectId && (!!text.trim() || !!originalFile) && !isUploading;
 

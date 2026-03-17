@@ -56,6 +56,7 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
   const [showSubjectManager, setShowSubjectManager] = useState(false);
   const [showAddStudent, setShowAddStudent] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
+  const [uploadPrefilledText, setUploadPrefilledText] = useState<string | undefined>();
   const [showMigration, setShowMigration] = useState(() => needsMigration(initialStudents));
 
   // ── Derived ───────────────────────────────────────────
@@ -124,6 +125,8 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
   };
 
   const handleDeleteSubject = (id: string) => {
+    const hasEssays = students.some(s => s.essays.some(e => e.subjectId === id));
+    if (hasEssays) return; // SubjectManager UI already blocks this with an alert
     const next = subjects.filter(s => s.id !== id);
     updateSubjects(next);
     if (selectedSubjectId === id)
@@ -225,6 +228,7 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
   // ── selectedAnalysis recovery ──────────────────────────
   useEffect(() => {
     if (!selectedAnalysis) return;
+    setUploadPrefilledText(selectedAnalysis.studentText);
     setShowUpload(true);
   }, [selectedAnalysis]);
 
@@ -258,7 +262,12 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
         </div>
         <button
           onClick={() => setShowUpload(true)}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-teal-500 hover:bg-teal-600 text-white text-xs font-bold transition-colors"
+          disabled={showMigration}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-colors ${
+            showMigration
+              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              : 'bg-teal-500 hover:bg-teal-600 text-white'
+          }`}
         >
           <IoCloudUploadOutline className="text-base" />
           Upload Essay
@@ -332,8 +341,9 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
           subjects={subjects}
           prefilledStudentId={selectedStudentId ?? undefined}
           prefilledSubjectId={selectedSubjectId ?? undefined}
+          prefilledText={uploadPrefilledText}
           onUpload={handleUpload}
-          onClose={() => setShowUpload(false)}
+          onClose={() => { setShowUpload(false); setUploadPrefilledText(undefined); }}
         />
       )}
 
