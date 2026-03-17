@@ -261,9 +261,10 @@ async def analyze_student_text(request: TextRequest): # Added async to handle aw
         # 3. MODIFIED: Pass the grammar results into the prediction model
         # This allows the classifier and metrics to work together for the score
         result = student_model.predict(
-            features, 
-            text_to_analyze, 
-            grammar_data=grammar_result.dict()
+            features,
+            text_to_analyze,
+            grammar_data=grammar_result.dict(),
+            language=detected_lang
         )
 
         result["analyzed_text"] = text_to_analyze

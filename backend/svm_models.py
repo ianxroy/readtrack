@@ -74,7 +74,7 @@ class StudentProficiencySVM(BaseModel):
     def get_performance_metrics(self):
         return self._load_metrics("proficiency")
 
-    def predict(self, features_data, text_content, grammar_data=None, rubric_score=None):
+    def predict(self, features_data, text_content, grammar_data=None, rubric_score=None, language='tl'):
         """
         Refactored to integrate real grammar results and Grade 7 specific scaling.
         """
@@ -155,15 +155,27 @@ class StudentProficiencySVM(BaseModel):
             }
             band, iri = band_map.get(proficiency, ("Intervention", "Frustration"))
 
-        return {
-            "proficiency": proficiency,
-            "feedback": (
+        is_filipino = language in ('tl', 'filipino')
+        if is_filipino:
+            feedback = (
                 f"Antas: {proficiency}. "
                 f"Katumpakan ng Gramatika: {round(grammar_score, 1)}%. "
                 f"Kayamanan ng Talasalitaan: {round(vocab_rich, 1)}%. "
                 f"Istruktura at Pagkakaisa: {round(struct_coh, 1)}%. "
                 f"Para sa detalyadong rubrik ng DepEd, tingnan ang Analysis tab."
-            ),
+            )
+        else:
+            feedback = (
+                f"Level: {proficiency}. "
+                f"Grammar Accuracy: {round(grammar_score, 1)}%. "
+                f"Vocabulary Richness: {round(vocab_rich, 1)}%. "
+                f"Structure & Cohesion: {round(struct_coh, 1)}%. "
+                f"See the Analysis tab for the full DepEd rubric breakdown."
+            )
+
+        return {
+            "proficiency": proficiency,
+            "feedback": feedback,
             "metrics": {
                 "vocabularyRichness": min(100, round(vocab_rich, 2)),
                 "sentenceComplexity": round(metrics.get('sentenceComplexity', 0), 2),
