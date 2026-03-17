@@ -91,9 +91,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ view: _view }) => {
     ratedEssays: 0,
     avgTeacherRating: "N/A",
     proficiencyCounts: {
-      [ProficiencyLevel.FRUSTRATION]: 0,
-      [ProficiencyLevel.INSTRUCTIONAL]: 0,
-      [ProficiencyLevel.INDEPENDENT]: 0,
+      [ProficiencyLevel.NAGSISIMULA]: 0,
+      [ProficiencyLevel.PAPAUNLAD]: 0,
+      [ProficiencyLevel.MAHUSAY]: 0,
     },
     complexityCounts: {
       [ComplexityLevel.LITERAL]: 0,
@@ -113,9 +113,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ view: _view }) => {
           ratedEssays: stats.ratedEssays,
           avgTeacherRating: stats.avgTeacherRating,
           proficiencyCounts: {
-            [ProficiencyLevel.FRUSTRATION]: stats.proficiencyCounts.Frustration || 0,
-            [ProficiencyLevel.INSTRUCTIONAL]: stats.proficiencyCounts.Instructional || 0,
-            [ProficiencyLevel.INDEPENDENT]: stats.proficiencyCounts.Independent || 0,
+            [ProficiencyLevel.NAGSISIMULA]: stats.proficiencyCounts.Nagsisimula || 0,
+            [ProficiencyLevel.PAPAUNLAD]: stats.proficiencyCounts.Papaunlad || 0,
+            [ProficiencyLevel.MAHUSAY]: stats.proficiencyCounts.Mahusay || 0,
           },
           complexityCounts: {
             [ComplexityLevel.LITERAL]: stats.complexityCounts.Literal || 0,
@@ -131,20 +131,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ view: _view }) => {
 
   const proficiencyRows: DistributionRow[] = [
     {
-      label: ProficiencyLevel.FRUSTRATION,
-      count: analytics.proficiencyCounts[ProficiencyLevel.FRUSTRATION],
+      label: ProficiencyLevel.NAGSISIMULA,
+      count: analytics.proficiencyCounts[ProficiencyLevel.NAGSISIMULA],
       colorClass: "bg-red-500",
       bgClass: "bg-red-50",
     },
     {
-      label: ProficiencyLevel.INSTRUCTIONAL,
-      count: analytics.proficiencyCounts[ProficiencyLevel.INSTRUCTIONAL],
+      label: ProficiencyLevel.PAPAUNLAD,
+      count: analytics.proficiencyCounts[ProficiencyLevel.PAPAUNLAD],
       colorClass: "bg-orange-500",
       bgClass: "bg-orange-50",
     },
     {
-      label: ProficiencyLevel.INDEPENDENT,
-      count: analytics.proficiencyCounts[ProficiencyLevel.INDEPENDENT],
+      label: ProficiencyLevel.MAHUSAY,
+      count: analytics.proficiencyCounts[ProficiencyLevel.MAHUSAY],
       colorClass: "bg-teal-500",
       bgClass: "bg-teal-50",
     },

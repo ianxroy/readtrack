@@ -6,9 +6,9 @@ import { Student, Section, Subject } from './types';
 import { ProficiencyLevel } from '../../types';
 
 const proficiencyMeta: Record<string, { badge: string; dot: string }> = {
-  [ProficiencyLevel.INDEPENDENT]:   { badge: 'bg-green-100 text-green-700',  dot: 'bg-green-500' },
-  [ProficiencyLevel.INSTRUCTIONAL]: { badge: 'bg-amber-100 text-amber-700',  dot: 'bg-amber-500' },
-  [ProficiencyLevel.FRUSTRATION]:   { badge: 'bg-red-100 text-red-700',      dot: 'bg-red-500' },
+  [ProficiencyLevel.MAHUSAY]:     { badge: 'bg-green-100 text-green-700',  dot: 'bg-green-500' },
+  [ProficiencyLevel.PAPAUNLAD]:   { badge: 'bg-amber-100 text-amber-700',  dot: 'bg-amber-500' },
+  [ProficiencyLevel.NAGSISIMULA]: { badge: 'bg-red-100 text-red-700',      dot: 'bg-red-500' },
 };
 
 interface StudentGridProps {
@@ -134,7 +134,7 @@ export const StudentGrid: React.FC<StudentGridProps> = ({
 
       {/* Proficiency filters */}
       <div className="flex gap-1.5 px-4 py-2 bg-[#fafbff] border-b border-gray-100 flex-shrink-0 flex-wrap">
-        {(['all', ProficiencyLevel.INDEPENDENT, ProficiencyLevel.INSTRUCTIONAL, ProficiencyLevel.FRUSTRATION] as const).map(f => (
+        {(['all', ProficiencyLevel.MAHUSAY, ProficiencyLevel.PAPAUNLAD, ProficiencyLevel.NAGSISIMULA] as const).map(f => (
           <button
             key={f}
             onClick={() => onProficiencyFilter(f)}
@@ -145,7 +145,7 @@ export const StudentGrid: React.FC<StudentGridProps> = ({
                 : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
             }`}
           >
-            {f === 'all' ? 'All (Lahat)' : f === ProficiencyLevel.INDEPENDENT ? '🟢 Independent' : f === ProficiencyLevel.INSTRUCTIONAL ? '🟡 Instructional' : '🔴 Frustration'}
+            {f === 'all' ? 'All (Lahat)' : f === ProficiencyLevel.MAHUSAY ? '🟢 Mahusay' : f === ProficiencyLevel.PAPAUNLAD ? '🟡 Papaunlad' : '🔴 Nagsisimula'}
           </button>
         ))}
       </div>
