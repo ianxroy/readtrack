@@ -2,8 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   IoChevronDownOutline, IoChevronForwardOutline,
   IoEllipsisHorizontal, IoAddOutline, IoCheckmarkOutline, IoCloseOutline,
+  IoRefreshOutline,
 } from 'react-icons/io5';
 import { Section, Subject, Student } from './types';
+import { TrainStatusResponse } from '../../services/pythonService';
 
 interface SidebarProps {
   sections: Section[];
@@ -16,6 +18,9 @@ interface SidebarProps {
   onRenameSection: (id: string, name: string) => void;
   onDeleteSection: (id: string) => void;
   onManageSubjects: () => void;
+  trainStatus?: TrainStatusResponse | null;
+  isRetraining?: boolean;
+  onRetrain?: (lang: 'en' | 'tl') => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -23,6 +28,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   selectedSectionId, selectedSubjectId,
   onSelectSubject, onCreateSection, onRenameSection, onDeleteSection,
   onManageSubjects,
+  trainStatus, isRetraining, onRetrain,
 }) => {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(selectedSectionId ? [selectedSectionId] : [])
@@ -76,6 +82,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const studentCountInSection = (sectionId: string) =>
     students.filter(s => s.sectionId === sectionId).length;
+
+  const confidenceDot = (level: string) => {
+    if (level === 'Kumpiyansa' || level === 'Kalibrado') return 'bg-green-400';
+    if (level === 'Papaunlad') return 'bg-yellow-400';
+    return 'bg-red-400';
+  };
 
   const langPill = (lang: Subject['language']) => (
     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
@@ -248,6 +260,59 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         )}
       </div>
+
+      {/* Model confidence + retrain */}
+      {trainStatus && (
+        <div className="p-2 border-t border-gray-100 space-y-1.5">
+          <div className="text-[8px] font-bold text-gray-400 uppercase tracking-widest px-1">
+            Katumpakan ng Modelo
+          </div>
+
+          {/* English */}
+          <div className="flex items-center justify-between px-1">
+            <div className="flex items-center gap-1.5">
+              <span className={`w-2 h-2 rounded-full ${confidenceDot(trainStatus.english.confidence_level)}`} />
+              <span className="text-[10px] text-gray-600">🇺🇸 {trainStatus.english.confidence_level}</span>
+            </div>
+            <span className="text-[9px] text-gray-400">{trainStatus.english.rated_essays} rated</span>
+          </div>
+
+          {/* Filipino */}
+          <div className="flex items-center justify-between px-1">
+            <div className="flex items-center gap-1.5">
+              <span className={`w-2 h-2 rounded-full ${confidenceDot(trainStatus.filipino.confidence_level)}`} />
+              <span className="text-[10px] text-gray-600">🇵🇭 {trainStatus.filipino.confidence_level}</span>
+            </div>
+            <span className="text-[9px] text-gray-400">{trainStatus.filipino.rated_essays} rated</span>
+          </div>
+
+          {/* Retrain buttons */}
+          {onRetrain && (
+            <>
+              {trainStatus.english.new_since_retrain >= 5 && (
+                <button
+                  onClick={() => onRetrain('en')}
+                  disabled={isRetraining}
+                  className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50 transition-colors"
+                >
+                  <IoRefreshOutline className={isRetraining ? 'animate-spin' : ''} />
+                  I-retrain English ({trainStatus.english.new_since_retrain} bago)
+                </button>
+              )}
+              {trainStatus.filipino.new_since_retrain >= 5 && (
+                <button
+                  onClick={() => onRetrain('tl')}
+                  disabled={isRetraining}
+                  className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] font-bold bg-pink-50 text-pink-700 hover:bg-pink-100 disabled:opacity-50 transition-colors"
+                >
+                  <IoRefreshOutline className={isRetraining ? 'animate-spin' : ''} />
+                  I-retrain Filipino ({trainStatus.filipino.new_since_retrain} bago)
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 };
