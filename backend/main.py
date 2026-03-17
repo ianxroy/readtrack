@@ -115,7 +115,7 @@ class RubricRequest(BaseModel):
     grade_level: str = "Grade 7"
 
 class RubricDimension(BaseModel):
-    score: int   # 1-5
+    score: int   # 1-4
     rationale: str
 
 class RubricResponse(BaseModel):
