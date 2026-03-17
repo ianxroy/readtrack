@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { GrammarIssue, IssueCategory } from '../../types';
 
 interface GrammarHighlightedTextProps {
@@ -55,15 +55,19 @@ function segmentText(text: string, issues: GrammarIssue[]): Segment[] {
 
     let positions = findAllOccurrences(text, issue.original);
     if (!positions.length) {
-      positions = findAllOccurrences(text.toLowerCase(), issue.original.toLowerCase());
+      const lowerText = text.toLowerCase();
+      const lowerNeedle = issue.original.toLowerCase();
+      positions = findAllOccurrences(lowerText, lowerNeedle).filter(p =>
+        text.slice(p, p + issue.original.length).toLowerCase() === lowerNeedle
+      );
     }
     if (!positions.length) continue;
 
     let best = positions[0];
     let bestScore = -1;
     for (const pos of positions) {
-      const window = text.slice(Math.max(0, pos - 20), pos + issue.original.length + 20);
-      const score = charOverlap(window, issue.context);
+      const contextWindow = text.slice(Math.max(0, pos - 20), pos + issue.original.length + 20);
+      const score = charOverlap(contextWindow, issue.context);
       if (score > bestScore) { bestScore = score; best = pos; }
     }
     candidates.push({ issue, startIndex: best });
@@ -96,7 +100,7 @@ export const GrammarHighlightedText: React.FC<GrammarHighlightedTextProps> = ({ 
     top: 0, left: 0, above: true,
   });
 
-  const segments = segmentText(text, issues);
+  const segments = useMemo(() => segmentText(text, issues), [text, issues]);
 
   const handleEnter = (e: React.MouseEvent<HTMLSpanElement>, issue: GrammarIssue) => {
     const rect = e.currentTarget.getBoundingClientRect();
