@@ -30,10 +30,10 @@ Frontend updates Supabase student_grading_uploads
         ↓
 Admin clicks "Retrain Model" in Sidebar
         ↓
-Frontend → POST /train/retrain?language=en|tl
+Frontend → POST /train/retrain with JSON body { "language": "en" | "tl" }
         ↓
 Backend pulls rated essays from Supabase (service key)
-Filters by language, teacher_rubric_scores IS NOT NULL
+Filters by subject_language and teacher_rubric_scores IS NOT NULL
         ↓
 Extracts features from essay_text (preprocessing.py)
 Maps avg teacher score → DepEd proficiency label
@@ -60,32 +60,32 @@ Replace current 1–5 Gemini rubric scoring with the official DepEd 4-level perf
 | 2 | Papaunlad | Developing |
 | 1 | Nagsisimula | Beginning |
 
-**Passing threshold:** Score 2 (Papaunlad / Developing) — aligns with DepEd minimum passing.
+**Interpretation note:** Score 2 (Papaunlad / Developing) means minimum acceptable rubric performance for a single writing task dimension. It is **not** automatically equivalent to report-card passing grade by itself.
 
 ### Overall Score Display
 
-Show three values derived from the 5-dimension average:
+Show two required values derived from the 5-dimension average:
 ```
-Kabuuan / Overall:   3.0/4  →  75%  →  Transmuted: 87.5
+Kabuuan / Overall:   3.0/4  →  75%
 ```
 
 - **Raw score:** average of 5 dimensions (1 decimal place)
 - **Percentage:** `(score / 4) × 100`
-- **Transmuted grade:** `((percentage - 60) / 40) × 25 + 75` (DepEd Order 8, s. 2015)
+- **Optional transmuted grade:** compute via DepEd transmutation table configured by school policy (do not hardcode a single linear formula in UI).
 
 ---
 
-## Replace Phil-IRI Labels with DepEd Writing Labels
+## Replace Phil-IRI Labels with DepEd-Aligned Writing Labels
 
-The proficiency badge throughout the app changes from Phil-IRI reading levels to DepEd writing assessment levels.
+The proficiency badge throughout the app changes from Phil-IRI reading levels to DepEd-aligned writing labels. This badge is intentionally a **3-band operational indicator** for workflow simplicity, while the rubric remains a full 4-level analytic score.
 
-| Old (Phil-IRI) | New (DepEd Writing) | Trigger |
+| Old (Phil-IRI) | New (DepEd-Aligned Badge) | Trigger |
 |---|---|---|
 | Independent | **Mahusay** | avg teacher score 3.5–4.0 |
 | Instructional | **Papaunlad** | avg teacher score 2.0–3.4 |
 | Frustration | **Nagsisimula** | avg teacher score 1.0–1.9 |
 
-> Note: "Papalapit sa Kahusayan" is used in the rubric display but maps to Mahusay for the badge to keep 3 simple levels.
+> Note: "Papalapit sa Kahusayan" remains visible in the 4-level rubric display. The badge intentionally collapses to 3 bands for quick classroom triage.
 
 **Files affected:** `types.ts`, `svm_models.py`, `EssayViewerModal.tsx`, `EssayPanel.tsx`, `evaluation_metrics.json`, Supabase data migration.
 
@@ -131,10 +131,13 @@ Kabuuan        2.8/4 → 70% → T:87.5    3.0/4 → 75% → T:87.5
 
 ### Supabase Schema Change
 
-Add `teacher_rubric_scores` JSONB column to `student_grading_uploads`:
+Add required columns for rubric training to `student_grading_uploads`:
 
 ```sql
 ALTER TABLE student_grading_uploads
+        ADD COLUMN IF NOT EXISTS subject_language TEXT,
+        ADD COLUMN IF NOT EXISTS teacher_rating INTEGER,
+        ADD COLUMN IF NOT EXISTS teacher_comment TEXT,
   ADD COLUMN IF NOT EXISTS teacher_rubric_scores JSONB;
 
 -- Example value:
@@ -150,7 +153,10 @@ ALTER TABLE student_grading_uploads
 -- }
 ```
 
-Remove `teacher_rating` integer column usage from the rating flow (keep column for backwards compatibility, stop writing to it from the rubric flow).
+Notes:
+- `subject_language` is the canonical source for model routing (`en` / `tl`) and confidence counters.
+- Keep `teacher_rating` / `teacher_comment` for backwards compatibility during migration; new grading flow writes `teacher_rubric_scores` as source of truth.
+- A migration script should backfill `subject_language` for existing rows where possible.
 
 ---
 
@@ -183,7 +189,7 @@ result = model.predict(features, text, grammar_data=..., language=detected_lang)
 
 ### Label Mapping for Retraining
 
-Teacher avg score → SVM training label:
+Teacher avg score → SVM training label (3-band badge):
 ```
 3.5–4.0 → "Mahusay"
 2.5–3.4 → "Papaunlad"
@@ -196,7 +202,7 @@ Teacher avg score → SVM training label:
 
 ### Per-Language Confidence
 
-Confidence is tracked independently for English and Filipino models based on count of essays with `teacher_rubric_scores IS NOT NULL` per language.
+Confidence is tracked independently for English and Filipino models based on count of essays with `teacher_rubric_scores IS NOT NULL`, grouped by `subject_language`.
 
 ```
 0–4 rated essays    → 🔴 Natututo pa    (Still Learning)
@@ -257,7 +263,12 @@ Response:
 }
 ```
 
-Backend uses Supabase **service key** (not anon key) stored in `.env` to read across all teachers. Only pulls `essay_text`, `teacher_rubric_scores`, `subject_name` (for language) — no student names.
+Backend uses Supabase **service key** (not anon key) stored in `.env` to read across all teachers. It must query only the minimum required columns: `essay_text`, `teacher_rubric_scores`, `subject_language`.
+
+Security requirements:
+- Never select `student_name` in retraining queries.
+- Do not log raw essay rows in backend logs.
+- Validate `language` input strictly (`en` or `tl`) before query execution.
 
 ---
 
@@ -295,7 +306,7 @@ Retrain runs per language. Progress shown inline. On complete, confidence level 
 ## Privacy
 
 - **Student names:** Protected by Supabase RLS — only the uploading teacher can see names
-- **Training data:** Backend pulls only `essay_text + teacher_rubric_scores + subject_name` — no names, no teacher identity
+- **Training data:** Backend pulls only `essay_text + teacher_rubric_scores + subject_language` — no names, no teacher identity
 - **SHA hashing:** `student_name_sha` remains for record linkage within one teacher's account
 - **Cross-teacher:** Essays are anonymous in the training pool — no teacher can see another teacher's student names
 
@@ -307,9 +318,10 @@ Retrain runs per language. Progress shown inline. On complete, confidence level 
 | File | Change |
 |---|---|
 | `backend/main.py` | Add `/train/status` and `/train/retrain` endpoints; load two SVM models |
-| `backend/svm_models.py` | Update labels to DepEd 4-level; update `predict()` per language |
+| `backend/svm_models.py` | Update labels to DepEd-aligned 3-band badge (`Mahusay`, `Papaunlad`, `Nagsisimula`); update `predict()` per language |
 | `backend/train_proficiency.py` | Split into `train_proficiency_en.py` and `train_proficiency_tl.py` |
 | `backend/train_proficiency_tl.py` | New — trains Filipino model from PH teacher data only |
+| `backend/requirements.txt` | Add Python Supabase client dependency for service-key data pulls |
 | `backend/.env` | Add `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` |
 
 ### Frontend
@@ -322,7 +334,7 @@ Retrain runs per language. Progress shown inline. On complete, confidence level 
 | `components/StudentGrading/EssayPanel.tsx` | Add compact rubric summary with pips + score |
 | `components/StudentGrading/Sidebar.tsx` | Add retrain button + confidence indicator |
 | `components/StudentGrading/GrammarHighlightedText.tsx` | No change |
-| `supabase_sql.txt` | Add `teacher_rubric_scores` JSONB column migration |
+| `supabase_sql.txt` | Add migration for `teacher_rubric_scores`, `subject_language`, and compatibility columns |
 
 ---
 
