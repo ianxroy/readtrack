@@ -469,7 +469,8 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
       setIsUploading(true);
       try {
         if (isImage) {
-          const text = await extractTextFromImageAPI(base64, mimeType);
+          const extracted = await extractTextFromImageAPI(base64, mimeType);
+          const text = extracted.text;
           if (text) {
             const lines = text
               .split("\n")

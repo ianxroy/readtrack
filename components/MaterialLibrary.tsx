@@ -318,7 +318,8 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
 
       if ((!extractedText || extractedText.trim().length === 0) && base64 && (isImage || isPdf)) {
         try {
-          extractedText = await extractTextFromImageAPI(base64, mimeType);
+          const extracted = await extractTextFromImageAPI(base64, mimeType);
+          extractedText = extracted.text;
         } catch {
           // Preserve original error flow below
         }

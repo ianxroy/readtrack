@@ -1083,7 +1083,8 @@ export const Analyzer: React.FC<AnalyzerProps> = ({ initialReferenceFiles, refer
                 });
                 
                 try {
-                    const text = await extractTextFromImageAPI(base64, file.type);
+                    const extracted = await extractTextFromImageAPI(base64, file.type);
+                    const text = extracted.text;
                     console.log("OCR Extracted Text:", text); // Added for debugging
                     if (text) {
                          // Split text into lines to parse

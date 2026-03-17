@@ -50,7 +50,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         setOriginalFile({ base64, mimeType: file.type, name: file.name });
         try {
           const extracted = await extractTextFromImageAPI(base64, file.type);
-          if (extracted) setText(extracted);
+          if (extracted?.text) setText(extracted.text);
+          if (extracted?.warning) setError(extracted.warning);
         } catch { /* OCR failure is non-fatal */ }
       };
       reader.readAsDataURL(file);

@@ -45,7 +45,7 @@ export const classifyTextComplexityAPI = async (text: string, base64Image?: stri
     return data;
 };
 
-export const extractTextFromImageAPI = async (base64Image: string, mimeType?: string): Promise<string> => {
+export const extractTextFromImageAPI = async (base64Image: string, mimeType?: string): Promise<{text: string; warning?: string}> => {
     const response = await fetch('http://localhost:8000/ocr/extract', {
         method: 'POST',
         headers: {
@@ -64,7 +64,7 @@ export const extractTextFromImageAPI = async (base64Image: string, mimeType?: st
     if (data?.error) {
         throw new Error(data.error);
     }
-    return data.text || '';
+    return { text: data.text || '', warning: data.warning };
 };
 
 export const ingestReferenceAPI = async (payload: {
