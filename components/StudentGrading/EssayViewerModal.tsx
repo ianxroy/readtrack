@@ -12,10 +12,7 @@ import {
 
 import { Student, Subject, StudentEssay } from './types';
 import {
-  TextComplexityResult,
-  StudentDiagnosisResult,
   ProficiencyLevel,
-  ComplexityLevel,
 } from '../../types';
 
 interface EssayViewerModalProps {
@@ -47,26 +44,6 @@ const proficiencyMeta = {
   },
 };
 
-const complexityMeta = {
-  [ComplexityLevel.LITERAL]: {
-    color: 'text-green-600',
-    bg: 'bg-green-50',
-    border: 'border-green-100',
-    dot: 'bg-green-500',
-  },
-  [ComplexityLevel.INFERENTIAL]: {
-    color: 'text-orange-600',
-    bg: 'bg-orange-50',
-    border: 'border-orange-100',
-    dot: 'bg-orange-500',
-  },
-  [ComplexityLevel.EVALUATIVE]: {
-    color: 'text-red-600',
-    bg: 'bg-red-50',
-    border: 'border-red-100',
-    dot: 'bg-red-500',
-  },
-};
 
 function formatStudentName(value: string): string {
   return value?.trim() || 'Student';
@@ -83,16 +60,19 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
   const [teacherComment, setTeacherComment] = useState(essay.teacherComment ?? '');
   const [isSavingEvaluation, setIsSavingEvaluation] = useState(false);
   const [evaluationMessage, setEvaluationMessage] = useState<string | null>(null);
+  const [evaluationError, setEvaluationError] = useState(false);
   const [activeTab, setActiveTab] = useState<'original' | 'analysis'>('original');
 
   useEffect(() => {
     setTeacherRating(essay.teacherRating ?? 0);
     setTeacherComment(essay.teacherComment ?? '');
     setEvaluationMessage(null);
+    setActiveTab('original');
   }, [essay.id]);
 
   const handleSaveTeacherEvaluation = async () => {
     if (teacherRating < 1 || teacherRating > 5) {
+      setEvaluationError(true);
       setEvaluationMessage('Please select a rating from 1 to 5 stars.');
       return;
     }
@@ -100,18 +80,23 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
     setEvaluationMessage(null);
     try {
       await onSaveEvaluation(essay.id, teacherRating, teacherComment.trim());
+      setEvaluationError(false);
       setEvaluationMessage('Teacher rating saved.');
     } catch {
+      setEvaluationError(true);
       setEvaluationMessage('Failed to save rating.');
     } finally {
       setIsSavingEvaluation(false);
     }
   };
 
+  const SAFE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+  const safeImageMime = essay.originalFile?.mimeType && SAFE_IMAGE_TYPES.has(essay.originalFile.mimeType)
+    ? essay.originalFile.mimeType
+    : null;
+
   const dr = essay.diagnosisResult;
-  const cr = essay.complexityResult;
   const pMeta = dr ? proficiencyMeta[dr.proficiency] : null;
-  const cMeta = cr ? complexityMeta[cr.level] : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-md p-4 animate-in fade-in duration-300">
@@ -140,7 +125,7 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
               {essay.title}
             </h2>
             <p className="text-sm text-gray-400 font-medium mt-1">
-              Sinuri noong {new Date(essay.uploadedAt).toLocaleString()} {/* Analyzed on */}
+              Sinuri noong {(essay.uploadedAt instanceof Date ? essay.uploadedAt : new Date(essay.uploadedAt as unknown as string)).toLocaleString()} {/* Analyzed on */}
             </p>
           </div>
           <div className="flex items-center gap-3 shrink-0">
@@ -182,9 +167,9 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
                   {/* Left: original file */}
                   <div className="flex-1 min-w-0">
                     <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">Original File</p>
-                    {essay.originalFile.mimeType.startsWith('image/') ? (
+                    {safeImageMime ? (
                       <img
-                        src={`data:${essay.originalFile.mimeType};base64,${essay.originalFile.base64}`}
+                        src={`data:${safeImageMime};base64,${essay.originalFile!.base64}`}
                         alt="Original submission"
                         className="w-full rounded-lg border border-gray-200"
                       />
@@ -363,7 +348,7 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
                       {isSavingEvaluation ? 'Nag-iimbak…' : 'I-save ang Rating ng Guro'} {/* Save Teacher Rating */}
                     </button>
                     {evaluationMessage && (
-                      <p className="text-[10px] text-gray-500 font-medium">{evaluationMessage}</p>
+                      <p className={`text-[10px] font-medium ${evaluationError ? 'text-red-500' : 'text-green-600'}`}>{evaluationMessage}</p>
                     )}
                   </div>
                 </div>
