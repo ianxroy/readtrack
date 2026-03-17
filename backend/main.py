@@ -135,6 +135,31 @@ async def evaluate_rubric_with_gemini(text: str, language: str, grade_level: str
 
     lang_label = "Filipino (Tagalog)" if language == "filipino" else "English"
 
+    if language == "filipino":
+        language_calibration = (
+            "- For Filipino-language essays: Taglish code-switching is the main vocabulary concern; "
+            "minor verb focus errors are expected at G7"
+        )
+        grammar_note = ", Filipino verb focus system (mag-, um-, -in, -an, i-)"
+        vocab_note = " (no Taglish)"
+        english_esl_note = ""
+    else:
+        language_calibration = ""
+        grammar_note = ", tense consistency, articles"
+        vocab_note = ""
+        english_esl_note = (
+            "\nADDITIONAL CALIBRATION FOR ENGLISH ESSAYS BY FILIPINO G7 STUDENTS:\n"
+            "- These students are second-language English writers. English is NOT their mother tongue.\n"
+            "- EXPECTED L1 transfer errors (do NOT heavily penalize): article omission/misuse "
+            "(a/an/the - Filipino has no article system), preposition misuse, verb tense inconsistency\n"
+            "- Students transitioned to English-medium instruction from Grade 4 only - "
+            "they have ~3 years of English writing experience\n"
+            "- Content, organization, and ideas should be prioritized over surface grammar errors\n"
+            "- A Filipino G7 student writing a coherent, on-topic English essay with minor grammar "
+            "errors is performing well for this context\n"
+            "- Do NOT apply native-speaker English standards - apply Philippine ESL Grade 7 standards"
+        )
+
     prompt = f"""You are a DepEd-trained Philippine {grade_level} teacher grading a student essay.
 
 Use the official DepEd 5-dimension analytic rubric. Each dimension is scored 1-5:
@@ -147,9 +172,9 @@ Use the official DepEd 5-dimension analytic rubric. Each dimension is scored 1-5
 IMPORTANT CALIBRATION FOR PHILIPPINE GRADE 7:
 - The average PH G7 student scores ~2.3/5 on Organization nationally (research baseline)
 - Mechanical errors (punctuation, spelling) are the MOST COMMON error type in PH G7 - do not heavily penalize them
-- Filipino essays may use narrative/anecdote-heavy structure, collective experience, and faith/family themes - this is culturally appropriate and should NOT be penalized
-- For Filipino-language essays: Taglish code-switching is the main vocabulary concern; minor verb focus errors are expected at G7
+- PH G7 students writing in ANY language may use narrative/anecdote-heavy structure, collective experience, and faith/family themes - this is culturally appropriate and should NOT be penalized
 - An essay that sustains a topic, has a clear 3-part structure, and communicates effectively is performing AT OR ABOVE the Philippine national average for G7
+{language_calibration}{english_esl_note}
 
 ESSAY LANGUAGE: {lang_label}
 
@@ -161,8 +186,8 @@ ESSAY TEXT:
 Evaluate on these 5 dimensions:
 1. CONTENT - Relevance, depth of ideas, supporting details, topic development
 2. ORGANIZATION - Clear intro-body-conclusion structure, logical flow, paragraph transitions
-3. LANGUAGE_VOCAB - Word choice, register appropriateness, formal vocabulary{' (no Taglish)' if language == 'filipino' else ''}
-4. GRAMMAR - Verb forms, sentence construction, agreement{', Filipino verb focus system (mag-, um-, -in, -an, i-)' if language == 'filipino' else ', tense consistency, articles'}
+3. LANGUAGE_VOCAB - Word choice, register appropriateness, formal vocabulary{vocab_note}
+4. GRAMMAR - Verb forms, sentence construction, agreement{grammar_note}
 5. MECHANICS - Capitalization, punctuation, spelling
 
 Respond ONLY with valid JSON in this exact format:
