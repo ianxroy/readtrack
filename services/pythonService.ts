@@ -1,6 +1,7 @@
 import {
     StudentDiagnosisResult,
-    TextComplexityResult
+    TextComplexityResult,
+    DepEdRubricScore,
 } from "../types";
 
 export const analyzeStudentWorkAPI = async (text: string, base64Image?: string, mimeType?: string): Promise<StudentDiagnosisResult> => {
@@ -92,4 +93,38 @@ export const ingestReferenceAPI = async (payload: {
         throw new Error(data.error);
     }
     return data;
+};
+
+export const evaluateDepEdRubricAPI = async (
+    text: string,
+    language: 'english' | 'filipino' = 'filipino',
+    gradeLevel: string = 'Grade 7'
+): Promise<DepEdRubricScore> => {
+    const response = await fetch('http://localhost:8000/analyze/rubric', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'accept': 'application/json',
+        },
+        body: JSON.stringify({ text, language, grade_level: gradeLevel }),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    if (data?.error) throw new Error(data.error);
+
+    return {
+        content: data.content,
+        organization: data.organization,
+        languageVocab: data.language_vocab,
+        grammar: data.grammar,
+        mechanics: data.mechanics,
+        overallScore: data.overall_score,
+        overallFeedback: data.overall_feedback,
+        gradeLevel: data.grade_level,
+        language: language,
+    } as DepEdRubricScore;
 };
