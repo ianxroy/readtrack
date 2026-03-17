@@ -70,7 +70,7 @@ export interface DepEdRubricScore {
   languageVocab: DepEdRubricDimension;
   grammar: DepEdRubricDimension;
   mechanics: DepEdRubricDimension;
-  overallScore: number;        // average of 5 dimensions, 1–5
+  overallScore: number;        // average of 5 dimensions, 1–4
   overallFeedback: string;     // 2–3 sentence teacher-facing summary
   gradeLevel: string;          // e.g. "Grade 7"
   language: 'english' | 'filipino';
