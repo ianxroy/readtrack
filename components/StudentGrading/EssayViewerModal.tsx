@@ -13,6 +13,7 @@ import { Student, Subject, StudentEssay } from './types';
 import { GrammarHighlightedText } from './GrammarHighlightedText';
 import {
   ProficiencyLevel,
+  DepEdRubricScore,
 } from '../../types';
 
 interface EssayViewerModalProps {
@@ -44,6 +45,88 @@ const proficiencyMeta = {
   },
 };
 
+
+const DIMENSION_META = {
+  content:      { labelFil: 'Nilalaman',           label: 'Content',       color: 'indigo' },
+  organization: { labelFil: 'Organisasyon',         label: 'Organization',  color: 'teal'   },
+  languageVocab:{ labelFil: 'Wika/Talasalitaan',    label: 'Language',      color: 'violet' },
+  grammar:      { labelFil: 'Gramatika',            label: 'Grammar',       color: 'amber'  },
+  mechanics:    { labelFil: 'Mekanika',             label: 'Mechanics',     color: 'rose'   },
+} as const;
+
+const SCORE_LABEL: Record<number, string> = {
+  1: 'Hindi pa naaabot',
+  2: 'Nagsisimula',
+  3: 'Papaunlad',
+  4: 'Mahusay',
+  5: 'Napakahusay',
+};
+
+function ScorePips({ score }: { score: number }) {
+  return (
+    <div className="flex gap-1">
+      {[1, 2, 3, 4, 5].map(n => (
+        <div
+          key={n}
+          className={`w-2.5 h-2.5 rounded-full transition-colors ${
+            n <= score ? 'bg-teal-500' : 'bg-gray-200'
+          }`}
+        />
+      ))}
+    </div>
+  );
+}
+
+function DepEdRubricPanel({ rubric }: { rubric: DepEdRubricScore }) {
+  const dims = (['content', 'organization', 'languageVocab', 'grammar', 'mechanics'] as const);
+  const langLabel = rubric.language === 'filipino' ? 'Filipino' : 'English';
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-[24px] p-6 shadow-sm space-y-5">
+      <div className="flex items-center justify-between">
+        <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+          <IoStatsChartOutline className="text-indigo-400" />
+          DepEd Rubrik · {rubric.gradeLevel} · {langLabel}
+        </h4>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-gray-500 font-medium">Kabuuan</span>
+          <span className="text-lg font-black text-indigo-600">
+            {rubric.overallScore.toFixed(1)}
+            <span className="text-xs font-normal text-gray-400">/5</span>
+          </span>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {dims.map(dim => {
+          const meta = DIMENSION_META[dim];
+          const d = rubric[dim];
+          return (
+            <div key={dim}>
+              <div className="flex items-center justify-between mb-1">
+                <div>
+                  <span className="text-xs font-bold text-gray-700">{meta.labelFil}</span>
+                  <span className="text-[10px] text-gray-400 ml-1">({meta.label})</span>
+                </div>
+                <span className="text-[10px] font-bold text-gray-500">
+                  {d.score}/5 · {SCORE_LABEL[d.score] ?? ''}
+                </span>
+              </div>
+              <ScorePips score={d.score} />
+              <p className="text-[10px] text-gray-500 mt-1 leading-relaxed">{d.rationale}</p>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
+        <p className="text-[11px] text-indigo-900 leading-relaxed font-medium">
+          {rubric.overallFeedback}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 function formatStudentName(value: string): string {
   return value?.trim() || 'Student';
@@ -194,13 +277,20 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
           {/* Analysis Tab */}
           {activeTab === 'analysis' && (
             <div className="space-y-8">
+              {/* DepEd Rubric — primary evaluation */}
+              {dr?.rubricScore && (
+                <DepEdRubricPanel rubric={dr.rubricScore} />
+              )}
+
               {/* Scoring Grid */}
               {dr && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {[
                     {
                       label: 'Mungkahing Marka', // Suggested Score
-                      value: `${dr.natScore}%`,
+                      value: dr.rubricScore
+                        ? `${dr.rubricScore.overallScore.toFixed(1)}/5`
+                        : `${dr.natScore}%`,
                       definition:
                         'Numerikong antas ng kasanayan batay sa kayamanan ng wika at istrukturang pagkakaisa.', // Numerical proficiency rating based on linguistic richness and structural cohesion.
                       icon: IoStatsChartOutline,
