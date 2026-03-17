@@ -1,8 +1,8 @@
 
 export enum ProficiencyLevel {
-  FRUSTRATION = "Frustration",
-  INSTRUCTIONAL = "Instructional",
-  INDEPENDENT = "Independent"
+  NAGSISIMULA  = "Nagsisimula",
+  PAPAUNLAD    = "Papaunlad",
+  MAHUSAY      = "Mahusay",
 }
 
 export enum ComplexityLevel {
@@ -60,7 +60,7 @@ export interface LinguisticMetrics {
 }
 
 export interface DepEdRubricDimension {
-  score: number;       // 1–5
+  score: number;       // 1–4
   rationale: string;   // one-sentence explanation
 }
 
