@@ -74,7 +74,7 @@ Expected: errors listing files that use the old enum keys — confirms which fil
 
 ```bash
 git add types.ts
-git commit -m "chore(types): rename ProficiencyLevel to DepEd labels (Mahusay/Papaunlad/Nagsisimula)"
+git commit -m "chore(types): update ProficiencyLevel values to DepEd writing labels (Mahusay/Papaunlad/Nagsisimula)"
 ```
 
 ---
@@ -350,8 +350,18 @@ Use the official DepEd 5-dimension analytic rubric. Each dimension is scored 1-5
 - 1: Poor
 ```
 
-Open `backend/main.py` and search for `Use the official DepEd 5-dimension` (exact text, no em-dashes — the file uses plain ASCII hyphens throughout). Find and replace the entire scoring legend paragraph (the lines starting with `Use the official DepEd 5-dimension analytic rubric.` through the `- 1: Poor...` line) with:
+In `evaluate_rubric_with_gemini`, find this exact block (lines ~321–326 — copy text exactly, all plain ASCII hyphens):
 
+```
+Use the official DepEd 5-dimension analytic rubric. Each dimension is scored 1-5:
+- 5: Excellent - exceeds {grade_level} expectations
+- 4: Proficient - meets {grade_level} expectations
+- 3: Developing - partially meets expectations (PASSING threshold for PH G7)
+- 2: Beginning - minimally meets expectations
+- 1: Poor - does not meet expectations
+```
+
+Replace with:
 ```
 Use the official DepEd 4-level performance task rubric. Each dimension is scored 1-4:
 - 4: Mahusay (Proficient) - fully meets {grade_level} expectations
@@ -360,13 +370,38 @@ Use the official DepEd 4-level performance task rubric. Each dimension is scored
 - 1: Nagsisimula (Beginning) - does not yet meet expectations
 ```
 
-Also update the two JSON format lines in the prompt body that say `<1-5>` to say `<1-4>`.
+Also update the five JSON format lines in the prompt body that say `<1-5>` (lines ~351–355). Change each from:
+```
+"content": {{"score": <1-5>, "rationale": "<one sentence>"}},
+```
+to:
+```
+"content": {{"score": <1-4>, "rationale": "<one sentence>"}},
+```
+(Repeat for organization, language_vocab, grammar, mechanics.)
 
-Also update the IMPORTANT calibration note that references `~2.3/5 on Organization` — change to `~2.3/4 on Organization` to keep the baseline reference accurate after the scale change.
+Also update the calibration note on line ~329:
+```
+- The average PH G7 student scores ~2.3/5 on Organization nationally (research baseline)
+```
+to:
+```
+- The average PH G7 student scores ~2.3/4 on Organization nationally (research baseline)
+```
 
 - [ ] **Step 2: Update `ScorePips` and `SCORE_LABEL` in `EssayViewerModal.tsx`**
 
-Replace `SCORE_LABEL`:
+Find and replace `SCORE_LABEL` (lines 57–63). Old value (exact):
+```typescript
+const SCORE_LABEL: Record<number, string> = {
+  1: 'Hindi pa naaabot',
+  2: 'Nagsisimula',
+  3: 'Papaunlad',
+  4: 'Mahusay',
+  5: 'Napakahusay',
+};
+```
+New value (4-level DepEd scale):
 ```typescript
 const SCORE_LABEL: Record<number, string> = {
   1: 'Nagsisimula',
@@ -431,9 +466,9 @@ This is the core UI change. Replace the current 1–5 single-star rating with a 
 
 - [ ] **Step 1: Update the `EssayViewerModalProps` interface and state**
 
-**Step 1a: Add `TeacherRubricScores` to the existing import on line 12** (do NOT add a second import from `'./types'`):
+**Step 1a: Add `TeacherRubricScores` to the existing `'./types'` import on line 12** (do NOT add a second import statement — `TeacherRubricScores` is defined in `components/StudentGrading/types.ts`, which is the local `'./types'` path, same file as `Student`/`Subject`/`StudentEssay`):
 
-Find the existing import at the top of `EssayViewerModal.tsx`:
+Find line 12:
 ```typescript
 import { Student, Subject, StudentEssay } from './types';
 ```
