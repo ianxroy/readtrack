@@ -147,7 +147,7 @@ async def analyze_student_text(request: TextRequest): # Added async to handle aw
             if mime == "application/pdf":
                 ocr_text = extract_text_from_pdf(request.image)
             else:
-                ocr_text = extract_text_from_image(request.image, GEMINI_API_KEY, mime_type=mime)
+                ocr_text = extract_text_from_image(request.image, GEMINI_API_KEY, mime_type=mime).get("text", "")
 
             if ocr_text:
                 text_to_analyze = (text_to_analyze + "\n" + ocr_text).strip()
@@ -186,14 +186,16 @@ def extract_text_from_image_endpoint(request: OCRRequest):
 
     try:
         print(f"Processing image for OCR. Mime: {request.mimeType}")
-        ocr_text = extract_text_from_image(request.image, GEMINI_API_KEY, mime_type=request.mimeType)
+        ocr_result = extract_text_from_image(request.image, GEMINI_API_KEY, mime_type=request.mimeType)
+        ocr_text = ocr_result.get("text", "")
+        ocr_warning = ocr_result.get("warning")
         print(f"Extracted OCR text: {ocr_text}")
         if ocr_text:
             print(f"Extracted {len(ocr_text)} characters from image")
         else:
             print("Warning: No text extracted from image")
 
-        return {"text": ocr_text}
+        return {"text": ocr_text, "warning": ocr_warning}
     except Exception as e:
         import traceback
         print("ERROR in extract_text_from_image_endpoint:")
@@ -211,7 +213,7 @@ def ingest_reference(request: ReferenceIngestRequest):
             if request.mimeType == "application/pdf":
                 text = extract_text_from_pdf(request.file)
             elif request.mimeType.startswith("image/"):
-                text = extract_text_from_image(request.file, GEMINI_API_KEY, mime_type=request.mimeType)
+                text = extract_text_from_image(request.file, GEMINI_API_KEY, mime_type=request.mimeType).get("text", "")
             elif request.mimeType.startswith("text/"):
                 decoded = base64.b64decode(request.file)
                 text = decoded.decode("utf-8", errors="replace")
@@ -236,7 +238,7 @@ def analyze_complexity_text(request: TextRequest):
             if mime == "application/pdf":
                 ocr_text = extract_text_from_pdf(request.image)
             else:
-                ocr_text = extract_text_from_image(request.image, GEMINI_API_KEY, mime_type=mime)
+                ocr_text = extract_text_from_image(request.image, GEMINI_API_KEY, mime_type=mime).get("text", "")
             if ocr_text:
                 text_to_analyze = (text_to_analyze + "\n" + ocr_text).strip()
 

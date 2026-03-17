@@ -1,6 +1,7 @@
-import React, { useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { ComplexityLevel, ProficiencyLevel } from "../types";
+import { loadDashboardStats } from "../services/supabaseService";
 
 interface ToolCardProps {
   title: string;
@@ -82,66 +83,50 @@ interface DashboardProps {
 
 export const Dashboard: React.FC<DashboardProps> = ({ view: _view }) => {
   const navigate = useNavigate();
-
-  const analytics = useMemo(() => {
-    const readArray = (key: string): any[] => {
-      try {
-        const raw = localStorage.getItem(key);
-        if (!raw) return [];
-        const parsed = JSON.parse(raw);
-        return Array.isArray(parsed) ? parsed : [];
-      } catch {
-        return [];
-      }
-    };
-
-    const students = readArray("readtrack_student_essays");
-    const materials = readArray("readtrack_material_library");
-
-    const essays = students.flatMap((student: any) => student.essays || []);
-    const ratings = essays
-      .map((essay: any) => essay.teacherRating)
-      .filter((value: any) => typeof value === "number" && value > 0);
-
-    const avgTeacherRating = ratings.length
-      ? (ratings.reduce((sum: number, value: number) => sum + value, 0) / ratings.length).toFixed(1)
-      : "N/A";
-
-    const proficiencyCounts: Record<ProficiencyLevel, number> = {
+  const [dashboardLoading, setDashboardLoading] = useState(true);
+  const [analytics, setAnalytics] = useState({
+    totalStudents: 0,
+    totalEssays: 0,
+    totalMaterials: 0,
+    ratedEssays: 0,
+    avgTeacherRating: "N/A",
+    proficiencyCounts: {
       [ProficiencyLevel.FRUSTRATION]: 0,
       [ProficiencyLevel.INSTRUCTIONAL]: 0,
       [ProficiencyLevel.INDEPENDENT]: 0,
-    };
-
-    essays.forEach((essay: any) => {
-      const level = essay?.diagnosisResult?.proficiency as ProficiencyLevel | undefined;
-      if (level && level in proficiencyCounts) {
-        proficiencyCounts[level] += 1;
-      }
-    });
-
-    const complexityCounts: Record<ComplexityLevel, number> = {
+    },
+    complexityCounts: {
       [ComplexityLevel.LITERAL]: 0,
       [ComplexityLevel.INFERENTIAL]: 0,
       [ComplexityLevel.EVALUATIVE]: 0,
-    };
+    },
+  });
 
-    materials.forEach((material: any) => {
-      const level = material?.complexityResult?.level as ComplexityLevel | undefined;
-      if (level && level in complexityCounts) {
-        complexityCounts[level] += 1;
+  useEffect(() => {
+    let cancelled = false;
+    loadDashboardStats().then((stats) => {
+      if (!cancelled && !stats.error) {
+        setAnalytics({
+          totalStudents: stats.totalStudents,
+          totalEssays: stats.totalEssays,
+          totalMaterials: stats.totalMaterials,
+          ratedEssays: stats.ratedEssays,
+          avgTeacherRating: stats.avgTeacherRating,
+          proficiencyCounts: {
+            [ProficiencyLevel.FRUSTRATION]: stats.proficiencyCounts.Frustration || 0,
+            [ProficiencyLevel.INSTRUCTIONAL]: stats.proficiencyCounts.Instructional || 0,
+            [ProficiencyLevel.INDEPENDENT]: stats.proficiencyCounts.Independent || 0,
+          },
+          complexityCounts: {
+            [ComplexityLevel.LITERAL]: stats.complexityCounts.Literal || 0,
+            [ComplexityLevel.INFERENTIAL]: stats.complexityCounts.Inferential || 0,
+            [ComplexityLevel.EVALUATIVE]: stats.complexityCounts.Evaluative || 0,
+          },
+        });
       }
+      if (!cancelled) setDashboardLoading(false);
     });
-
-    return {
-      totalStudents: students.length,
-      totalEssays: essays.length,
-      totalMaterials: materials.length,
-      ratedEssays: ratings.length,
-      avgTeacherRating,
-      proficiencyCounts,
-      complexityCounts,
-    };
+    return () => { cancelled = true; };
   }, []);
 
   const proficiencyRows: DistributionRow[] = [
@@ -185,6 +170,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ view: _view }) => {
       bgClass: "bg-red-50",
     },
   ];
+
+  if (dashboardLoading) {
+    return (
+      <main className="flex-1 overflow-y-auto bg-[#F2F2F7]">
+        <div className="flex flex-col items-center justify-center h-full">
+          <div className="w-8 h-8 rounded-full border-2 border-teal-500 border-t-transparent animate-spin mb-3" />
+          <p className="text-sm text-gray-400">Loading dashboard...</p>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="flex-1 overflow-y-auto bg-[#F2F2F7]">

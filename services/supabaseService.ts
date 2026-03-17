@@ -22,6 +22,9 @@ export interface StudentGradingUpload {
   nat_score?: number | null;
   diagnosis_result?: unknown;
   complexity_result?: unknown;
+  section_name?: string;
+  subject_name?: string;
+  original_file?: { base64: string; mimeType: string; name: string } | null;
 }
 
 export interface MaterialUpload {
@@ -31,6 +34,9 @@ export interface MaterialUpload {
   complexity_score?: number | null;
   complexity_result?: unknown;
 }
+
+/** Organization data shape: { "Section A": ["Math", "English"], ... } */
+export type OrgData = Record<string, string[]>;
 
 function normalizeStudentName(name: string): string {
   return name.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -64,23 +70,27 @@ export async function saveTeacherEvaluation(evaluation: TeacherEvaluation): Prom
   return { error: error ? error.message : null };
 }
 
-export async function saveStudentGradingUpload(upload: StudentGradingUpload): Promise<{ error: string | null }> {
+export async function saveStudentGradingUpload(upload: StudentGradingUpload): Promise<{ data: any | null; error: string | null }> {
   const { data: { user } } = await supabase.auth.getUser();
 
   const studentNameSha = await sha256Hex(normalizeStudentName(upload.student_name));
 
-  const { error } = await supabase.from('student_grading_uploads').insert([{
+  const { data, error } = await supabase.from('student_grading_uploads').insert([{
     teacher_id: user?.id ?? null,
     student_name_sha: studentNameSha,
+    student_name: upload.student_name,
     essay_title: upload.essay_title,
     essay_text: upload.essay_text,
     proficiency_level: upload.proficiency_level ?? null,
     nat_score: upload.nat_score ?? null,
     diagnosis_result: upload.diagnosis_result ?? null,
     complexity_result: upload.complexity_result ?? null,
-  }]);
+    section_name: upload.section_name ?? null,
+    subject_name: upload.subject_name ?? null,
+    original_file: upload.original_file ?? null,
+  }]).select().single();
 
-  return { error: error ? error.message : null };
+  return { data: data ?? null, error: error ? error.message : null };
 }
 
 export async function saveMaterialUpload(upload: MaterialUpload): Promise<{ error: string | null }> {
@@ -96,4 +106,296 @@ export async function saveMaterialUpload(upload: MaterialUpload): Promise<{ erro
   }]);
 
   return { error: error ? error.message : null };
+}
+
+// ----------------------------------------------------------------
+// Organization (Section > Subject) — Supabase CRUD
+// ----------------------------------------------------------------
+
+/** Load all sections + subjects for the current teacher */
+export async function loadOrganization(): Promise<{ data: OrgData; error: string | null }> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { data: {}, error: 'Not authenticated' };
+
+  const { data, error } = await supabase
+    .from('teacher_organization')
+    .select('section_name, subjects')
+    .eq('teacher_id', user.id)
+    .order('section_name');
+
+  if (error) return { data: {}, error: error.message };
+
+  const org: OrgData = {};
+  (data ?? []).forEach((row: any) => {
+    org[row.section_name] = row.subjects ?? [];
+  });
+  return { data: org, error: null };
+}
+
+/** Upsert a single section (create or update its subjects list) */
+export async function upsertSection(sectionName: string, subjects: string[]): Promise<{ error: string | null }> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Not authenticated' };
+
+  const { error } = await supabase
+    .from('teacher_organization')
+    .upsert(
+      { teacher_id: user.id, section_name: sectionName, subjects, updated_at: new Date().toISOString() },
+      { onConflict: 'teacher_id,section_name' },
+    );
+
+  return { error: error ? error.message : null };
+}
+
+/** Delete a section entirely */
+export async function deleteSection(sectionName: string): Promise<{ error: string | null }> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Not authenticated' };
+
+  const { error } = await supabase
+    .from('teacher_organization')
+    .delete()
+    .eq('teacher_id', user.id)
+    .eq('section_name', sectionName);
+
+  return { error: error ? error.message : null };
+}
+
+// ----------------------------------------------------------------
+// Student Grading Uploads — full CRUD (replaces localStorage)
+// ----------------------------------------------------------------
+
+export interface StudentUploadRow {
+  id: string;
+  student_name_sha: string;
+  student_name: string | null;
+  essay_title: string | null;
+  essay_text: string;
+  proficiency_level: string | null;
+  nat_score: number | null;
+  diagnosis_result: any | null;
+  complexity_result: any | null;
+  section_name: string | null;
+  subject_name: string | null;
+  teacher_rating: number | null;
+  teacher_comment: string | null;
+  original_file: any | null;
+  created_at: string;
+}
+
+export interface StudentLocal {
+  id: string;
+  name: string;
+  section?: string;
+  subject?: string;
+  essays: {
+    id: string;
+    title: string;
+    text: string;
+    uploadedAt: Date;
+    diagnosisResult?: any;
+    complexityResult?: any;
+    teacherRating?: number;
+    teacherComment?: string;
+    originalFile?: { base64: string; mimeType: string; name: string };
+  }[];
+}
+
+/** Load all student grading uploads for the current teacher, grouped by student name */
+export async function loadStudentUploads(): Promise<{ data: StudentLocal[]; error: string | null }> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { data: [], error: 'Not authenticated' };
+
+  const { data, error } = await supabase
+    .from('student_grading_uploads')
+    .select('*')
+    .eq('teacher_id', user.id)
+    .order('created_at', { ascending: false });
+
+  if (error) return { data: [], error: error.message };
+
+  // Group rows by student_name (or student_name_sha as fallback key)
+  const studentMap = new Map<string, StudentLocal>();
+  (data ?? []).forEach((row: any) => {
+    const name = row.student_name || row.student_name_sha || 'Unknown';
+    const key = name.toLowerCase().trim();
+
+    if (!studentMap.has(key)) {
+      studentMap.set(key, {
+        id: row.student_name_sha || row.id,
+        name,
+        section: row.section_name || undefined,
+        subject: row.subject_name || undefined,
+        essays: [],
+      });
+    }
+
+    const student = studentMap.get(key)!;
+    student.essays.push({
+      id: row.id,
+      title: row.essay_title || 'Untitled',
+      text: row.essay_text,
+      uploadedAt: new Date(row.created_at),
+      diagnosisResult: row.diagnosis_result || undefined,
+      complexityResult: row.complexity_result || undefined,
+      teacherRating: row.teacher_rating || undefined,
+      teacherComment: row.teacher_comment || undefined,
+      originalFile: row.original_file || undefined,
+    });
+  });
+
+  return { data: Array.from(studentMap.values()), error: null };
+}
+
+/** Delete a single essay upload by its UUID */
+export async function deleteStudentUpload(uploadId: string): Promise<{ error: string | null }> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Not authenticated' };
+
+  const { error } = await supabase
+    .from('student_grading_uploads')
+    .delete()
+    .eq('id', uploadId)
+    .eq('teacher_id', user.id);
+
+  return { error: error ? error.message : null };
+}
+
+/** Delete all essays for a student (by student_name_sha) */
+export async function deleteStudentAllUploads(studentNameSha: string): Promise<{ error: string | null }> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Not authenticated' };
+
+  const { error } = await supabase
+    .from('student_grading_uploads')
+    .delete()
+    .eq('student_name_sha', studentNameSha)
+    .eq('teacher_id', user.id);
+
+  return { error: error ? error.message : null };
+}
+
+/** Update teacher rating and comment on an essay */
+export async function updateEssayTeacherRating(
+  uploadId: string,
+  rating: number,
+  comment?: string,
+): Promise<{ error: string | null }> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Not authenticated' };
+
+  const { error } = await supabase
+    .from('student_grading_uploads')
+    .update({ teacher_rating: rating, teacher_comment: comment ?? null })
+    .eq('id', uploadId)
+    .eq('teacher_id', user.id);
+
+  return { error: error ? error.message : null };
+}
+
+/** Load material uploads for the current teacher */
+export async function loadMaterialUploads(): Promise<{ data: any[]; error: string | null }> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { data: [], error: 'Not authenticated' };
+
+  const { data, error } = await supabase
+    .from('material_uploads')
+    .select('*')
+    .eq('teacher_id', user.id)
+    .order('created_at', { ascending: false });
+
+  if (error) return { data: [], error: error.message };
+  
+  // Format for LibraryMaterial type
+  const formatted = (data ?? []).map((m: any) => ({
+    id: m.id,
+    name: m.material_name,
+    text: m.material_text,
+    uploadedAt: new Date(m.created_at),
+    complexityResult: m.complexity_result,
+  }));
+
+  return { data: formatted, error: null };
+}
+
+/** Delete a material upload by its UUID */
+export async function deleteMaterialUpload(uploadId: string): Promise<{ error: string | null }> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Not authenticated' };
+
+  const { error } = await supabase
+    .from('material_uploads')
+    .delete()
+    .eq('id', uploadId)
+    .eq('teacher_id', user.id);
+
+  return { error: error ? error.message : null };
+}
+
+/** Load dashboard statistics from the database */
+export async function loadDashboardStats(): Promise<{
+  totalStudents: number;
+  totalEssays: number;
+  totalMaterials: number;
+  ratedEssays: number;
+  avgTeacherRating: string;
+  proficiencyCounts: Record<string, number>;
+  complexityCounts: Record<string, number>;
+  error: string | null;
+}> {
+  const { data: { user } } = await supabase.auth.getUser();
+  const empty = {
+    totalStudents: 0, totalEssays: 0, totalMaterials: 0,
+    ratedEssays: 0, avgTeacherRating: 'N/A',
+    proficiencyCounts: { Frustration: 0, Instructional: 0, Independent: 0 },
+    complexityCounts: { Literal: 0, Inferential: 0, Evaluative: 0 },
+    error: null as string | null,
+  };
+  if (!user) return { ...empty, error: 'Not authenticated' };
+
+  // Fetch essays
+  const { data: essays, error: essayErr } = await supabase
+    .from('student_grading_uploads')
+    .select('student_name_sha, proficiency_level, teacher_rating')
+    .eq('teacher_id', user.id);
+
+  // Fetch materials
+  const { data: materials, error: matErr } = await supabase
+    .from('material_uploads')
+    .select('complexity_level')
+    .eq('teacher_id', user.id);
+
+  if (essayErr || matErr) return { ...empty, error: (essayErr || matErr)!.message };
+
+  const studentNames = new Set((essays ?? []).map((e: any) => e.student_name_sha));
+  const ratings = (essays ?? [])
+    .map((e: any) => e.teacher_rating)
+    .filter((r: any) => typeof r === 'number' && r > 0);
+
+  const proficiencyCounts: Record<string, number> = { Frustration: 0, Instructional: 0, Independent: 0 };
+  (essays ?? []).forEach((e: any) => {
+    if (e.proficiency_level && e.proficiency_level in proficiencyCounts) {
+      proficiencyCounts[e.proficiency_level] += 1;
+    }
+  });
+
+  const complexityCounts: Record<string, number> = { Literal: 0, Inferential: 0, Evaluative: 0 };
+  (materials ?? []).forEach((m: any) => {
+    if (m.complexity_level && m.complexity_level in complexityCounts) {
+      complexityCounts[m.complexity_level] += 1;
+    }
+  });
+
+  return {
+    totalStudents: studentNames.size,
+    totalEssays: (essays ?? []).length,
+    totalMaterials: (materials ?? []).length,
+    ratedEssays: ratings.length,
+    avgTeacherRating: ratings.length
+      ? (ratings.reduce((a: number, b: number) => a + b, 0) / ratings.length).toFixed(1)
+      : 'N/A',
+    proficiencyCounts,
+    complexityCounts,
+    error: null,
+  };
 }

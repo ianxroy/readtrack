@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(wc -l \"/Users/ianxroy/readtrack/Chapter 1-5 \\(draft\\).md\")",
-      "Bash(python train_proficiency_svm.py)"
+      "Bash(python train_proficiency_svm.py)",
+      "Bash(python3 -c \":*)",
+      "Bash(python3 -c \"import imblearn; print\\(imblearn.__version__\\)\")",
+      "Bash(python3 train_proficiency.py)",
+      "Bash(git checkout backend/train_proficiency.py backend/svm_models.py)"
     ]
   }
 }

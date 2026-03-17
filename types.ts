@@ -103,12 +103,19 @@ export interface TextComplexityResult {
   };
 }
 
+export interface OriginalFile {
+  base64: string;
+  mimeType: string;
+  name: string;
+}
+
 export interface LibraryMaterial {
   id: string;
   name: string;
   text: string;
   uploadedAt: Date;
   complexityResult: TextComplexityResult;
+  originalFile?: OriginalFile;
 }
 
 export interface ReferenceFile {

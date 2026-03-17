@@ -10,24 +10,15 @@ import {
   IoBookOutline,
   IoFunnelOutline,
   IoChevronDownOutline,
+  IoImageOutline,
+  IoGridOutline,
 } from 'react-icons/io5';
 import { LibraryMaterial, TextComplexityResult, ComplexityLevel } from '../types';
 import { classifyTextComplexityAPI, extractTextFromImageAPI } from '../services/pythonService';
-import { saveMaterialUpload } from '../services/supabaseService';
+import { saveMaterialUpload, loadMaterialUploads, deleteMaterialUpload } from '../services/supabaseService';
+import { useEffect } from 'react';
 
-const LIBRARY_KEY = 'readtrack_material_library';
 
-function loadLibrary(): LibraryMaterial[] {
-  try {
-    const raw = localStorage.getItem(LIBRARY_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw).map((m: any) => ({ ...m, uploadedAt: new Date(m.uploadedAt) }));
-  } catch { return []; }
-}
-
-function saveLibrary(materials: LibraryMaterial[]) {
-  localStorage.setItem(LIBRARY_KEY, JSON.stringify(materials));
-}
 
 function normalizeMaterialText(text: string): string {
   const normalized = text.replace(/\r\n?/g, '\n').trim();
@@ -107,6 +98,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
   const [isEditing, setIsEditing] = useState(false);
   const [editedName, setEditedName] = useState(material.name);
   const [editedText, setEditedText] = useState(material.text);
+  const [viewMode, setViewMode] = useState<'text' | 'sideBySide'>('text');
   
   const meta = levelMeta[material.complexityResult.level] ?? levelMeta[ComplexityLevel.LITERAL];
   const cr = material.complexityResult;
@@ -221,13 +213,63 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
 
           {/* Material text */}
           <div className="mx-5 mt-3 mb-5">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Material Text</div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Material Text</div>
+              {material.originalFile && material.originalFile.mimeType.startsWith('image/') && !isEditing && (
+                <button
+                  onClick={() => setViewMode(viewMode === 'sideBySide' ? 'text' : 'sideBySide')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all ${
+                    viewMode === 'sideBySide'
+                      ? 'bg-teal-100 text-teal-700 border border-teal-200'
+                      : 'bg-gray-100 text-gray-500 border border-gray-200 hover:bg-teal-50 hover:text-teal-600'
+                  }`}
+                >
+                  {viewMode === 'sideBySide' ? <IoDocumentTextOutline /> : <IoGridOutline />}
+                  {viewMode === 'sideBySide' ? 'Text Only' : 'Compare Original'}
+                </button>
+              )}
+            </div>
             {isEditing ? (
               <textarea
                 className="w-full bg-gray-50 border border-gray-100 rounded-xl p-4 text-xs text-gray-700 leading-relaxed font-mono min-h-[200px] outline-none focus:ring-1 focus:ring-teal-500"
                 value={editedText}
                 onChange={e => setEditedText(e.target.value)}
               />
+            ) : viewMode === 'sideBySide' && material.originalFile ? (
+              <div className="flex gap-3 max-h-64">
+                {/* Original file preview */}
+                <div className="flex-1 bg-gray-50 border border-gray-100 rounded-xl p-3 overflow-auto">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 flex items-center gap-1.5">
+                    <IoImageOutline /> Original File
+                  </div>
+                  {material.originalFile.mimeType.startsWith('image/') ? (
+                    <img
+                      src={`data:${material.originalFile.mimeType};base64,${material.originalFile.base64}`}
+                      alt="Original uploaded file"
+                      className="w-full h-auto rounded-lg object-contain"
+                    />
+                  ) : material.originalFile.mimeType === 'application/pdf' ? (
+                    <iframe
+                      src={`data:application/pdf;base64,${material.originalFile.base64}`}
+                      className="w-full h-full min-h-[200px] rounded-lg"
+                      title="Original PDF"
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-24 text-gray-400 text-xs">
+                      Text file — no visual preview
+                    </div>
+                  )}
+                </div>
+                {/* Extracted text */}
+                <div className="flex-1 bg-gray-50 border border-gray-100 rounded-xl p-3 overflow-auto">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 flex items-center gap-1.5">
+                    <IoDocumentTextOutline /> Scanned Text
+                  </div>
+                  <div className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap font-mono">
+                    {material.text}
+                  </div>
+                </div>
+              </div>
             ) : (
               <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 text-xs text-gray-700 leading-relaxed whitespace-pre-wrap max-h-64 overflow-y-auto font-mono">
                 {material.text}
@@ -245,7 +287,8 @@ interface MaterialLibraryProps {
 }
 
 export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick }) => {
-  const [materials, setMaterials] = useState<LibraryMaterial[]>(loadLibrary);
+  const [materials, setMaterials] = useState<LibraryMaterial[]>([]);
+  const [materialsLoading, setMaterialsLoading] = useState(true);
   const [filter, setFilter] = useState<ComplexityLevel | 'all'>('all');
   const [sort, setSort] = useState<SortKey>('newest');
   const [search, setSearch] = useState('');
@@ -257,17 +300,37 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
   const dragCount = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    let cancelled = false;
+    loadMaterialUploads().then(({ data, error }) => {
+      if (!cancelled) {
+        if (!error) setMaterials(data);
+        setMaterialsLoading(false);
+      }
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const refreshMaterials = async () => {
+    const { data } = await loadMaterialUploads();
+    setMaterials(data);
+  };
+
   const persist = (updated: LibraryMaterial[]) => {
     setMaterials(updated);
-    saveLibrary(updated);
   };
 
   const handleUpdate = (updated: LibraryMaterial) => {
-    persist(materials.map(m => m.id === updated.id ? updated : m));
+    setMaterials(materials.map(m => m.id === updated.id ? updated : m));
   };
 
-  const handleDelete = (id: string) => {
-    persist(materials.filter(m => m.id !== id));
+  const handleDelete = async (id: string) => {
+    // Optimistic update
+    setMaterials((prev) => prev.filter(m => m.id !== id));
+    const { error } = await deleteMaterialUpload(id);
+    if (error) console.error('Delete material failed:', error);
+    // Refresh from DB to stay in sync
+    await refreshMaterials();
   };
 
   const processFile = useCallback(async (file: File) => {
@@ -317,12 +380,15 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
       let extractedText = result.analyzed_text || text;
 
       if ((!extractedText || extractedText.trim().length === 0) && base64 && (isImage || isPdf)) {
+        let warningMessage = null;
         try {
-          const extracted = await extractTextFromImageAPI(base64, mimeType);
-          extractedText = extracted.text;
+          const { text, warning } = await extractTextFromImageAPI(base64, mimeType);
+          warningMessage = warning;
+          extractedText = text;
         } catch {
           // Preserve original error flow below
         }
+        if (warningMessage) throw new Error(warningMessage);
       }
       
       extractedText = normalizeMaterialText(extractedText);
@@ -337,6 +403,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
         text: extractedText,
         uploadedAt: new Date(),
         complexityResult: result,
+        originalFile: base64 ? { base64, mimeType, name: file.name } : undefined,
       };
       persist([material, ...materials]);
 
@@ -349,8 +416,10 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
       });
 
       if (error) {
-        setUploadError(`Saved locally, but database sync failed: ${error}`);
+        setUploadError(`Database error: ${error}`);
       }
+      
+      await refreshMaterials();
     } catch (e: any) {
       setUploadError(e.message || 'Analysis failed.');
     } finally {
@@ -517,8 +586,16 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
             })}
           </div>
 
+          {/* Loading state */}
+          {materialsLoading && (
+            <div className="flex flex-col items-center justify-center h-60">
+              <div className="w-8 h-8 rounded-full border-2 border-teal-500 border-t-transparent animate-spin mb-3" />
+              <p className="text-sm text-gray-400">Loading materials...</p>
+            </div>
+          )}
+
           {/* Drop zone / empty state */}
-          {materials.length === 0 && (
+          {!materialsLoading && materials.length === 0 && (
             <div
               onDragEnter={handleDragEnter}
               onDragOver={handleDragOver}

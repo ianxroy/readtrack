@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { Navigation } from "./components/Navigation";
 import { Dashboard } from "./components/Dashboard";
 import GrammarChecker from "./components/GrammarChecker";
@@ -10,18 +10,7 @@ import Login from "./components/Login";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { CachedAnalysis } from "./types";
 
-const HISTORY_KEY = "readtrack_history";
-
-function loadHistory(): CachedAnalysis[] {
-  try {
-    const raw = localStorage.getItem(HISTORY_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return parsed.map((a: any) => ({ ...a, timestamp: new Date(a.timestamp) }));
-  } catch {
-    return [];
-  }
-}
+import { loadStudentUploads, deleteStudentUpload, StudentLocal } from "./services/supabaseService";
 
 // Wraps any route — redirects to /login if the user is not authenticated
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -43,18 +32,36 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 };
 
 const AppRoutes: React.FC = () => {
+  const { user } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [history, setHistory] = useState<CachedAnalysis[]>(loadHistory);
+  const [history, setHistory] = useState<CachedAnalysis[]>([]);
   const [selectedAnalysis, setSelectedAnalysis] = useState<CachedAnalysis | null>(null);
   const navigate = useNavigate();
+  const location = useLocation();
 
-  // Persist history changes to localStorage
+  // Load history from Supabase when user is logged in
   useEffect(() => {
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-  }, [history]);
+    if (user) {
+      loadStudentUploads().then(({ data }) => {
+        // Flatten students' essays into a list for the sidebar history
+        const allEssays: CachedAnalysis[] = (data as StudentLocal[]).flatMap(student => 
+          student.essays.map(essay => ({
+            id: essay.id,
+            timestamp: essay.uploadedAt,
+            title: `${student.name.trim() || 'Student'} \u2022 ${essay.title}`,
+            studentText: essay.text,
+            diagnosisResult: essay.diagnosisResult,
+            complexityResult: essay.complexityResult,
+          }))
+        ).sort((a, b) => +b.timestamp - +a.timestamp).slice(0, 30);
+        
+        setHistory(allEssays);
+      });
+    }
+  }, [user]);
 
   const handleSaveAnalysis = (analysis: CachedAnalysis) => {
-    setHistory(prev => [analysis, ...prev].slice(0, 50));
+    setHistory(prev => [analysis, ...prev].slice(0, 30));
   };
 
   const handleSelectHistory = (analysis: CachedAnalysis) => {
@@ -63,9 +70,10 @@ const AppRoutes: React.FC = () => {
     setIsMobileMenuOpen(false);
   };
 
-  const handleDeleteHistory = (id: string) => {
+  const handleDeleteHistory = async (id: string) => {
     setHistory(prev => prev.filter(a => a.id !== id));
     if (selectedAnalysis?.id === id) setSelectedAnalysis(null);
+    await deleteStudentUpload(id);
   };
 
   const toggleMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -92,35 +100,34 @@ const AppRoutes: React.FC = () => {
 
                 <main className="flex-1 h-full overflow-hidden flex flex-col relative bg-[#F2F2F7]">
                   <Routes>
-                    <Route
-                      path="/"
-                      element={<Dashboard view="welcome" onMenuClick={toggleMenu} />}
-                    />
-                    <Route
-                      path="/student"
-                      element={
-                        <StudentGrading
-                          onMenuClick={() => setIsMobileMenuOpen(true)}
-                          onSaveAnalysis={handleSaveAnalysis}
-                          selectedAnalysis={selectedAnalysis}
-                        />
-                      }
-                    />
-                    <Route
-                      path="/material"
-                      element={<MaterialLibrary onMenuClick={() => setIsMobileMenuOpen(true)} />}
-                    />
-                    <Route path="/grammar" element={<GrammarChecker />} />
-                    <Route
-                      path="/evaluation"
-                      element={<Navigate to="/about" replace />}
-                    />
-                    <Route
-                      path="/about"
-                      element={<About onMenuClick={() => setIsMobileMenuOpen(true)} />}
-                    />
+                    <Route path="/evaluation" element={<Navigate to="/about" replace />} />
+                    <Route path="/" element={<></>} />
+                    <Route path="/student" element={<></>} />
+                    <Route path="/material" element={<></>} />
+                    <Route path="/grammar" element={<></>} />
+                    <Route path="/about" element={<></>} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
+
+                  <div className={`h-full ${location.pathname === '/' ? 'block' : 'hidden'}`}>
+                    <Dashboard view="welcome" onMenuClick={toggleMenu} />
+                  </div>
+                  <div className={`h-full ${location.pathname === '/student' ? 'block' : 'hidden'}`}>
+                    <StudentGrading
+                      onMenuClick={() => setIsMobileMenuOpen(true)}
+                      onSaveAnalysis={handleSaveAnalysis}
+                      selectedAnalysis={selectedAnalysis}
+                    />
+                  </div>
+                  <div className={`h-full ${location.pathname === '/material' ? 'block' : 'hidden'}`}>
+                    <MaterialLibrary onMenuClick={() => setIsMobileMenuOpen(true)} />
+                  </div>
+                  <div className={`h-full ${location.pathname === '/grammar' ? 'block' : 'hidden'}`}>
+                    <GrammarChecker />
+                  </div>
+                  <div className={`h-full ${location.pathname === '/about' ? 'block' : 'hidden'}`}>
+                    <About onMenuClick={() => setIsMobileMenuOpen(true)} />
+                  </div>
                 </main>
               </div>
             </div>

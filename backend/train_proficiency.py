@@ -43,8 +43,6 @@ def train_proficiency():
         return
 
     print("\n=== Training SVM Proficiency Model ===")
-
-    # Split proficiency data (non-stratified with seed 174 matches proven 85%+ setup)
     X_train, X_test, y_train, y_test = train_test_split(
         X, y_prof, test_size=0.2, random_state=174
     )
