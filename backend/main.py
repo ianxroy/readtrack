@@ -318,15 +318,14 @@ async def evaluate_rubric_with_gemini(text: str, language: str, grade_level: str
 
     prompt = f"""You are a DepEd-trained Philippine {grade_level} teacher grading a student essay.
 
-Use the official DepEd 5-dimension analytic rubric. Each dimension is scored 1-5:
-- 5: Excellent - exceeds {grade_level} expectations
-- 4: Proficient - meets {grade_level} expectations
-- 3: Developing - partially meets expectations (PASSING threshold for PH G7)
-- 2: Beginning - minimally meets expectations
-- 1: Poor - does not meet expectations
+Use the official DepEd 4-level performance task rubric. Each dimension is scored 1-4:
+- 4: Mahusay (Proficient) - fully meets {grade_level} expectations
+- 3: Papalapit sa Kahusayan (Approaching Proficiency) - mostly meets expectations (above the passing threshold)
+- 2: Papaunlad (Developing) - partially meets expectations (minimum passing for a single dimension)
+- 1: Nagsisimula (Beginning) - does not yet meet expectations
 
 IMPORTANT CALIBRATION FOR PHILIPPINE GRADE 7:
-- The average PH G7 student scores ~2.3/5 on Organization nationally (research baseline)
+- The average PH G7 student scores ~2.3/4 on Organization nationally (research baseline)
 - Mechanical errors (punctuation, spelling) are the MOST COMMON error type in PH G7 - do not heavily penalize them
 - PH G7 students writing in ANY language may use narrative/anecdote-heavy structure, collective experience, and faith/family themes - this is culturally appropriate and should NOT be penalized
 - An essay that sustains a topic, has a clear 3-part structure, and communicates effectively is performing AT OR ABOVE the Philippine national average for G7
@@ -348,11 +347,11 @@ Evaluate on these 5 dimensions:
 
 Respond ONLY with valid JSON in this exact format:
 {{
-  "content": {{"score": <1-5>, "rationale": "<one sentence>"}},
-  "organization": {{"score": <1-5>, "rationale": "<one sentence>"}},
-  "language_vocab": {{"score": <1-5>, "rationale": "<one sentence>"}},
-  "grammar": {{"score": <1-5>, "rationale": "<one sentence>"}},
-  "mechanics": {{"score": <1-5>, "rationale": "<one sentence>"}},
+  "content": {{"score": <1-4>, "rationale": "<one sentence>"}},
+  "organization": {{"score": <1-4>, "rationale": "<one sentence>"}},
+  "language_vocab": {{"score": <1-4>, "rationale": "<one sentence>"}},
+  "grammar": {{"score": <1-4>, "rationale": "<one sentence>"}},
+  "mechanics": {{"score": <1-4>, "rationale": "<one sentence>"}},
   "overall_feedback": "<2-3 sentence teacher-facing feedback in {lang_label}>"
 }}"""
 

@@ -55,17 +55,16 @@ const DIMENSION_META = {
 } as const;
 
 const SCORE_LABEL: Record<number, string> = {
-  1: 'Hindi pa naaabot',
-  2: 'Nagsisimula',
-  3: 'Papaunlad',
+  1: 'Nagsisimula',
+  2: 'Papaunlad',
+  3: 'Papalapit sa Kahusayan',
   4: 'Mahusay',
-  5: 'Napakahusay',
 };
 
 function ScorePips({ score }: { score: number }) {
   return (
     <div className="flex gap-1">
-      {[1, 2, 3, 4, 5].map(n => (
+      {[1, 2, 3, 4].map(n => (
         <div
           key={n}
           className={`w-2.5 h-2.5 rounded-full transition-colors ${
@@ -92,7 +91,7 @@ function DepEdRubricPanel({ rubric }: { rubric: DepEdRubricScore }) {
           <span className="text-[10px] text-gray-500 font-medium">Kabuuan</span>
           <span className="text-lg font-black text-indigo-600">
             {rubric.overallScore.toFixed(1)}
-            <span className="text-xs font-normal text-gray-400">/5</span>
+            <span className="text-xs font-normal text-gray-400">/4</span>
           </span>
         </div>
       </div>
@@ -109,7 +108,7 @@ function DepEdRubricPanel({ rubric }: { rubric: DepEdRubricScore }) {
                   <span className="text-[10px] text-gray-400 ml-1">({meta.label})</span>
                 </div>
                 <span className="text-[10px] font-bold text-gray-500">
-                  {d.score}/5 · {SCORE_LABEL[d.score] ?? ''}
+                  {d.score}/4 · {SCORE_LABEL[d.score] ?? ''}
                 </span>
               </div>
               <ScorePips score={d.score} />
@@ -289,7 +288,7 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
                     {
                       label: 'Mungkahing Marka', // Suggested Score
                       value: dr.rubricScore
-                        ? `${dr.rubricScore.overallScore.toFixed(1)}/5`
+                        ? `${dr.rubricScore.overallScore.toFixed(1)}/4`
                         : `${dr.natScore}%`,
                       definition:
                         'Numerikong antas ng kasanayan batay sa kayamanan ng wika at istrukturang pagkakaisa.', // Numerical proficiency rating based on linguistic richness and structural cohesion.
