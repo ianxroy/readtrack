@@ -86,6 +86,26 @@ class ReferenceIngestRequest(BaseModel):
     text: Optional[str] = None
     file: Optional[str] = None
 
+class RubricRequest(BaseModel):
+    text: str
+    language: str = "filipino"   # "english" or "filipino"
+    grade_level: str = "Grade 7"
+
+class RubricDimension(BaseModel):
+    score: int   # 1-5
+    rationale: str
+
+class RubricResponse(BaseModel):
+    content: RubricDimension
+    organization: RubricDimension
+    language_vocab: RubricDimension
+    grammar: RubricDimension
+    mechanics: RubricDimension
+    overall_score: float
+    overall_feedback: str
+    grade_level: str
+    language: str
+
 def extract_text_from_pdf(base64_string: str) -> str:
     try:
         file_bytes = base64.b64decode(base64_string)
@@ -104,6 +124,79 @@ def generate_reference_title(text: str, name: Optional[str] = None) -> str:
         return name
     first_line = next((line.strip() for line in text.split("\n") if line.strip()), "Reference")
     return first_line[:80]
+
+async def evaluate_rubric_with_gemini(text: str, language: str, grade_level: str) -> dict:
+    if not GEMINI_API_KEY:
+        raise ValueError("Gemini API key not configured")
+
+    import google.generativeai as genai
+    genai.configure(api_key=GEMINI_API_KEY)
+    model = genai.GenerativeModel("gemini-2.5-flash")
+
+    lang_label = "Filipino (Tagalog)" if language == "filipino" else "English"
+
+    prompt = f"""You are a DepEd-trained Philippine {grade_level} teacher grading a student essay.
+
+Use the official DepEd 5-dimension analytic rubric. Each dimension is scored 1-5:
+- 5: Excellent - exceeds {grade_level} expectations
+- 4: Proficient - meets {grade_level} expectations
+- 3: Developing - partially meets expectations (PASSING threshold for PH G7)
+- 2: Beginning - minimally meets expectations
+- 1: Poor - does not meet expectations
+
+IMPORTANT CALIBRATION FOR PHILIPPINE GRADE 7:
+- The average PH G7 student scores ~2.3/5 on Organization nationally (research baseline)
+- Mechanical errors (punctuation, spelling) are the MOST COMMON error type in PH G7 - do not heavily penalize them
+- Filipino essays may use narrative/anecdote-heavy structure, collective experience, and faith/family themes - this is culturally appropriate and should NOT be penalized
+- For Filipino-language essays: Taglish code-switching is the main vocabulary concern; minor verb focus errors are expected at G7
+- An essay that sustains a topic, has a clear 3-part structure, and communicates effectively is performing AT OR ABOVE the Philippine national average for G7
+
+ESSAY LANGUAGE: {lang_label}
+
+ESSAY TEXT:
+\"\"\"
+{text}
+\"\"\"
+
+Evaluate on these 5 dimensions:
+1. CONTENT - Relevance, depth of ideas, supporting details, topic development
+2. ORGANIZATION - Clear intro-body-conclusion structure, logical flow, paragraph transitions
+3. LANGUAGE_VOCAB - Word choice, register appropriateness, formal vocabulary{' (no Taglish)' if language == 'filipino' else ''}
+4. GRAMMAR - Verb forms, sentence construction, agreement{', Filipino verb focus system (mag-, um-, -in, -an, i-)' if language == 'filipino' else ', tense consistency, articles'}
+5. MECHANICS - Capitalization, punctuation, spelling
+
+Respond ONLY with valid JSON in this exact format:
+{{
+  "content": {{"score": <1-5>, "rationale": "<one sentence>"}},
+  "organization": {{"score": <1-5>, "rationale": "<one sentence>"}},
+  "language_vocab": {{"score": <1-5>, "rationale": "<one sentence>"}},
+  "grammar": {{"score": <1-5>, "rationale": "<one sentence>"}},
+  "mechanics": {{"score": <1-5>, "rationale": "<one sentence>"}},
+  "overall_feedback": "<2-3 sentence teacher-facing feedback in {lang_label}>"
+}}"""
+
+    import json
+    response = model.generate_content(
+        prompt,
+        generation_config=genai.types.GenerationConfig(
+            response_mime_type="application/json",
+            temperature=0.2,
+        )
+    )
+
+    data = json.loads(response.text)
+    scores = [
+        data["content"]["score"],
+        data["organization"]["score"],
+        data["language_vocab"]["score"],
+        data["grammar"]["score"],
+        data["mechanics"]["score"],
+    ]
+    data["overall_score"] = round(sum(scores) / len(scores), 2)
+    data["grade_level"] = grade_level
+    data["language"] = language
+    return data
+
 
 @app.get("/")
 def read_root():
@@ -181,6 +274,24 @@ async def analyze_student_text(request: TextRequest): # Added async to handle aw
         print("ERROR in analyze_student_text:")
         traceback.print_exc()
         return {"error": str(e), "trace": traceback.format_exc()}
+
+@app.post("/analyze/rubric")
+async def analyze_rubric(request: RubricRequest):
+    try:
+        result = await evaluate_rubric_with_gemini(
+            text=request.text,
+            language=request.language,
+            grade_level=request.grade_level
+        )
+        return result
+    except ValueError as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"error": str(e)}
+
 @app.post("/ocr/extract")
 def extract_text_from_image_endpoint(request: OCRRequest):
 
