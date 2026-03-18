@@ -510,6 +510,146 @@ def train_status():
         return {"error": str(e)}
 
 
+@app.get("/train/performance")
+def train_performance(lang: str = "en"):
+    if lang not in {"en", "tl"}:
+        return {"error": "lang must be 'en' or 'tl'"}
+
+    try:
+        if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+            return {"insufficient_data": True, "rated_essays": 0, "lang": lang}
+
+        client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+        response = (
+            client
+            .table("student_grading_uploads")
+            .select("diagnosis_result, teacher_rubric_scores, subject_language")
+            .eq("subject_language", lang)
+            .not_.is_("teacher_rubric_scores", "null")
+            .not_.is_("diagnosis_result", "null")
+            .execute()
+        )
+        rows = response.data or []
+
+        VALID_LABELS = {"Mahusay", "Papaunlad", "Nagsisimula"}
+        LEGACY_MAP = {"Independent": "Mahusay", "Instructional": "Papaunlad", "Frustration": "Nagsisimula"}
+
+        teacher_labels = []
+        system_labels = []
+
+        for row in rows:
+            dr = row.get("diagnosis_result") or {}
+            tr = row.get("teacher_rubric_scores") or {}
+
+            sys_raw = dr.get("proficiency", "")
+            sys_label = LEGACY_MAP.get(sys_raw, sys_raw)
+            if sys_label not in VALID_LABELS:
+                continue
+
+            teacher_overall = tr.get("overall")
+            if teacher_overall is None:
+                continue
+            try:
+                teacher_label = _score_to_label(float(teacher_overall))
+            except (TypeError, ValueError):
+                continue
+
+            teacher_labels.append(teacher_label)
+            system_labels.append(sys_label)
+
+        total_compared = len(teacher_labels)
+        if total_compared < 5:
+            return {"insufficient_data": True, "rated_essays": total_compared, "lang": lang}
+
+        from sklearn.metrics import classification_report, confusion_matrix as sklearn_cm
+
+        LABELS = ["Mahusay", "Papaunlad", "Nagsisimula"]
+        report = classification_report(
+            teacher_labels, system_labels,
+            labels=LABELS, output_dict=True, zero_division=0
+        )
+        cm = sklearn_cm(teacher_labels, system_labels, labels=LABELS).tolist()
+
+        macro = report["macro avg"]
+        macro_f1        = round(macro["f1-score"], 3)
+        macro_precision = round(macro["precision"], 3)
+        macro_recall    = round(macro["recall"], 3)
+
+        per_class = {}
+        for label in LABELS:
+            cls = report.get(label, {})
+            per_class[label] = {
+                "precision": round(cls.get("precision", 0), 3),
+                "recall":    round(cls.get("recall", 0), 3),
+                "f1":        round(cls.get("f1-score", 0), 3),
+                "support":   int(cls.get("support", 0)),
+            }
+
+        # Per-dimension MAE
+        DIMS = ["content", "organization", "languageVocab", "grammar", "mechanics"]
+        dim_sys_scores  = {d: [] for d in DIMS}
+        dim_tea_scores  = {d: [] for d in DIMS}
+
+        for row in rows:
+            dr = row.get("diagnosis_result") or {}
+            tr = row.get("teacher_rubric_scores") or {}
+            rubric = dr.get("rubricScore")
+            if not rubric or not tr:
+                continue
+            for dim in DIMS:
+                sys_score = (rubric.get(dim) or {}).get("score")
+                tea_score = tr.get(dim)
+                if sys_score is not None and tea_score is not None:
+                    try:
+                        dim_sys_scores[dim].append(float(sys_score))
+                        dim_tea_scores[dim].append(float(tea_score))
+                    except (TypeError, ValueError):
+                        pass
+
+        per_dimension = {}
+        for dim in DIMS:
+            s_list = dim_sys_scores[dim]
+            t_list = dim_tea_scores[dim]
+            n = len(s_list)
+            if n == 0:
+                per_dimension[dim] = {"mae": None, "samples": 0, "avg_system": None, "avg_teacher": None}
+            else:
+                mae = round(sum(abs(s - t) for s, t in zip(s_list, t_list)) / n, 2)
+                per_dimension[dim] = {
+                    "mae":        mae,
+                    "samples":    n,
+                    "avg_system":  round(sum(s_list) / n, 2),
+                    "avg_teacher": round(sum(t_list) / n, 2),
+                }
+
+        status_meta = _read_retrain_status()
+        last_retrain = status_meta.get(lang, {}).get("last_retrain")
+
+        return {
+            "lang":             lang,
+            "total_compared":   total_compared,
+            "macro_f1":         macro_f1,
+            "macro_precision":  macro_precision,
+            "macro_recall":     macro_recall,
+            "per_class":        per_class,
+            "confusion_matrix": {
+                "labels":    LABELS,
+                "matrix":    cm,
+                "row_label": "Guro (Tunay)",
+                "col_label": "Sistema (Hula)",
+            },
+            "per_dimension":    per_dimension,
+            "confidence_level": _confidence_level(total_compared),
+            "rated_essays":     total_compared,
+            "last_retrain":     last_retrain,
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"error": str(e)}
+
+
 @app.post("/train/retrain")
 def retrain_model(request: RetrainRequest):
     language = (request.language or "").strip().lower()
