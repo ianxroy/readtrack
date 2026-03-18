@@ -17,6 +17,7 @@ from preprocessing import extract_features
 from svm_models import TextComplexitySVM, StudentProficiencySVM
 from sklearn.svm import SVC
 from sklearn.preprocessing import RobustScaler
+from sklearn.metrics import classification_report, confusion_matrix as sklearn_cm
 import numpy as np
 from supabase import create_client
 from train_utils import load_asap_data
@@ -560,8 +561,6 @@ def train_performance(lang: str = "en"):
         total_compared = len(teacher_labels)
         if total_compared < 5:
             return {"insufficient_data": True, "rated_essays": total_compared, "lang": lang}
-
-        from sklearn.metrics import classification_report, confusion_matrix as sklearn_cm
 
         LABELS = ["Mahusay", "Papaunlad", "Nagsisimula"]
         report = classification_report(
