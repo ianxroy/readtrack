@@ -151,19 +151,17 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
 
   const handleDeleteStudent = (studentId: string) => {
     if (!window.confirm('Sigurado ka bang gusto mong i-delete ang estudyanteng ito at lahat ng kanyang mga essay?')) return;
-    setStudents(prev => prev.filter(s => s.id !== studentId));
+    updateStudents(students.filter(s => s.id !== studentId));
     if (selectedStudentId === studentId) { setSelectedStudentId(null); setSelectedEssayId(null); }
     deleteStudentAllUploads(studentId).catch(console.error);
   };
 
   const handleDeleteEssay = (essayId: string) => {
     if (!window.confirm('Sigurado ka bang gusto mong i-delete ang essay na ito?')) return;
-    setStudents(prev =>
-      prev.map(s => ({
-        ...s,
-        essays: s.essays.filter(e => e.id !== essayId),
-      }))
-    );
+    updateStudents(students.map(s => ({
+      ...s,
+      essays: s.essays.filter(e => e.id !== essayId),
+    })));
     if (selectedEssayId === essayId) setSelectedEssayId(null);
     deleteStudentUpload(essayId).catch(console.error);
   };
