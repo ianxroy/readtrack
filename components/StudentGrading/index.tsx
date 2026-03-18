@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { IoMenuOutline, IoCloudUploadOutline } from 'react-icons/io5';
 
-import { Section, Subject, Student, StudentEssay } from './types';
+import { Section, Subject, Student, StudentEssay, TeacherRubricScores } from './types';
 import {
   loadSections, saveSections,
   loadSubjects, saveSubjects,
@@ -19,8 +19,8 @@ import { UploadModal } from './UploadModal';
 import { EssayViewerModal } from './EssayViewerModal';
 
 import { ProficiencyLevel, CachedAnalysis, StudentDiagnosisResult, DepEdRubricScore } from '../../types';
-import { analyzeStudentWorkAPI, classifyTextComplexityAPI, evaluateDepEdRubricAPI } from '../../services/pythonService';
-import { saveStudentGradingUpload, saveTeacherEvaluation } from '../../services/supabaseService';
+import { analyzeStudentWorkAPI, classifyTextComplexityAPI, evaluateDepEdRubricAPI, getTrainStatusAPI, triggerRetrainAPI, TrainStatusResponse } from '../../services/pythonService';
+import { saveStudentGradingUpload, saveTeacherRubricScores } from '../../services/supabaseService';
 
 interface StudentGradingProps {
   onMenuClick?: () => void;
@@ -48,6 +48,10 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>(subjects[0]?.id ?? '');
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [selectedEssayId, setSelectedEssayId] = useState<string | null>(null);
+
+  // ── Train status state ────────────────────────────────
+  const [trainStatus, setTrainStatus] = useState<TrainStatusResponse | null>(null);
+  const [isRetraining, setIsRetraining] = useState(false);
 
   // ── UI state ──────────────────────────────────────────
   const [proficiencyFilter, setProficiencyFilter] = useState<ProficiencyLevel | 'all'>('all');
@@ -209,7 +213,21 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
     );
     updateStudents(next);
 
-    saveStudentGradingUpload({ studentId: params.studentId, essay } as any).catch(console.error);
+    const targetStudent = next.find(s => s.id === params.studentId);
+    const sectionName = sections.find(sec => sec.id === targetStudent?.sectionId)?.name;
+    saveStudentGradingUpload({
+      student_name: targetStudent?.name ?? 'Unknown Student',
+      essay_title: essay.title,
+      essay_text: essay.text,
+      proficiency_level: essay.diagnosisResult?.proficiency,
+      nat_score: essay.diagnosisResult?.natScore,
+      diagnosis_result: essay.diagnosisResult,
+      complexity_result: essay.complexityResult,
+      section_name: sectionName,
+      subject_name: selectedSubjectForUpload?.name,
+      subject_language: selectedSubjectForUpload?.language === 'english' ? 'en' : 'tl',
+      original_file: essay.originalFile ?? null,
+    }).catch(console.error);
 
     setSelectedStudentId(params.studentId);
     setSelectedEssayId(essay.id);
@@ -229,18 +247,38 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
     }
   };
 
+  // ── Retrain action ────────────────────────────────────
+  const handleRetrain = async (lang: 'en' | 'tl') => {
+    setIsRetraining(true);
+    try {
+      await triggerRetrainAPI(lang);
+      const updated = await getTrainStatusAPI();
+      setTrainStatus(updated);
+    } catch (err) {
+      console.error('Retrain failed:', err);
+    } finally {
+      setIsRetraining(false);
+    }
+  };
+
   // ── Teacher evaluation ────────────────────────────────
-  const handleSaveEvaluation = async (essayId: string, rating: number, comment: string) => {
+  const handleSaveEvaluation = async (essayId: string, rubricScores: TeacherRubricScores, comment: string) => {
     const next = students.map(s => ({
       ...s,
       essays: s.essays.map(e =>
-        e.id === essayId ? { ...e, teacherRating: rating, teacherComment: comment } : e
+        e.id === essayId ? { ...e, teacherRubricScores: rubricScores, teacherComment: comment } : e
       ),
     }));
     updateStudents(next);
-    const student = next.find(s => s.essays.some(e => e.id === essayId));
-    if (student) saveTeacherEvaluation({ studentId: student.id, essayId, rating, comment } as any).catch(console.error);
+    saveTeacherRubricScores(essayId, rubricScores).catch(console.error);
   };
+
+  // ── Fetch train status on mount ───────────────────────
+  useEffect(() => {
+    getTrainStatusAPI()
+      .then(setTrainStatus)
+      .catch(() => {}); // non-blocking — backend may be offline
+  }, []);
 
   // ── selectedAnalysis recovery ──────────────────────────
   useEffect(() => {
@@ -303,6 +341,9 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
           onRenameSection={handleRenameSection}
           onDeleteSection={handleDeleteSection}
           onManageSubjects={() => setShowSubjectManager(true)}
+          trainStatus={trainStatus}
+          isRetraining={isRetraining}
+          onRetrain={handleRetrain}
         />
 
         <StudentGrid
