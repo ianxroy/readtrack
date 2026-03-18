@@ -2,6 +2,7 @@ import React from 'react';
 import { IoCloudUploadOutline, IoStar } from 'react-icons/io5';
 import { Student, Subject } from './types';
 import { ProficiencyLevel } from '../../types';
+import { TrainStatusResponse } from '../../services/pythonService';
 
 const profBadge: Record<string, string> = {
   [ProficiencyLevel.MAHUSAY]:     'bg-green-100 text-green-700',
@@ -15,10 +16,24 @@ interface EssayPanelProps {
   selectedEssayId: string | null;
   onSelectEssay: (essayId: string) => void;
   onUploadEssay: () => void;
+  trainStatus?: TrainStatusResponse | null;
+}
+
+function MiniPips({ score, max = 4 }: { score: number; max?: number }) {
+  return (
+    <div className="flex gap-0.5">
+      {Array.from({ length: max }, (_, i) => (
+        <div
+          key={i}
+          className={`w-1.5 h-1.5 rounded-full ${i < score ? 'bg-teal-400' : 'bg-gray-200'}`}
+        />
+      ))}
+    </div>
+  );
 }
 
 export const EssayPanel: React.FC<EssayPanelProps> = ({
-  student, selectedSubject, selectedEssayId, onSelectEssay, onUploadEssay,
+  student, selectedSubject, selectedEssayId, onSelectEssay, onUploadEssay, trainStatus,
 }) => {
   const visible = !!student;
 
@@ -80,9 +95,22 @@ export const EssayPanel: React.FC<EssayPanelProps> = ({
                             {prof}
                           </span>
                         )}
-                        {essay.diagnosisResult?.natScore !== undefined && (
-                          <span className="text-[9px] text-gray-500">{essay.diagnosisResult.natScore}%</span>
+
+                        {/* System rubric pips */}
+                        {essay.diagnosisResult?.rubricScore && (
+                          <MiniPips score={Math.round(essay.diagnosisResult.rubricScore.overallScore)} />
                         )}
+
+                        {/* Natututo pa warning */}
+                        {!essay.teacherRubricScores && (() => {
+                          const lang = selectedSubject?.language;
+                          const langStatus = lang === 'english' ? trainStatus?.english : trainStatus?.filipino;
+                          return langStatus?.confidence_level === 'Natututo pa' ? (
+                            <span className="text-[9px] text-amber-500" title="Ang sistema ay natututo pa">⚠️</span>
+                          ) : null;
+                        })()}
+
+                        {/* Teacher rubric score if rated */}
                         {essay.teacherRubricScores ? (
                           <span className="text-[9px] text-amber-500 flex items-center gap-0.5">
                             <IoStar className="text-[9px]" />{essay.teacherRubricScores.overall.toFixed(1)}/4

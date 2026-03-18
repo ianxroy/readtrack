@@ -370,6 +370,7 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
           selectedEssayId={selectedEssayId}
           onSelectEssay={setSelectedEssayId}
           onUploadEssay={() => setShowUpload(true)}
+          trainStatus={trainStatus}
         />
       </div>
 
