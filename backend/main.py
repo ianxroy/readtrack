@@ -483,7 +483,8 @@ def train_status():
     def _safe_count(lang: str) -> int:
         try:
             return len(_get_training_rows(lang))
-        except Exception:
+        except Exception as e:
+            print(f"[train/status] _safe_count({lang}) failed: {e}")
             return 0
 
     try:
