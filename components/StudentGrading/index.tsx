@@ -240,6 +240,15 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
       subject_name: selectedSubjectForUpload?.name,
       subject_language: selectedSubjectForUpload?.language === 'english' ? 'en' : 'tl',
       original_file: essay.originalFile ?? null,
+    }).then(({ data }) => {
+      if (data?.id) {
+        // Replace temp timestamp ID with the real Supabase UUID so deletes work
+        setStudents(prev => prev.map(s => ({
+          ...s,
+          essays: s.essays.map(e => e.id === essay.id ? { ...e, id: data.id } : e),
+        })));
+        setSelectedEssayId(id => id === essay.id ? data.id : id);
+      }
     }).catch(console.error);
 
     setSelectedStudentId(params.studentId);
