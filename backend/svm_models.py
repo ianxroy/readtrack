@@ -4,6 +4,41 @@ import json
 import os
 from sklearn.preprocessing import StandardScaler
 
+
+def _map_grammar_issue(issue: dict, text: str):
+    """Convert grammar_service GrammarIssue format to frontend GrammarIssue format."""
+    # Already in frontend format (has 'original' key) — pass through
+    if 'original' in issue:
+        return issue
+
+    offset = issue.get('offset', 0)
+    length = issue.get('length', 0)
+    original = text[offset:offset + length] if text and length > 0 else ''
+    if not original:
+        return None  # Can't highlight without knowing what text to mark
+
+    replacements = issue.get('replacements', [])
+    suggestion = replacements[0] if replacements else original
+
+    issue_type = (issue.get('type') or '').lower()
+    severity = (issue.get('severity') or '').lower()
+    if 'vocab' in issue_type or 'word choice' in issue_type:
+        category = 'vocabulary'
+    elif 'style' in issue_type or 'misc' in issue_type:
+        category = 'style'
+    elif 'clarity' in issue_type:
+        category = 'clarity'
+    else:
+        category = 'grammar'  # default: grammar/spelling/punctuation
+
+    return {
+        'original': original,
+        'suggestion': suggestion,
+        'category': category,
+        'context': issue.get('context', ''),
+        'explanation': issue.get('message', ''),
+    }
+
 class BaseModel:
     def __init__(self):
         self.model = None
@@ -185,7 +220,10 @@ class StudentProficiencySVM(BaseModel):
                 "advancedWords": metrics.get('advancedWords', []),
                 "readability": metrics.get('readabilityIndices', {})
             },
-            "issues": grammar_data.get('issues', []) if grammar_data else [],
+            "issues": [m for m in (
+                _map_grammar_issue(i, text_content)
+                for i in (grammar_data.get('issues', []) if grammar_data else [])
+            ) if m] if text_content else [],
             "natScore": min(100, round(nat, 2)),
             "learningBand": band,
             "philIriLevel": iri

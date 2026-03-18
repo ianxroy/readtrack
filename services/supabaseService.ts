@@ -66,18 +66,36 @@ function normalizeProficiency(value: string | undefined): string | undefined {
   return LEGACY_PROFICIENCY_MAP[value] ?? value;
 }
 
-function normalizeOldLabels(diagnosisResult: any): any {
+function normalizeGrammarIssue(issue: any, text: string): any {
+  if (!issue || 'original' in issue) return issue; // already frontend format
+  const { offset = 0, length = 0, replacements = [], message = '', context = '', type = '' } = issue;
+  const original = text?.slice(offset, offset + length) ?? '';
+  if (!original) return null;
+  const t = type.toLowerCase();
+  const category = t.includes('vocab') || t.includes('word choice') ? 'vocabulary'
+    : t.includes('style') || t.includes('misc') ? 'style'
+    : t.includes('clarity') ? 'clarity'
+    : 'grammar';
+  return { original, suggestion: replacements[0] ?? original, category, context, explanation: message };
+}
+
+function normalizeOldLabels(diagnosisResult: any, essayText?: string): any {
   if (!diagnosisResult) return diagnosisResult;
   const result = { ...diagnosisResult };
   if (result.proficiency) {
     result.proficiency = normalizeProficiency(result.proficiency);
   }
-  // Also normalize any "Rated as Frustration" etc in feedback text
   if (result.feedback && typeof result.feedback === 'string') {
     result.feedback = result.feedback
       .replace(/\bFrustration\b/g, 'Nagsisimula')
       .replace(/\bInstructional\b/g, 'Papaunlad')
       .replace(/\bIndependent\b/g, 'Mahusay');
+  }
+  // Normalize grammar issues from backend format to frontend format
+  if (Array.isArray(result.issues) && essayText) {
+    result.issues = result.issues
+      .map((i: any) => normalizeGrammarIssue(i, essayText))
+      .filter(Boolean);
   }
   return result;
 }
@@ -283,7 +301,7 @@ export async function loadStudentUploads(): Promise<{ data: StudentLocal[]; erro
       title: row.essay_title || 'Untitled',
       text: row.essay_text,
       uploadedAt: new Date(row.created_at),
-      diagnosisResult: normalizeOldLabels(row.diagnosis_result) || undefined,
+      diagnosisResult: normalizeOldLabels(row.diagnosis_result, row.essay_text) || undefined,
       complexityResult: row.complexity_result || undefined,
       teacherRating: row.teacher_rating || undefined,
       teacherComment: row.teacher_comment || undefined,
