@@ -379,18 +379,17 @@ export async function lookupEssayIdByText(essayText: string): Promise<string | n
 export async function saveTeacherRubricScores(
   uploadId: string,
   rubricScores: TeacherRubricScores,
-): Promise<{ error: string | null; rowsUpdated?: number }> {
+): Promise<{ error: string | null }> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: 'Not authenticated' };
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('student_grading_uploads')
     .update({ teacher_rubric_scores: rubricScores })
     .eq('id', uploadId)
-    .eq('teacher_id', user.id)
-    .select('id');
+    .eq('teacher_id', user.id);
 
-  return { error: error ? error.message : null, rowsUpdated: data?.length ?? 0 };
+  return { error: error ? error.message : null };
 }
 
 /** Load material uploads for the current teacher */

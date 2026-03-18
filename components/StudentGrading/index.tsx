@@ -303,17 +303,16 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
     updateStudents(next);
 
     let idToUse = essayId;
-    const { error, rowsUpdated } = await saveTeacherRubricScores(essayId, rubricScores);
 
-    // If save hit 0 rows (temp ID in localStorage doesn't match any Supabase UUID),
-    // look up the real UUID by essay text and retry
-    if (!error && rowsUpdated === 0) {
+    // Temp IDs are pure numeric timestamps (e.g. "1773803885130") — not valid UUIDs.
+    // Resolve the real Supabase UUID before attempting the save.
+    const isTempId = /^\d+$/.test(essayId);
+    if (isTempId) {
       const essayText = students.flatMap(s => s.essays).find(e => e.id === essayId)?.text;
       if (essayText) {
         const realId = await lookupEssayIdByText(essayText);
         if (realId) {
           idToUse = realId;
-          // Fix the ID in localStorage so future saves use the real UUID
           setStudents(prev => {
             const updated = prev.map(s => ({
               ...s,
@@ -323,11 +322,11 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
             return updated;
           });
           setSelectedEssayId(id => id === essayId ? realId : id);
-          await saveTeacherRubricScores(realId, rubricScores);
         }
       }
     }
 
+    const { error } = await saveTeacherRubricScores(idToUse, rubricScores);
     if (error) console.error('saveTeacherRubricScores failed:', error, 'id:', idToUse);
     getTrainStatusAPI().then(setTrainStatus).catch(() => {});
   };
