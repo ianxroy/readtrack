@@ -21,7 +21,7 @@ import { ModelPerformancePage } from './ModelPerformancePage';
 
 import { ProficiencyLevel, CachedAnalysis, StudentDiagnosisResult, DepEdRubricScore } from '../../types';
 import { analyzeStudentWorkAPI, classifyTextComplexityAPI, evaluateDepEdRubricAPI, getTrainStatusAPI, triggerRetrainAPI, TrainStatusResponse } from '../../services/pythonService';
-import { saveStudentGradingUpload, saveTeacherRubricScores, deleteStudentUpload, deleteStudentAllUploads } from '../../services/supabaseService';
+import { saveStudentGradingUpload, saveTeacherRubricScores, lookupEssayIdByText, deleteStudentUpload, deleteStudentAllUploads } from '../../services/supabaseService';
 
 interface StudentGradingProps {
   onMenuClick?: () => void;
@@ -301,9 +301,35 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
       ),
     }));
     updateStudents(next);
-    saveTeacherRubricScores(essayId, rubricScores)
-      .then(() => getTrainStatusAPI().then(setTrainStatus).catch(() => {}))
-      .catch(console.error);
+
+    let idToUse = essayId;
+    const { error, rowsUpdated } = await saveTeacherRubricScores(essayId, rubricScores);
+
+    // If save hit 0 rows (temp ID in localStorage doesn't match any Supabase UUID),
+    // look up the real UUID by essay text and retry
+    if (!error && rowsUpdated === 0) {
+      const essayText = students.flatMap(s => s.essays).find(e => e.id === essayId)?.text;
+      if (essayText) {
+        const realId = await lookupEssayIdByText(essayText);
+        if (realId) {
+          idToUse = realId;
+          // Fix the ID in localStorage so future saves use the real UUID
+          setStudents(prev => {
+            const updated = prev.map(s => ({
+              ...s,
+              essays: s.essays.map(e => e.id === essayId ? { ...e, id: realId } : e),
+            }));
+            saveStudents(updated);
+            return updated;
+          });
+          setSelectedEssayId(id => id === essayId ? realId : id);
+          await saveTeacherRubricScores(realId, rubricScores);
+        }
+      }
+    }
+
+    if (error) console.error('saveTeacherRubricScores failed:', error, 'id:', idToUse);
+    getTrainStatusAPI().then(setTrainStatus).catch(() => {});
   };
 
   // ── Fetch train status on mount ───────────────────────

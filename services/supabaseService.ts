@@ -359,21 +359,38 @@ export async function updateEssayTeacherRating(
   return { error: error ? error.message : null };
 }
 
+/** Look up the real Supabase UUID for an essay by its text content */
+export async function lookupEssayIdByText(essayText: string): Promise<string | null> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data } = await supabase
+    .from('student_grading_uploads')
+    .select('id')
+    .eq('teacher_id', user.id)
+    .eq('essay_text', essayText)
+    .limit(1)
+    .single();
+
+  return data?.id ?? null;
+}
+
 /** Save per-dimension teacher rubric scores on an essay */
 export async function saveTeacherRubricScores(
   uploadId: string,
   rubricScores: TeacherRubricScores,
-): Promise<{ error: string | null }> {
+): Promise<{ error: string | null; rowsUpdated?: number }> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: 'Not authenticated' };
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('student_grading_uploads')
     .update({ teacher_rubric_scores: rubricScores })
     .eq('id', uploadId)
-    .eq('teacher_id', user.id);
+    .eq('teacher_id', user.id)
+    .select('id');
 
-  return { error: error ? error.message : null };
+  return { error: error ? error.message : null, rowsUpdated: data?.length ?? 0 };
 }
 
 /** Load material uploads for the current teacher */
