@@ -83,6 +83,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const studentCountInSection = (sectionId: string) =>
     students.filter(s => s.sectionId === sectionId).length;
 
+  const nextTierLabel = (count: number): { label: string; current: number; max: number } | null => {
+    if (count < 5)   return { label: 'magsimulang mag-suggest',  current: count, max: 5 };
+    if (count < 30)  return { label: 'Kalibrado',                current: count, max: 30 };
+    if (count < 100) return { label: 'Kumpiyansa',               current: count, max: 100 };
+    return null; // already at max tier
+  };
+
   const confidenceDot = (level: string) => {
     if (level === 'Kumpiyansa' || level === 'Kalibrado') return 'bg-green-400';
     if (level === 'Papaunlad') return 'bg-yellow-400';
@@ -276,6 +283,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
             <span className="text-[9px] text-gray-400">{trainStatus.english.rated_essays} rated</span>
           </div>
+          {(() => {
+            const info = nextTierLabel(trainStatus.english.rated_essays);
+            if (!info) return null;
+            const pct = Math.round((info.current / info.max) * 100);
+            return (
+              <div className="px-1 pb-0.5">
+                <div className="flex justify-between text-[8px] text-gray-400 mb-0.5">
+                  <span>{info.current}/{info.max} para sa {info.label}</span>
+                  <span>{pct}%</span>
+                </div>
+                <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-teal-400 rounded-full transition-all"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Filipino */}
           <div className="flex items-center justify-between px-1">
@@ -285,6 +311,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
             <span className="text-[9px] text-gray-400">{trainStatus.filipino.rated_essays} rated</span>
           </div>
+          {(() => {
+            const info = nextTierLabel(trainStatus.filipino.rated_essays);
+            if (!info) return null;
+            const pct = Math.round((info.current / info.max) * 100);
+            return (
+              <div className="px-1 pb-0.5">
+                <div className="flex justify-between text-[8px] text-gray-400 mb-0.5">
+                  <span>{info.current}/{info.max} para sa {info.label}</span>
+                  <span>{pct}%</span>
+                </div>
+                <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-teal-400 rounded-full transition-all"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Retrain buttons */}
           {onRetrain && (
