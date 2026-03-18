@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { IoMenuOutline, IoCloudUploadOutline } from 'react-icons/io5';
+import { IoMenuOutline, IoCloudUploadOutline, IoStatsChartOutline } from 'react-icons/io5';
 
 import { Section, Subject, Student, StudentEssay, TeacherRubricScores } from './types';
 import {
@@ -17,6 +17,7 @@ import { SubjectManager } from './SubjectManager';
 import { AddStudentModal } from './AddStudentModal';
 import { UploadModal } from './UploadModal';
 import { EssayViewerModal } from './EssayViewerModal';
+import { ModelPerformancePage } from './ModelPerformancePage';
 
 import { ProficiencyLevel, CachedAnalysis, StudentDiagnosisResult, DepEdRubricScore } from '../../types';
 import { analyzeStudentWorkAPI, classifyTextComplexityAPI, evaluateDepEdRubricAPI, getTrainStatusAPI, triggerRetrainAPI, TrainStatusResponse } from '../../services/pythonService';
@@ -62,6 +63,7 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
   const [showUpload, setShowUpload] = useState(false);
   const [uploadPrefilledText, setUploadPrefilledText] = useState<string | undefined>();
   const [showMigration, setShowMigration] = useState(() => needsMigration(initialStudents));
+  const [showPerformance, setShowPerformance] = useState(false);
 
   // ── Derived ───────────────────────────────────────────
   const needsSetup = sections.length === 0 || subjects.length === 0;
@@ -310,6 +312,10 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
   // ── Render guards ─────────────────────────────────────
   if (needsSetup) return <SetupScreen onComplete={handleSetupComplete} />;
 
+  if (showPerformance) {
+    return <ModelPerformancePage onBack={() => setShowPerformance(false)} />;
+  }
+
   return (
     <div className="flex flex-col h-full bg-[#F2F2F7]">
       {showMigration && sections.length > 0 && subjects.length > 0 && (
@@ -335,18 +341,27 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
             {students.length}
           </span>
         </div>
-        <button
-          onClick={() => setShowUpload(true)}
-          disabled={showMigration}
-          className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-colors ${
-            showMigration
-              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              : 'bg-teal-500 hover:bg-teal-600 text-white'
-          }`}
-        >
-          <IoCloudUploadOutline className="text-base" />
-          Upload Essay
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowPerformance(true)}
+            className="p-2 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-colors"
+            title="Katumpakan ng Modelo"
+          >
+            <IoStatsChartOutline className="text-lg" />
+          </button>
+          <button
+            onClick={() => setShowUpload(true)}
+            disabled={showMigration}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-colors ${
+              showMigration
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-teal-500 hover:bg-teal-600 text-white'
+            }`}
+          >
+            <IoCloudUploadOutline className="text-base" />
+            Upload Essay
+          </button>
+        </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
