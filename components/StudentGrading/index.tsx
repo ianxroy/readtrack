@@ -204,8 +204,13 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
       console.warn('Rubric evaluation failed (non-blocking):', err);
     }
 
+    const rubricProficiency = (overall: number): ProficiencyLevel =>
+      overall >= 3.5 ? ProficiencyLevel.MAHUSAY
+      : overall >= 2.5 ? ProficiencyLevel.PAPAUNLAD
+      : ProficiencyLevel.NAGSISIMULA;
+
     const diag: StudentDiagnosisResult = rubricScore
-      ? { ...diagnosisResult, rubricScore }
+      ? { ...diagnosisResult, rubricScore, proficiency: rubricProficiency(rubricScore.overallScore) }
       : diagnosisResult;
 
     const essay: StudentEssay = {
