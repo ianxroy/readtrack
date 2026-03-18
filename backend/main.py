@@ -479,10 +479,16 @@ async def analyze_rubric(request: RubricRequest):
 
 @app.get("/train/status")
 def train_status():
+    def _safe_count(lang: str) -> int:
+        try:
+            return len(_get_training_rows(lang))
+        except Exception:
+            return 0
+
     try:
         status_meta = _read_retrain_status()
-        en_count = len(_get_training_rows("en"))
-        tl_count = len(_get_training_rows("tl"))
+        en_count = _safe_count("en")
+        tl_count = _safe_count("tl")
 
         return {
             "english": {
@@ -498,8 +504,6 @@ def train_status():
                 "new_since_retrain": max(0, tl_count - int(status_meta["tl"].get("rated_at_retrain", 0))),
             },
         }
-    except ValueError as e:
-        raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         import traceback
         traceback.print_exc()
