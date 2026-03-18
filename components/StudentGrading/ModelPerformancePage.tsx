@@ -60,15 +60,18 @@ export function ModelPerformancePage({ onBack }: Props) {
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
+        let isCurrent = true;
         setLoading(true);
         setError(null);
         getModelPerformanceAPI(lang)
             .then(d => {
+                if (!isCurrent) return;
                 setData(d);
                 setError(d.error ?? null);
             })
-            .catch(e => setError(e.message))
-            .finally(() => setLoading(false));
+            .catch(e => { if (isCurrent) setError(e.message); })
+            .finally(() => { if (isCurrent) setLoading(false); });
+        return () => { isCurrent = false; };
     }, [lang]);
 
     return (
