@@ -189,45 +189,47 @@ export const triggerRetrainAPI = async (language: 'en' | 'tl'): Promise<RetrainR
 };
 
 export interface PerClassMetrics {
-  precision: number;
-  recall: number;
-  f1: number;
-  support: number;
+    precision: number;
+    recall: number;
+    f1: number;
+    support: number;
 }
 
 export interface DimensionMetrics {
-  mae: number | null;
-  samples: number;
-  avg_system: number;
-  avg_teacher: number;
+    mae: number | null;
+    samples: number;
+    avg_system: number | null;
+    avg_teacher: number | null;
 }
 
 export interface ModelPerformanceData {
-  lang: string;
-  total_compared: number;
-  macro_f1: number;
-  macro_precision: number;
-  macro_recall: number;
-  per_class: Record<string, PerClassMetrics>;
-  confusion_matrix: {
-    labels: string[];
-    matrix: number[][];
-    row_label: string;
-    col_label: string;
-  };
-  per_dimension: Record<string, DimensionMetrics>;
-  confidence_level: string;
-  rated_essays: number;
-  last_retrain: string | null;
-  insufficient_data?: boolean;
-  error?: string;
+    lang: string;
+    total_compared: number;
+    macro_f1: number;
+    macro_precision: number;
+    macro_recall: number;
+    per_class: Record<string, PerClassMetrics>;
+    confusion_matrix: {
+        labels: string[];
+        matrix: number[][];
+        row_label: string;
+        col_label: string;
+    };
+    per_dimension: Record<string, DimensionMetrics>;
+    confidence_level: string;
+    rated_essays: number;
+    last_retrain: string | null;
+    insufficient_data?: boolean;
+    error?: string;
 }
 
-export async function getModelPerformanceAPI(lang: 'en' | 'tl'): Promise<ModelPerformanceData> {
-  const res = await fetch(`http://localhost:8000/train/performance?lang=${lang}`);
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `HTTP error! status: ${res.status}`);
-  }
-  return res.json();
-}
+export const getModelPerformanceAPI = async (lang: 'en' | 'tl'): Promise<ModelPerformanceData> => {
+    const res = await fetch(`http://localhost:8000/train/performance?lang=${lang}`);
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `HTTP error! status: ${res.status}`);
+    }
+    const data = await res.json();
+    if (data?.error) throw new Error(data.error);
+    return data;
+};
