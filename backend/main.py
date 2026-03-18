@@ -533,6 +533,12 @@ def retrain_model(request: RetrainRequest):
 def extract_text_from_image_endpoint(request: OCRRequest):
 
     try:
+        if request.mimeType == "application/pdf":
+            print(f"Processing PDF for text extraction. Length: {len(request.image)}")
+            ocr_text = extract_text_from_pdf(request.image)
+            print(f"Extracted {len(ocr_text)} characters from PDF")
+            return {"text": ocr_text, "warning": None}
+
         print(f"Processing image for OCR. Mime: {request.mimeType}")
         ocr_result = extract_text_from_image(request.image, GEMINI_API_KEY, mime_type=request.mimeType)
         ocr_text = ocr_result.get("text", "")
