@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { IoMenuOutline, IoCloudUploadOutline, IoStatsChartOutline } from 'react-icons/io5';
+import { IoMenuOutline, IoCloudUploadOutline } from 'react-icons/io5';
 
 import { Section, Subject, Student, StudentEssay, TeacherRubricScores } from './types';
 import {
@@ -297,7 +297,9 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
       ),
     }));
     updateStudents(next);
-    saveTeacherRubricScores(essayId, rubricScores).catch(console.error);
+    saveTeacherRubricScores(essayId, rubricScores)
+      .then(() => getTrainStatusAPI().then(setTrainStatus).catch(() => {}))
+      .catch(console.error);
   };
 
   // ── Fetch train status on mount ───────────────────────
@@ -348,13 +350,6 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setShowPerformance(true)}
-            className="p-2 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-colors"
-            title="Katumpakan ng Modelo"
-          >
-            <IoStatsChartOutline className="text-lg" />
-          </button>
-          <button
             onClick={() => setShowUpload(true)}
             disabled={showMigration}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-colors ${
@@ -384,6 +379,7 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
           trainStatus={trainStatus}
           isRetraining={isRetraining}
           onRetrain={handleRetrain}
+          onShowPerformance={() => setShowPerformance(true)}
         />
 
         <StudentGrid

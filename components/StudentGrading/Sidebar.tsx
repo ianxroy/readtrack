@@ -21,6 +21,7 @@ interface SidebarProps {
   trainStatus?: TrainStatusResponse | null;
   isRetraining?: boolean;
   onRetrain?: (lang: 'en' | 'tl') => void;
+  onShowPerformance?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -28,7 +29,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   selectedSectionId, selectedSubjectId,
   onSelectSubject, onCreateSection, onRenameSection, onDeleteSection,
   onManageSubjects,
-  trainStatus, isRetraining, onRetrain,
+  trainStatus, isRetraining, onRetrain, onShowPerformance,
 }) => {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(selectedSectionId ? [selectedSectionId] : [])
@@ -271,8 +272,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Model confidence + retrain */}
       {trainStatus && (
         <div className="p-2 border-t border-gray-100 space-y-1.5">
-          <div className="text-[8px] font-bold text-gray-400 uppercase tracking-widest px-1">
-            Katumpakan ng Modelo
+          <div className="flex items-center justify-between px-1">
+            <div className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">
+              Katumpakan ng Modelo
+            </div>
+            {onShowPerformance && (
+              <button
+                onClick={onShowPerformance}
+                className="text-[9px] text-teal-600 hover:text-teal-800 font-semibold underline"
+              >
+                Tingnan →
+              </button>
+            )}
           </div>
 
           {/* English */}
