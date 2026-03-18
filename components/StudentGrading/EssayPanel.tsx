@@ -1,5 +1,5 @@
 import React from 'react';
-import { IoCloudUploadOutline, IoStar } from 'react-icons/io5';
+import { IoCloudUploadOutline, IoStar, IoTrashOutline } from 'react-icons/io5';
 import { Student, Subject } from './types';
 import { ProficiencyLevel } from '../../types';
 import { TrainStatusResponse } from '../../services/pythonService';
@@ -16,6 +16,7 @@ interface EssayPanelProps {
   selectedEssayId: string | null;
   onSelectEssay: (essayId: string) => void;
   onUploadEssay: () => void;
+  onDeleteEssay: (essayId: string) => void;
   trainStatus?: TrainStatusResponse | null;
 }
 
@@ -33,7 +34,7 @@ function MiniPips({ score, max = 4 }: { score: number; max?: number }) {
 }
 
 export const EssayPanel: React.FC<EssayPanelProps> = ({
-  student, selectedSubject, selectedEssayId, onSelectEssay, onUploadEssay, trainStatus,
+  student, selectedSubject, selectedEssayId, onSelectEssay, onUploadEssay, onDeleteEssay, trainStatus,
 }) => {
   const visible = !!student;
 
@@ -79,15 +80,15 @@ export const EssayPanel: React.FC<EssayPanelProps> = ({
                   const prof = essay.diagnosisResult?.proficiency;
                   const isActive = selectedEssayId === essay.id;
                   return (
-                    <button
-                      key={essay.id}
-                      onClick={() => onSelectEssay(essay.id)}
-                      className={`w-full text-left p-2.5 border-2 rounded-lg transition-all ${
-                        isActive
-                          ? 'border-indigo-400 bg-indigo-50'
-                          : 'border-gray-100 hover:border-indigo-200 bg-gray-50 hover:bg-white'
-                      }`}
-                    >
+                    <div key={essay.id} className="group relative">
+                      <button
+                        onClick={() => onSelectEssay(essay.id)}
+                        className={`w-full text-left p-2.5 border-2 rounded-lg transition-all ${
+                          isActive
+                            ? 'border-indigo-400 bg-indigo-50'
+                            : 'border-gray-100 hover:border-indigo-200 bg-gray-50 hover:bg-white'
+                        }`}
+                      >
                       <div className="text-[11px] font-bold text-gray-800 truncate mb-1">{essay.title}</div>
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {prof && (
@@ -120,7 +121,18 @@ export const EssayPanel: React.FC<EssayPanelProps> = ({
                       <div className="text-[9px] text-gray-400 mt-1">
                         {new Date(essay.uploadedAt).toLocaleDateString()}
                       </div>
-                    </button>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteEssay(essay.id);
+                        }}
+                        className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all"
+                        title="I-delete ang essay"
+                      >
+                        <IoTrashOutline className="text-xs" />
+                      </button>
+                    </div>
                   );
                 })}
               </div>

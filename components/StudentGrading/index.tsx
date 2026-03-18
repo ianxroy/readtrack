@@ -20,7 +20,7 @@ import { EssayViewerModal } from './EssayViewerModal';
 
 import { ProficiencyLevel, CachedAnalysis, StudentDiagnosisResult, DepEdRubricScore } from '../../types';
 import { analyzeStudentWorkAPI, classifyTextComplexityAPI, evaluateDepEdRubricAPI, getTrainStatusAPI, triggerRetrainAPI, TrainStatusResponse } from '../../services/pythonService';
-import { saveStudentGradingUpload, saveTeacherRubricScores } from '../../services/supabaseService';
+import { saveStudentGradingUpload, saveTeacherRubricScores, deleteStudentUpload, deleteStudentAllUploads } from '../../services/supabaseService';
 
 interface StudentGradingProps {
   onMenuClick?: () => void;
@@ -150,9 +150,22 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
   };
 
   const handleDeleteStudent = (studentId: string) => {
-    if (!confirm('Delete this student and all their essays?')) return;
-    updateStudents(students.filter(s => s.id !== studentId));
+    if (!window.confirm('Sigurado ka bang gusto mong i-delete ang estudyanteng ito at lahat ng kanyang mga essay?')) return;
+    setStudents(prev => prev.filter(s => s.id !== studentId));
     if (selectedStudentId === studentId) { setSelectedStudentId(null); setSelectedEssayId(null); }
+    deleteStudentAllUploads(studentId).catch(console.error);
+  };
+
+  const handleDeleteEssay = (essayId: string) => {
+    if (!window.confirm('Sigurado ka bang gusto mong i-delete ang essay na ito?')) return;
+    setStudents(prev =>
+      prev.map(s => ({
+        ...s,
+        essays: s.essays.filter(e => e.id !== essayId),
+      }))
+    );
+    if (selectedEssayId === essayId) setSelectedEssayId(null);
+    deleteStudentUpload(essayId).catch(console.error);
   };
 
   // ── Navigation actions ────────────────────────────────
@@ -370,6 +383,7 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
           selectedEssayId={selectedEssayId}
           onSelectEssay={setSelectedEssayId}
           onUploadEssay={() => setShowUpload(true)}
+          onDeleteEssay={handleDeleteEssay}
           trainStatus={trainStatus}
         />
       </div>
