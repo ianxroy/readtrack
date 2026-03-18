@@ -18,13 +18,26 @@ export interface StudentGradingUpload {
   student_name: string;
   essay_title: string;
   essay_text: string;
+  subject_language?: 'en' | 'tl';
   proficiency_level?: string;
   nat_score?: number | null;
   diagnosis_result?: unknown;
   complexity_result?: unknown;
   section_name?: string;
   subject_name?: string;
+  teacher_rubric_scores?: unknown;
   original_file?: { base64: string; mimeType: string; name: string } | null;
+}
+
+export interface TeacherRubricScores {
+  content: number;
+  organization: number;
+  languageVocab: number;
+  grammar: number;
+  mechanics: number;
+  overall: number;
+  percentage: number;
+  transmuted?: number;
 }
 
 export interface MaterialUpload {
@@ -40,6 +53,33 @@ export type OrgData = Record<string, string[]>;
 
 function normalizeStudentName(name: string): string {
   return name.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+const LEGACY_PROFICIENCY_MAP: Record<string, string> = {
+  'Frustration':   'Nagsisimula',
+  'Instructional': 'Papaunlad',
+  'Independent':   'Mahusay',
+};
+
+function normalizeProficiency(value: string | undefined): string | undefined {
+  if (!value) return value;
+  return LEGACY_PROFICIENCY_MAP[value] ?? value;
+}
+
+function normalizeOldLabels(diagnosisResult: any): any {
+  if (!diagnosisResult) return diagnosisResult;
+  const result = { ...diagnosisResult };
+  if (result.proficiency) {
+    result.proficiency = normalizeProficiency(result.proficiency);
+  }
+  // Also normalize any "Rated as Frustration" etc in feedback text
+  if (result.feedback && typeof result.feedback === 'string') {
+    result.feedback = result.feedback
+      .replace(/\bFrustration\b/g, 'Nagsisimula')
+      .replace(/\bInstructional\b/g, 'Papaunlad')
+      .replace(/\bIndependent\b/g, 'Mahusay');
+  }
+  return result;
 }
 
 async function sha256Hex(value: string): Promise<string> {
@@ -85,8 +125,10 @@ export async function saveStudentGradingUpload(upload: StudentGradingUpload): Pr
     nat_score: upload.nat_score ?? null,
     diagnosis_result: upload.diagnosis_result ?? null,
     complexity_result: upload.complexity_result ?? null,
+    subject_language: upload.subject_language ?? null,
     section_name: upload.section_name ?? null,
     subject_name: upload.subject_name ?? null,
+    teacher_rubric_scores: upload.teacher_rubric_scores ?? null,
     original_file: upload.original_file ?? null,
   }]).select().single();
 
@@ -175,10 +217,12 @@ export interface StudentUploadRow {
   nat_score: number | null;
   diagnosis_result: any | null;
   complexity_result: any | null;
+  subject_language: string | null;
   section_name: string | null;
   subject_name: string | null;
   teacher_rating: number | null;
   teacher_comment: string | null;
+  teacher_rubric_scores: TeacherRubricScores | null;
   original_file: any | null;
   created_at: string;
 }
@@ -188,6 +232,7 @@ export interface StudentLocal {
   name: string;
   section?: string;
   subject?: string;
+  subjectLanguage?: string;
   essays: {
     id: string;
     title: string;
@@ -197,6 +242,7 @@ export interface StudentLocal {
     complexityResult?: any;
     teacherRating?: number;
     teacherComment?: string;
+    teacherRubricScores?: TeacherRubricScores;
     originalFile?: { base64: string; mimeType: string; name: string };
   }[];
 }
@@ -226,6 +272,7 @@ export async function loadStudentUploads(): Promise<{ data: StudentLocal[]; erro
         name,
         section: row.section_name || undefined,
         subject: row.subject_name || undefined,
+        subjectLanguage: row.subject_language || undefined,
         essays: [],
       });
     }
@@ -236,10 +283,11 @@ export async function loadStudentUploads(): Promise<{ data: StudentLocal[]; erro
       title: row.essay_title || 'Untitled',
       text: row.essay_text,
       uploadedAt: new Date(row.created_at),
-      diagnosisResult: row.diagnosis_result || undefined,
+      diagnosisResult: normalizeOldLabels(row.diagnosis_result) || undefined,
       complexityResult: row.complexity_result || undefined,
       teacherRating: row.teacher_rating || undefined,
       teacherComment: row.teacher_comment || undefined,
+      teacherRubricScores: row.teacher_rubric_scores || undefined,
       originalFile: row.original_file || undefined,
     });
   });
@@ -287,6 +335,23 @@ export async function updateEssayTeacherRating(
   const { error } = await supabase
     .from('student_grading_uploads')
     .update({ teacher_rating: rating, teacher_comment: comment ?? null })
+    .eq('id', uploadId)
+    .eq('teacher_id', user.id);
+
+  return { error: error ? error.message : null };
+}
+
+/** Save per-dimension teacher rubric scores on an essay */
+export async function saveTeacherRubricScores(
+  uploadId: string,
+  rubricScores: TeacherRubricScores,
+): Promise<{ error: string | null }> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Not authenticated' };
+
+  const { error } = await supabase
+    .from('student_grading_uploads')
+    .update({ teacher_rubric_scores: rubricScores })
     .eq('id', uploadId)
     .eq('teacher_id', user.id);
 
@@ -347,7 +412,7 @@ export async function loadDashboardStats(): Promise<{
   const empty = {
     totalStudents: 0, totalEssays: 0, totalMaterials: 0,
     ratedEssays: 0, avgTeacherRating: 'N/A',
-    proficiencyCounts: { Frustration: 0, Instructional: 0, Independent: 0 },
+    proficiencyCounts: { Nagsisimula: 0, Papaunlad: 0, Mahusay: 0 },
     complexityCounts: { Literal: 0, Inferential: 0, Evaluative: 0 },
     error: null as string | null,
   };
@@ -372,10 +437,11 @@ export async function loadDashboardStats(): Promise<{
     .map((e: any) => e.teacher_rating)
     .filter((r: any) => typeof r === 'number' && r > 0);
 
-  const proficiencyCounts: Record<string, number> = { Frustration: 0, Instructional: 0, Independent: 0 };
+  const proficiencyCounts: Record<string, number> = { Nagsisimula: 0, Papaunlad: 0, Mahusay: 0 };
   (essays ?? []).forEach((e: any) => {
-    if (e.proficiency_level && e.proficiency_level in proficiencyCounts) {
-      proficiencyCounts[e.proficiency_level] += 1;
+    const normalized = normalizeProficiency(e.proficiency_level);
+    if (normalized && normalized in proficiencyCounts) {
+      proficiencyCounts[normalized] += 1;
     }
   });
 
