@@ -128,3 +128,106 @@ export const evaluateDepEdRubricAPI = async (
         language: language,
     } as DepEdRubricScore;
 };
+
+export interface TrainLanguageStatus {
+    rated_essays: number;
+    confidence_level: string;
+    last_retrain: string | null;
+    new_since_retrain: number;
+}
+
+export interface TrainStatusResponse {
+    english: TrainLanguageStatus;
+    filipino: TrainLanguageStatus;
+}
+
+export interface RetrainResponse {
+    language: 'en' | 'tl';
+    samples_used: number;
+    asap2_samples: number;
+    accuracy: string;
+    confidence_level: string;
+    model_saved: string;
+}
+
+export const getTrainStatusAPI = async (): Promise<TrainStatusResponse> => {
+    const response = await fetch('http://localhost:8000/train/status', {
+        method: 'GET',
+        headers: {
+            'accept': 'application/json',
+        },
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (data?.error) throw new Error(data.error);
+    return data;
+};
+
+export const triggerRetrainAPI = async (language: 'en' | 'tl'): Promise<RetrainResponse> => {
+    const response = await fetch('http://localhost:8000/train/retrain', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'accept': 'application/json',
+        },
+        body: JSON.stringify({ language }),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (data?.error) throw new Error(data.error);
+    return data;
+};
+
+export interface PerClassMetrics {
+  precision: number;
+  recall: number;
+  f1: number;
+  support: number;
+}
+
+export interface DimensionMetrics {
+  mae: number | null;
+  samples: number;
+  avg_system: number;
+  avg_teacher: number;
+}
+
+export interface ModelPerformanceData {
+  lang: string;
+  total_compared: number;
+  macro_f1: number;
+  macro_precision: number;
+  macro_recall: number;
+  per_class: Record<string, PerClassMetrics>;
+  confusion_matrix: {
+    labels: string[];
+    matrix: number[][];
+    row_label: string;
+    col_label: string;
+  };
+  per_dimension: Record<string, DimensionMetrics>;
+  confidence_level: string;
+  rated_essays: number;
+  last_retrain: string | null;
+  insufficient_data?: boolean;
+  error?: string;
+}
+
+export async function getModelPerformanceAPI(lang: 'en' | 'tl'): Promise<ModelPerformanceData> {
+  const res = await fetch(`http://localhost:8000/train/performance?lang=${lang}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `HTTP error! status: ${res.status}`);
+  }
+  return res.json();
+}
