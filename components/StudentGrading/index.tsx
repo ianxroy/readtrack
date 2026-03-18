@@ -247,11 +247,15 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
       original_file: essay.originalFile ?? null,
     }).then(({ data }) => {
       if (data?.id) {
-        // Replace temp timestamp ID with the real Supabase UUID so deletes work
-        setStudents(prev => prev.map(s => ({
-          ...s,
-          essays: s.essays.map(e => e.id === essay.id ? { ...e, id: data.id } : e),
-        })));
+        // Replace temp timestamp ID with the real Supabase UUID — persist to localStorage too
+        setStudents(prev => {
+          const updated = prev.map(s => ({
+            ...s,
+            essays: s.essays.map(e => e.id === essay.id ? { ...e, id: data.id } : e),
+          }));
+          saveStudents(updated);
+          return updated;
+        });
         setSelectedEssayId(id => id === essay.id ? data.id : id);
       }
     }).catch(console.error);
