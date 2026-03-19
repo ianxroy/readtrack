@@ -25,8 +25,15 @@ from ocr import extract_text_from_image
 from tagalog_service import router as tagalog_router
 from grammar_service import router as grammar_router
 
-load_dotenv('.env.local')
-load_dotenv('.env')
+BACKEND_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = BACKEND_DIR.parent
+
+# Preferred: a single workspace-level env file shared by frontend/backend.
+# Backward-compatible fallback: backend-local env files.
+load_dotenv(PROJECT_ROOT / '.env.local')
+load_dotenv(PROJECT_ROOT / '.env')
+load_dotenv(BACKEND_DIR / '.env.local')
+load_dotenv(BACKEND_DIR / '.env')
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
@@ -169,15 +176,46 @@ def _get_training_rows(language: str):
         raise ValueError("Supabase service key not configured")
 
     client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+
+    def _lang_match(value, target: str) -> bool:
+        val = str(value or "").strip().lower()
+        if not val:
+            # Backward compatibility for rows created before subject_language existed.
+            return True
+        if target == "en":
+            return val in {"en", "english"}
+        return val in {"tl", "filipino", "tagalog"}
+
+    # Try schema-aware query first (fast path).
+    try:
+        response = (
+            client
+            .table("student_grading_uploads")
+            .select("essay_text, teacher_rubric_scores, subject_language")
+            .in_("subject_language", ["en", "english"] if language == "en" else ["tl", "filipino", "tagalog"])
+            .not_.is_("teacher_rubric_scores", "null")
+            .execute()
+        )
+        rows = response.data or []
+        if rows:
+            return rows
+    except Exception as e:
+        print(f"[_get_training_rows] language-filter query fallback: {e}")
+
+    # Fallback for schema drift/missing column: avoid selecting subject_language at all.
     response = (
         client
         .table("student_grading_uploads")
-        .select("essay_text, teacher_rubric_scores, subject_language")
-        .eq("subject_language", language)
+        .select("essay_text, teacher_rubric_scores")
         .not_.is_("teacher_rubric_scores", "null")
         .execute()
     )
-    return response.data or []
+    rows = response.data or []
+    filtered_rows = []
+    for row in rows:
+        if isinstance(row, dict) and _lang_match(row.get("subject_language"), language):
+            filtered_rows.append(row)
+    return filtered_rows
 
 
 def _score_to_label(avg: float) -> str:
@@ -522,16 +560,44 @@ def train_performance(lang: str = "en"):
             return {"insufficient_data": True, "rated_essays": 0, "lang": lang}
 
         client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-        response = (
-            client
-            .table("student_grading_uploads")
-            .select("diagnosis_result, teacher_rubric_scores, subject_language")
-            .eq("subject_language", lang)
-            .not_.is_("teacher_rubric_scores", "null")
-            .not_.is_("diagnosis_result", "null")
-            .execute()
-        )
-        rows = response.data or []
+        def _lang_match(value, target: str) -> bool:
+            val = str(value or "").strip().lower()
+            if not val:
+                # Backward compatibility for rows created before subject_language existed.
+                return True
+            if target == "en":
+                return val in {"en", "english"}
+            return val in {"tl", "filipino", "tagalog"}
+
+        rows = []
+        try:
+            response = (
+                client
+                .table("student_grading_uploads")
+                .select("diagnosis_result, teacher_rubric_scores, subject_language")
+                .in_("subject_language", ["en", "english"] if lang == "en" else ["tl", "filipino", "tagalog"])
+                .not_.is_("teacher_rubric_scores", "null")
+                .not_.is_("diagnosis_result", "null")
+                .execute()
+            )
+            rows = response.data or []
+        except Exception as e:
+            print(f"[train/performance] language-filter query fallback: {e}")
+
+        if not rows:
+            # Fallback for schema drift/missing column: avoid selecting subject_language at all.
+            response = (
+                client
+                .table("student_grading_uploads")
+                .select("diagnosis_result, teacher_rubric_scores")
+                .not_.is_("teacher_rubric_scores", "null")
+                .not_.is_("diagnosis_result", "null")
+                .execute()
+            )
+            rows = []
+            for r in (response.data or []):
+                if isinstance(r, dict) and _lang_match(r.get("subject_language"), lang):
+                    rows.append(r)
 
         VALID_LABELS = {"Mahusay", "Papaunlad", "Nagsisimula"}
         LEGACY_MAP = {"Independent": "Mahusay", "Instructional": "Papaunlad", "Frustration": "Nagsisimula"}

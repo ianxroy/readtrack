@@ -1,0 +1,25 @@
+feature_name,description,category
+ttr,Type-Token Ratio (vocabulary richness),Lexical
+avg_sentence_length,Average words per sentence,Syntactic
+diff_ratio,Ratio of difficult words (>9 characters),Lexical
+clause_density,Verbs per sentence (syntactic complexity),Syntactic
+advanced_ratio,Ratio of advanced CEFR words (C1+C2),Lexical
+flesch_kincaid,Flesch-Kincaid Grade Level,Readability
+gunning_fog,Gunning Fog Index,Readability
+verb_ratio,Ratio of verbs to total words,Syntactic
+noun_ratio,Ratio of nouns to total words,Syntactic
+adj_ratio,Ratio of adjectives to total words,Syntactic
+avg_dep_distance,Average dependency distance (syntax complexity),Syntactic
+word_count,Total word count,Basic
+sentence_count,Total sentence count,Basic
+sent_len_std,Standard deviation of sentence lengths,Syntactic
+punct_density,Punctuation density,Basic
+stopword_ratio,Stopword ratio,Lexical
+avg_word_length,Average word length in characters,Lexical
+syllables_per_word,Average syllables per word,Lexical
+cefr_a1_ratio,Ratio of A1 level words (beginner),CEFR
+cefr_a2_ratio,Ratio of A2 level words (elementary),CEFR
+cefr_b1_ratio,Ratio of B1 level words (intermediate),CEFR
+cefr_b2_ratio,Ratio of B2 level words (upper-intermediate),CEFR
+cefr_c1_ratio,Ratio of C1 level words (advanced),CEFR
+cefr_c2_ratio,Ratio of C2 level words (proficient),CEFR

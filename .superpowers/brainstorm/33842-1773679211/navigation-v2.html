@@ -1,0 +1,274 @@
+<style>
+  .approaches { display: flex; flex-direction: column; gap: 28px; }
+  .approach { border: 2px solid #e5e7eb; border-radius: 14px; overflow: hidden; cursor: pointer; transition: all 0.2s; }
+  .approach:hover { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+  .approach.selected { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.15); }
+  .approach-header { padding: 14px 18px; background: #f8fafc; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e5e7eb; }
+  .approach-label { font-weight: 700; font-size: 13px; color: #1e293b; }
+  .approach-tag { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 999px; }
+  .tag-recommended { background: #dcfce7; color: #15803d; }
+  .tag-simple { background: #dbeafe; color: #1d4ed8; }
+  .tag-compact { background: #fef3c7; color: #b45309; }
+  .mockup-wrap { padding: 16px; background: white; }
+
+  /* subject pill */
+  .spill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 99px; font-size: 10px; font-weight: 700; border: 1.5px solid; cursor: pointer; }
+  .spill-en  { background: #dbeafe; color: #1d4ed8; border-color: #93c5fd; }
+  .spill-fil { background: #fce7f3; color: #be185d; border-color: #f9a8d4; }
+  .spill.active-sub { box-shadow: 0 0 0 2px #6366f1; }
+
+  /* badges */
+  .badge { font-size: 9px; padding: 1px 5px; border-radius: 3px; font-weight: 700; }
+  .badge-en  { background: #dbeafe; color: #1d4ed8; }
+  .badge-fil { background: #fce7f3; color: #be185d; }
+
+  /* ---- Approach A: Three panel ---- */
+  .panel-layout { display: flex; height: 220px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; font-size: 11px; }
+  .p-sections { width: 20%; background: #1e293b; color: white; padding: 8px; }
+  .p-subjects { width: 22%; background: #f1f5f9; border-right: 1px solid #e5e7eb; padding: 8px; overflow-y: auto; }
+  .p-students { width: 28%; background: #fafafa; border-right: 1px solid #e5e7eb; padding: 8px; overflow-y: auto; }
+  .p-essays  { width: 30%; background: white; padding: 8px; overflow-y: auto; }
+  .p-title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.55; margin-bottom: 6px; }
+  .p-item { padding: 5px 7px; border-radius: 5px; margin-bottom: 3px; }
+  .p-item.sec-active { background: rgba(255,255,255,0.15); }
+  .subj-item { padding: 6px 8px; border-radius: 6px; margin-bottom: 4px; border: 1px solid #e5e7eb; background: white; cursor: pointer; }
+  .subj-item.active { border-color: #6366f1; background: #eef2ff; }
+  .subj-name { font-weight: 700; font-size: 10px; color: #1e293b; }
+  .subj-lang { font-size: 9px; color: #94a3b8; }
+  .student-card { border: 1px solid #e5e7eb; border-radius: 5px; padding: 5px 7px; margin-bottom: 4px; background: white; }
+  .student-card.sel { border-color: #6366f1; background: #eef2ff; }
+  .sc-name { font-weight: 600; font-size: 10px; color: #1e293b; }
+  .sc-meta { font-size: 9px; color: #94a3b8; }
+  .essay-item { border-bottom: 1px solid #f1f5f9; padding: 5px 0; }
+  .essay-title { font-weight: 600; font-size: 10px; color: #1e293b; }
+
+  /* ---- Approach B: Drilldown ---- */
+  .drilldown { border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; font-size: 11px; }
+  .breadcrumb { background: #f8fafc; border-bottom: 1px solid #e5e7eb; padding: 8px 12px; display: flex; align-items: center; gap: 5px; font-size: 10px; color: #94a3b8; flex-wrap: wrap; }
+  .bc-active { color: #6366f1; font-weight: 700; }
+  .bc-sep { color: #cbd5e1; }
+  .section-row { padding: 10px 14px; display: flex; gap: 8px; flex-wrap: wrap; border-bottom: 1px solid #f1f5f9; }
+  .sec-chip { padding: 5px 12px; border-radius: 7px; font-size: 10px; font-weight: 700; border: 1.5px solid #e5e7eb; cursor: pointer; background: white; }
+  .sec-chip.active { border-color: #6366f1; background: #eef2ff; color: #6366f1; }
+  .subj-grid { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 14px; border-bottom: 1px solid #f1f5f9; background: #fafbff; }
+  .subj-card { border: 1.5px solid #e5e7eb; border-radius: 8px; padding: 6px 10px; cursor: pointer; background: white; min-width: 70px; }
+  .subj-card.active { border-color: #6366f1; background: #eef2ff; }
+  .subj-card-name { font-weight: 700; font-size: 10px; color: #1e293b; }
+  .student-row { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 14px; }
+  .std-chip { padding: 4px 10px; border-radius: 99px; background: #f1f5f9; font-size: 10px; font-weight: 600; color: #475569; cursor: pointer; border: 1px solid #e5e7eb; }
+  .std-chip.active { background: #6366f1; color: white; border-color: #6366f1; }
+
+  /* ---- Approach C: Sidebar ---- */
+  .sidebar-grid { display: flex; height: 220px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; font-size: 11px; }
+  .sg-sidebar { width: 32%; background: #f8fafc; border-right: 1px solid #e5e7eb; padding: 8px; overflow-y: auto; }
+  .sg-main { width: 68%; padding: 10px; background: white; overflow-y: auto; }
+  .sec-row { padding: 5px 7px; border-radius: 5px; margin-bottom: 2px; font-weight: 700; color: #475569; font-size: 10px; cursor: pointer; display: flex; justify-content: space-between; }
+  .sec-row.active { background: #eef2ff; color: #6366f1; }
+  .subj-indent { padding-left: 10px; margin-bottom: 2px; }
+  .subj-row-sb { display: flex; align-items: center; gap: 5px; padding: 4px 6px; border-radius: 4px; cursor: pointer; }
+  .subj-row-sb.active { background: #e0e7ff; }
+  .subj-row-sb-name { font-size: 10px; font-weight: 600; color: #374151; }
+  .mini-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+  .mini-card { border: 1px solid #e5e7eb; border-radius: 6px; padding: 7px 8px; background: #fafafa; cursor: pointer; }
+  .mc-name { font-weight: 700; font-size: 10px; color: #1e293b; }
+  .mc-meta { font-size: 9px; color: #94a3b8; margin-top: 1px; }
+  .mc-level { font-size: 9px; font-weight: 700; }
+  .lv-ind { color: #15803d; } .lv-ins { color: #b45309; } .lv-fru { color: #dc2626; }
+</style>
+
+<h2>Updated — Subjects with Language Tags</h2>
+<p class="subtitle">Each subject (English, AP, Filipino, Math…) has a language tag showing what language essays are graded in. Teachers can add their own subjects.</p>
+
+<div class="approaches">
+
+  <!-- APPROACH A -->
+  <div class="option approach" data-choice="a" onclick="toggleSelect(this)">
+    <div class="approach-header">
+      <span class="approach-label">A — Four Panels: Section › Subject › Students › Essays</span>
+      <span class="approach-tag tag-recommended">⭐ Recommended</span>
+    </div>
+    <div class="mockup-wrap">
+      <div class="panel-layout">
+        <!-- Sections -->
+        <div class="p-sections">
+          <div class="p-title" style="color:rgba(255,255,255,0.5)">Sections</div>
+          <div class="p-item sec-active">Gr. 7 – Rizal</div>
+          <div class="p-item">Gr. 7 – Bonifacio</div>
+          <div class="p-item">Gr. 8 – Luna</div>
+        </div>
+        <!-- Subjects -->
+        <div class="p-subjects">
+          <div class="p-title">Subjects</div>
+          <div class="subj-item active">
+            <div class="subj-name">English</div>
+            <div class="spill spill-en" style="margin-top:2px; font-size:9px; padding:1px 6px;">🇺🇸 English</div>
+          </div>
+          <div class="subj-item">
+            <div class="subj-name">Filipino</div>
+            <div class="spill spill-fil" style="margin-top:2px; font-size:9px; padding:1px 6px;">🇵🇭 Filipino</div>
+          </div>
+          <div class="subj-item">
+            <div class="subj-name">AP</div>
+            <div class="spill spill-fil" style="margin-top:2px; font-size:9px; padding:1px 6px;">🇵🇭 Filipino</div>
+          </div>
+          <div class="subj-item">
+            <div class="subj-name">Math</div>
+            <div class="spill spill-en" style="margin-top:2px; font-size:9px; padding:1px 6px;">🇺🇸 English</div>
+          </div>
+          <div style="font-size:9px; color:#6366f1; margin-top:6px; cursor:pointer;">+ Add subject</div>
+        </div>
+        <!-- Students -->
+        <div class="p-students">
+          <div class="p-title">Students · English</div>
+          <div class="student-card sel">
+            <div class="sc-name">Juan Dela Cruz</div>
+            <div class="sc-meta">3 essays · ★ 4.2</div>
+          </div>
+          <div class="student-card">
+            <div class="sc-name">Maria Santos</div>
+            <div class="sc-meta">2 essays · ★ 3.8</div>
+          </div>
+          <div class="student-card">
+            <div class="sc-name">Pedro Reyes</div>
+            <div class="sc-meta">1 essay</div>
+          </div>
+        </div>
+        <!-- Essays -->
+        <div class="p-essays">
+          <div class="p-title">Juan · Essays</div>
+          <div class="essay-item">
+            <div class="essay-title">Narrative Essay #1</div>
+            <div class="sc-meta">Independent · 88% <span class="badge badge-en">EN</span></div>
+          </div>
+          <div class="essay-item">
+            <div class="essay-title">Persuasive Essay</div>
+            <div class="sc-meta">Instructional · 72% <span class="badge badge-en">EN</span></div>
+          </div>
+          <div class="essay-item">
+            <div class="essay-title">Poem Analysis</div>
+            <div class="sc-meta">Frustration · 51% <span class="badge badge-en">EN</span></div>
+          </div>
+        </div>
+      </div>
+      <p style="font-size:10px;color:#94a3b8;margin-top:8px;">4 panels always visible. Click any section or subject to update the view instantly — no navigation needed.</p>
+    </div>
+  </div>
+
+  <!-- APPROACH B -->
+  <div class="option approach" data-choice="b" onclick="toggleSelect(this)">
+    <div class="approach-header">
+      <span class="approach-label">B — Step-by-Step Drilldown + Breadcrumb</span>
+      <span class="approach-tag tag-simple">Clean &amp; Simple</span>
+    </div>
+    <div class="mockup-wrap">
+      <div class="drilldown">
+        <div class="breadcrumb">
+          <span>Sections</span><span class="bc-sep">›</span>
+          <span class="bc-active">Gr. 7 – Rizal</span><span class="bc-sep">›</span>
+          <span class="bc-active">English</span><span class="bc-sep">›</span>
+          <span class="bc-active">Juan Dela Cruz</span>
+        </div>
+        <div class="section-row">
+          <div class="sec-chip active">Gr. 7 – Rizal</div>
+          <div class="sec-chip">Gr. 7 – Bonifacio</div>
+          <div class="sec-chip">Gr. 8 – Luna</div>
+        </div>
+        <div class="subj-grid">
+          <div class="subj-card active">
+            <div class="subj-card-name">English</div>
+            <div class="spill spill-en" style="font-size:9px;padding:1px 5px;margin-top:3px;">🇺🇸 EN</div>
+          </div>
+          <div class="subj-card">
+            <div class="subj-card-name">Filipino</div>
+            <div class="spill spill-fil" style="font-size:9px;padding:1px 5px;margin-top:3px;">🇵🇭 FIL</div>
+          </div>
+          <div class="subj-card">
+            <div class="subj-card-name">AP</div>
+            <div class="spill spill-fil" style="font-size:9px;padding:1px 5px;margin-top:3px;">🇵🇭 FIL</div>
+          </div>
+          <div class="subj-card">
+            <div class="subj-card-name">Math</div>
+            <div class="spill spill-en" style="font-size:9px;padding:1px 5px;margin-top:3px;">🇺🇸 EN</div>
+          </div>
+        </div>
+        <div class="student-row">
+          <div class="std-chip active">Juan Dela Cruz</div>
+          <div class="std-chip">Maria Santos</div>
+          <div class="std-chip">Pedro Reyes</div>
+          <div class="std-chip">Ana Lim</div>
+        </div>
+      </div>
+      <p style="font-size:10px;color:#94a3b8;margin-top:8px;">Breadcrumb lets you jump back to any level. One focused view at a time.</p>
+    </div>
+  </div>
+
+  <!-- APPROACH C -->
+  <div class="option approach" data-choice="c" onclick="toggleSelect(this)">
+    <div class="approach-header">
+      <span class="approach-label">C — Section + Subject Sidebar, Student Grid</span>
+      <span class="approach-tag tag-compact">Compact Overview</span>
+    </div>
+    <div class="mockup-wrap">
+      <div class="sidebar-grid">
+        <div class="sg-sidebar">
+          <div class="p-title">Sections & Subjects</div>
+          <!-- Section 1 -->
+          <div class="sec-row active">Gr. 7 – Rizal</div>
+          <div class="subj-indent">
+            <div class="subj-row-sb active">
+              <span class="spill spill-en" style="font-size:9px;padding:1px 5px;">🇺🇸</span>
+              <span class="subj-row-sb-name">English</span>
+            </div>
+            <div class="subj-row-sb">
+              <span class="spill spill-fil" style="font-size:9px;padding:1px 5px;">🇵🇭</span>
+              <span class="subj-row-sb-name">Filipino</span>
+            </div>
+            <div class="subj-row-sb">
+              <span class="spill spill-fil" style="font-size:9px;padding:1px 5px;">🇵🇭</span>
+              <span class="subj-row-sb-name">AP</span>
+            </div>
+            <div class="subj-row-sb">
+              <span class="spill spill-en" style="font-size:9px;padding:1px 5px;">🇺🇸</span>
+              <span class="subj-row-sb-name">Math</span>
+            </div>
+          </div>
+          <!-- Section 2 -->
+          <div class="sec-row" style="margin-top:4px;">Gr. 7 – Bonifacio</div>
+          <div class="sec-row">Gr. 8 – Luna</div>
+        </div>
+        <div class="sg-main">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+            <span style="font-weight:700;font-size:11px;color:#1e293b;">Gr. 7 – Rizal</span>
+            <span style="font-size:10px;color:#94a3b8;">›</span>
+            <span style="font-weight:700;font-size:11px;color:#6366f1;">English</span>
+            <span class="spill spill-en" style="font-size:9px;padding:1px 5px;">🇺🇸</span>
+          </div>
+          <div class="mini-grid">
+            <div class="mini-card" style="border-color:#6366f1;">
+              <div class="mc-name">Juan Dela Cruz</div>
+              <div class="mc-meta">3 essays · ★ 4.2</div>
+              <div class="mc-level lv-ind">Independent</div>
+            </div>
+            <div class="mini-card">
+              <div class="mc-name">Maria Santos</div>
+              <div class="mc-meta">2 essays · ★ 3.8</div>
+              <div class="mc-level lv-ins">Instructional</div>
+            </div>
+            <div class="mini-card">
+              <div class="mc-name">Pedro Reyes</div>
+              <div class="mc-meta">1 essay</div>
+              <div class="mc-level lv-fru">Frustration</div>
+            </div>
+            <div class="mini-card">
+              <div class="mc-name">Ana Lim</div>
+              <div class="mc-meta">2 essays · ★ 4.0</div>
+              <div class="mc-level lv-ind">Independent</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p style="font-size:10px;color:#94a3b8;margin-top:8px;">Tree view in sidebar: expand sections to see subjects. Main area shows student grid for selected subject.</p>
+    </div>
+  </div>
+
+</div>

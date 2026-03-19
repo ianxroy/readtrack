@@ -62,14 +62,32 @@ CREATE TABLE IF NOT EXISTS student_grading_uploads (
   id                UUID        DEFAULT gen_random_uuid() PRIMARY KEY,
   teacher_id        UUID        REFERENCES auth.users(id) ON DELETE SET NULL,
   student_name_sha  TEXT        NOT NULL,
+  student_name      TEXT,
   essay_title       TEXT,
   essay_text        TEXT        NOT NULL,
   proficiency_level TEXT,
   nat_score         NUMERIC(5, 2),
   diagnosis_result  JSONB,
   complexity_result JSONB,
+  section_name      TEXT,
+  subject_name      TEXT,
+  subject_language  TEXT,
+  teacher_rating    INTEGER,
+  teacher_comment   TEXT,
+  teacher_rubric_scores JSONB,
+  original_file     JSONB,
   created_at        TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE student_grading_uploads
+  ADD COLUMN IF NOT EXISTS student_name TEXT,
+  ADD COLUMN IF NOT EXISTS section_name TEXT,
+  ADD COLUMN IF NOT EXISTS subject_name TEXT,
+  ADD COLUMN IF NOT EXISTS subject_language TEXT,
+  ADD COLUMN IF NOT EXISTS teacher_rating INTEGER,
+  ADD COLUMN IF NOT EXISTS teacher_comment TEXT,
+  ADD COLUMN IF NOT EXISTS teacher_rubric_scores JSONB,
+  ADD COLUMN IF NOT EXISTS original_file JSONB;
 
 ALTER TABLE student_grading_uploads ENABLE ROW LEVEL SECURITY;
 

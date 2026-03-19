@@ -1,0 +1,145 @@
+@startuml ReadTrack Activity Diagram
+title ReadTrack - Activity Diagram
+
+start
+
+:User opens ReadTrack;
+
+if (Authenticated?) then (no)
+  :Display Login Page;
+  :Enter Credentials;
+  :Authenticate via Supabase;
+  if (Valid Credentials?) then (no)
+    :Show Error Message;
+    stop
+  else (yes)
+  endif
+else (yes)
+endif
+
+:Display Dashboard;
+
+switch (Select Action)
+case (Student Grading)
+  :Navigate to Student Grading;
+
+  switch (Input Method)
+  case (Type/Paste Text)
+    :Enter text directly;
+  case (Upload Image)
+    :Upload image file;
+    :Send to Google Gemini Vision API;
+    :Extract text via OCR;
+  case (Upload PDF)
+    :Upload PDF file;
+    :Extract text via PyPDF;
+  endswitch
+
+  :Submit text for analysis;
+
+  fork
+    :Detect Language\n(English / Tagalog);
+  fork again
+    :Extract 50+ Linguistic Features\n(vocabulary, syntax, readability,\nsentence complexity, cohesion);
+  fork again
+    :Check Grammar & Spelling\n(LanguageTool);
+  end fork
+
+  if (Language == Tagalog?) then (yes)
+    :Process with calamanCy\n(POS tagging, NER, morphology);
+  else (no)
+    :Process with spaCy English model;
+  endif
+
+  fork
+    :Scale features with RobustScaler;
+    :Classify Proficiency Level (SVM)\n[Frustration | Instructional | Independent];
+    :Determine Learning Band\n[Intervention | Consolidation | Enhancement];
+  fork again
+    :Classify Text Complexity (SVM)\n[Literal | Inferential | Evaluative];
+  fork again
+    :Calculate Readability Scores\n(Flesch-Kincaid, Gunning Fog,\nColeman-Liau, ARI);
+  end fork
+
+  if (Reference documents uploaded?) then (yes)
+    :Send text + references to Gemini API;
+    :Validate content against references;
+    :Generate AI-enhanced feedback;
+  else (no)
+    :Generate standard feedback;
+  endif
+
+  :Display Analysis Results\n(metrics, charts, issues, suggestions);
+
+  if (Save analysis?) then (yes)
+    :Save to analysis history\n(localStorage / Supabase);
+  else (no)
+  endif
+
+  if (Rate student work?) then (yes)
+    :Assign star rating (1-5);
+  else (no)
+  endif
+
+case (Material Library)
+  :Navigate to Material Library;
+
+  switch (Material Action)
+  case (Upload Material)
+    :Upload text / file;
+    :Extract text content;
+    :Extract linguistic features;
+    :Auto-classify complexity\n(Literal / Inferential / Evaluative);
+    :Save to Material Library;
+  case (Upload Reference)
+    :Upload reference document\n(text, image, PDF);
+    :Process and extract text;
+    :Store as reference for analysis;
+  case (Browse Materials)
+    :Display material list;
+    :Search / filter materials;
+    :View material details;
+  endswitch
+
+case (Grammar Checker)
+  :Navigate to Grammar Checker;
+  :Enter or paste text;
+  :Send to Grammar Service;
+
+  fork
+    :Check Grammar errors;
+  fork again
+    :Check Spelling errors;
+  fork again
+    :Check Punctuation issues;
+  fork again
+    :Check Style suggestions;
+  end fork
+
+  :Display issues with highlights;
+  :Show suggestions & replacements;
+
+  if (Enhance with AI?) then (yes)
+    :Send to Gemini API;
+    :Get AI-enhanced explanations;
+    :Display enhanced suggestions;
+  else (no)
+  endif
+
+case (Model Evaluation)
+  :Navigate to Model Evaluation;
+  :Load model metrics\n(accuracy, precision, recall, F1);
+  :Display confusion matrices;
+  :Show performance comparison;
+
+case (AI Chat)
+  :Navigate to Chat Interface;
+  :Enter prompt / question;
+  :Send to Gemini API with context;
+  :Display AI response;
+
+endswitch
+
+stop
+
+@enduml

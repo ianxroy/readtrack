@@ -1,0 +1,38 @@
+@startuml ReadTrack Use Case Diagram (Simplified)
+left to right direction
+skinparam actorStyle awesome
+skinparam packageStyle rectangle
+skinparam linetype ortho
+skinparam usecase {
+  BackgroundColor #F0F8FF
+  BorderColor #4682B4
+  ArrowColor #4682B4
+}
+skinparam package {
+  BackgroundColor #FAFAFA
+}
+
+actor "Teacher" as teacher
+
+rectangle "ReadTrack System" {
+  usecase "Authentication" as UC_AUTH
+  usecase "Text Analysis\n& Diagnosis" as UC_ANALYZE
+  usecase "OCR & File\nProcessing" as UC_OCR
+  usecase "Grammar &\nLanguage" as UC_GRAMMAR
+  usecase "Material\nLibrary" as UC_MATERIAL
+  usecase "Dashboard\n& History" as UC_DASHBOARD
+  usecase "Model\nEvaluation" as UC_EVAL
+}
+
+teacher -- UC_AUTH
+teacher -- UC_ANALYZE
+teacher -- UC_OCR
+teacher -- UC_GRAMMAR
+teacher -- UC_MATERIAL
+teacher -- UC_DASHBOARD
+teacher -- UC_EVAL
+
+UC_OCR ..> UC_ANALYZE : <<extend>>
+UC_GRAMMAR ..> UC_ANALYZE : <<include>>
+
+@enduml

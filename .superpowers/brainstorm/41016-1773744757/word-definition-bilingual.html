@@ -1,0 +1,246 @@
+<h2>Bilingual Definition Popup</h2>
+<p class="subtitle">Click any word — toggle between English and Filipino definitions using the tab switcher.</p>
+
+<style>
+  .essay-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 24px 28px;
+    font-size: 14px;
+    line-height: 2.2;
+    color: #1e293b;
+    font-family: Georgia, serif;
+    max-width: 700px;
+    margin: 0 auto;
+    user-select: none;
+  }
+  .word { cursor: pointer; border-radius: 2px; transition: background 0.1s; }
+  .word:hover { background: #e0f2fe; }
+  .word.active { background: #bae6fd; color: #0369a1; }
+  .hl-vocab { background: #dbeafe; color: #1e40af; border-radius: 3px; padding: 1px 3px; cursor: pointer; }
+
+  /* Popup */
+  .def-popup {
+    position: fixed;
+    width: 300px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.15), 0 4px 12px rgba(0,0,0,0.08);
+    z-index: 9999;
+    font-family: -apple-system, sans-serif;
+    display: none;
+    overflow: hidden;
+  }
+  .def-popup.visible { display: block; }
+
+  /* Arrow */
+  .popup-arrow {
+    position: absolute;
+    top: -7px; left: 50%; transform: translateX(-50%);
+    width: 0; height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-bottom: 8px solid #e2e8f0;
+  }
+  .popup-arrow::after {
+    content: '';
+    position: absolute;
+    top: 2px; left: -7px;
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-bottom: 7px solid white;
+  }
+
+  /* Header */
+  .popup-header {
+    padding: 14px 16px 0;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .def-word { font-size: 16px; font-weight: 800; color: #0f172a; }
+  .close-btn {
+    width: 22px; height: 22px; flex-shrink: 0;
+    border: none; background: #f1f5f9; border-radius: 50%;
+    cursor: pointer; font-size: 11px; color: #64748b;
+    display: flex; align-items: center; justify-content: center;
+    margin-top: 2px;
+  }
+  .close-btn:hover { background: #e2e8f0; }
+
+  /* Language tabs */
+  .lang-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 10px 16px 0;
+  }
+  .lang-tab {
+    flex: 1;
+    padding: 5px 8px;
+    border-radius: 8px;
+    border: 1.5px solid #e2e8f0;
+    background: white;
+    font-size: 11px;
+    font-weight: 700;
+    color: #94a3b8;
+    cursor: pointer;
+    transition: all .15s;
+    text-align: center;
+  }
+  .lang-tab:hover { border-color: #cbd5e1; color: #475569; }
+  .lang-tab.active {
+    background: #0f172a;
+    border-color: #0f172a;
+    color: white;
+  }
+
+  /* Content */
+  .popup-body { padding: 10px 16px 14px; }
+
+  .def-pos {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .07em; color: #94a3b8; margin-bottom: 8px;
+  }
+  .def-divider { height: 1px; background: #f1f5f9; margin: 8px 0; }
+  .def-meaning { font-size: 12px; color: #334155; line-height: 1.65; margin-bottom: 6px; }
+  .def-example { font-size: 11px; color: #94a3b8; font-style: italic; line-height: 1.5; }
+  .def-source {
+    font-size: 9px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .06em; color: #cbd5e1; margin-top: 10px;
+  }
+  .def-source.ai { color: #a78bfa; }
+
+  .def-loading {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 11px; color: #94a3b8; padding: 8px 0;
+  }
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid #e2e8f0;
+    border-top-color: #6366f1;
+    border-radius: 50%;
+    animation: spin .6s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .def-notfound { font-size: 11px; color: #94a3b8; font-style: italic; padding: 8px 0; }
+</style>
+
+<div class="def-popup" id="popup">
+  <div class="popup-arrow"></div>
+  <div class="popup-header">
+    <div class="def-word" id="popup-word"></div>
+    <button class="close-btn" onclick="closePopup()">✕</button>
+  </div>
+  <div class="lang-tabs">
+    <button class="lang-tab active" id="tab-en" onclick="switchLang('en')">🇺🇸 English</button>
+    <button class="lang-tab" id="tab-fil" onclick="switchLang('fil')">🇵🇭 Filipino</button>
+  </div>
+  <div class="popup-body" id="popup-body"></div>
+</div>
+
+<div class="essay-box">
+  <span class="word" data-word="Noong"
+    data-en='{"pos":"adverb","meaning":"(No direct English equivalent) A Filipino temporal marker meaning \"when\" or \"back when,\" used to introduce past events or a specific time in the past.","example":"Noong 1986, nagkaroon ng rebolusyon sa Pilipinas.","source":"ai"}'
+    data-fil='{"pos":"pang-abay","meaning":"Salitang nagpapakita ng nakaraang panahon. Ginagamit bago ang isang petsa o kaganapan na nakaraan na.","example":"Noong bata pa ako, masaya kaming lahat.","source":"ai"}'>Noong</span>
+
+  <span class="word" data-word="pamilya"
+    data-en='{"pos":"noun","meaning":"Family — a group of people related by blood, marriage, or adoption who typically live together and share responsibilities.","example":"My family is the most important thing to me.","source":"dictionary"}'
+    data-fil='{"pos":"pangngalan","meaning":"Ang grupo ng mga taong may relasyon sa isa\'t isa sa pamamagitan ng dugo, kasal, o pag-ampon.","example":"Ang aking pamilya ang aking lakas sa buhay.","source":"ai"}'>pamilya</span>
+
+  ay pumunta sa isang
+
+  <span class="hl-vocab" data-word="tahimik"
+    data-en='{"pos":"adjective","meaning":"Quiet, peaceful, calm — describing a place or person free from noise, disturbance, or turmoil.","example":"The countryside was beautifully quiet at night.","source":"dictionary"}'
+    data-fil='{"pos":"pang-uri","meaning":"Walang ingay; maayos at mapayapa. Ginagamit para ilarawan ang isang lugar o tao na walang kaguluhan.","example":"Tahimik ang probinsya kumpara sa lungsod.","source":"ai"}'>tahimik</span>
+
+  na lugar sa
+
+  <span class="word" data-word="probinsya"
+    data-en='{"pos":"noun","meaning":"Province — an administrative region of a country. In Philippine context, commonly refers to rural areas outside Metro Manila.","example":"She grew up in the province of Batangas.","source":"dictionary"}'
+    data-fil='{"pos":"pangngalan","meaning":"Isang pangunahing dibisyon ng bansa na may sariling pamahalaan. Sa Pilipinas, kadalasang tumutukoy sa mga lugar labas ng Metro Manila.","example":"Mas malinis ang hangin sa probinsya kaysa sa lungsod.","source":"ai"}'>probinsya</span>.
+</div>
+
+<script>
+  const defs = {};
+  let currentWord = null;
+  let currentLang = 'en';
+  let currentEl = null;
+
+  document.querySelectorAll('[data-word]').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      const word = el.dataset.word;
+
+      if (currentEl === el) { closePopup(); return; }
+      if (currentEl) currentEl.classList.remove('active');
+      currentEl = el;
+      el.classList.add('active');
+
+      currentWord = word;
+      defs[word] = {
+        en: el.dataset.en ? JSON.parse(el.dataset.en) : null,
+        fil: el.dataset.fil ? JSON.parse(el.dataset.fil) : null,
+      };
+
+      positionPopup(el);
+      document.getElementById('popup-word').textContent = word;
+      document.getElementById('popup').classList.add('visible');
+
+      showLoading();
+      setTimeout(() => renderLang(currentLang), 500);
+    });
+  });
+
+  document.addEventListener('click', closePopup);
+
+  function positionPopup(el) {
+    const rect = el.getBoundingClientRect();
+    const popup = document.getElementById('popup');
+    popup.style.top = (rect.bottom + 10) + 'px';
+    popup.style.left = Math.max(8, Math.min(rect.left + rect.width / 2 - 150, window.innerWidth - 308)) + 'px';
+  }
+
+  function switchLang(lang) {
+    currentLang = lang;
+    document.getElementById('tab-en').classList.toggle('active', lang === 'en');
+    document.getElementById('tab-fil').classList.toggle('active', lang === 'fil');
+    showLoading();
+    setTimeout(() => renderLang(lang), 350);
+  }
+
+  function showLoading() {
+    document.getElementById('popup-body').innerHTML =
+      `<div class="def-loading"><div class="spinner"></div>Looking up…</div>`;
+  }
+
+  function renderLang(lang) {
+    if (!currentWord) return;
+    const def = defs[currentWord]?.[lang];
+    const body = document.getElementById('popup-body');
+    if (!def) {
+      body.innerHTML = `<div class="def-notfound">No ${lang === 'en' ? 'English' : 'Filipino'} definition found.</div>`;
+      return;
+    }
+    const sourceLabel = def.source === 'ai'
+      ? `<div class="def-source ai">✦ AI generated</div>`
+      : `<div class="def-source">📖 Dictionary</div>`;
+    body.innerHTML = `
+      <div class="def-pos">${def.pos}</div>
+      <div class="def-divider"></div>
+      <div class="def-meaning">${def.meaning}</div>
+      ${def.example ? `<div class="def-example">"${def.example}"</div>` : ''}
+      ${sourceLabel}
+    `;
+  }
+
+  function closePopup() {
+    document.getElementById('popup').classList.remove('visible');
+    if (currentEl) { currentEl.classList.remove('active'); currentEl = null; }
+    currentWord = null;
+  }
+</script>

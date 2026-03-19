@@ -1,0 +1,7 @@
+Model,Split,Training_Samples,Testing_Samples,Training_Accuracy,Testing_Accuracy
+Student Proficiency,60-40,14832,9889,84.5%,84.9%
+Student Proficiency,70-30,17304,7417,84.4%,85.3%
+Student Proficiency,80-20,19776,4945,84.6%,85.1%
+Text Complexity,60-40,1698,1132,99.3%,98.8%
+Text Complexity,70-30,1981,849,99.1%,98.9%
+Text Complexity,80-20,2264,566,99.2%,98.6%

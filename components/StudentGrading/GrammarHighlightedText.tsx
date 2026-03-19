@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { GrammarIssue, IssueCategory } from '../../types';
+import { WordDefinitionPopup } from './WordDefinitionPopup';
 
 interface GrammarHighlightedTextProps {
   text: string;
@@ -94,13 +95,66 @@ function segmentText(text: string, issues: GrammarIssue[]): Segment[] {
   return segments;
 }
 
+function isWordChar(ch: string): boolean {
+  return /[\p{L}\p{M}-]/u.test(ch);
+}
+
 export const GrammarHighlightedText: React.FC<GrammarHighlightedTextProps> = ({ text, issues }) => {
   const [tooltipIssue, setTooltipIssue] = useState<GrammarIssue | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ top: number; left: number; above: boolean }>({
     top: 0, left: 0, above: true,
   });
 
+  const [defWord, setDefWord] = useState<string | null>(null);
+  const [defAnchor, setDefAnchor] = useState<{
+    top: number; bottom: number; left: number; width: number;
+  } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
   const segments = useMemo(() => segmentText(text, issues), [text, issues]);
+
+  const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation(); // prevent document click handler from closing popup immediately
+
+    let range: Range | null = null;
+    if (document.caretRangeFromPoint) {
+      range = document.caretRangeFromPoint(e.clientX, e.clientY);
+    } else if ((document as any).caretPositionFromPoint) {
+      const pos = (document as any).caretPositionFromPoint(e.clientX, e.clientY);
+      if (pos) {
+        range = document.createRange();
+        range.setStart(pos.offsetNode, pos.offset);
+        range.setEnd(pos.offsetNode, pos.offset);
+      }
+    }
+
+    if (!range || range.startContainer.nodeType !== Node.TEXT_NODE) return;
+
+    const textNode = range.startContainer as Text;
+    const offset = range.startOffset;
+    const nodeText = textNode.textContent ?? '';
+
+    let start = offset;
+    while (start > 0 && isWordChar(nodeText[start - 1])) start--;
+    let end = offset;
+    while (end < nodeText.length && isWordChar(nodeText[end])) end++;
+
+    const word = nodeText.slice(start, end).replace(/^-+|-+$/g, '');
+    if (!word || word.length < 2) return;
+
+    const wordRange = document.createRange();
+    wordRange.setStart(textNode, start);
+    wordRange.setEnd(textNode, end);
+    const rect = wordRange.getBoundingClientRect();
+
+    if (defWord === word) {
+      setDefWord(null);
+      setDefAnchor(null);
+    } else {
+      setDefWord(word);
+      setDefAnchor({ top: rect.top, bottom: rect.bottom, left: rect.left, width: rect.width });
+    }
+  };
 
   const handleEnter = (e: React.MouseEvent<HTMLSpanElement>, issue: GrammarIssue) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -110,7 +164,12 @@ export const GrammarHighlightedText: React.FC<GrammarHighlightedTextProps> = ({ 
   };
 
   return (
-    <div className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap relative">
+    <div
+      ref={containerRef}
+      data-grammar-container
+      className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap relative"
+      onClick={handleContainerClick}
+    >
       {segments.map((seg, i) => {
         if (!seg.issue) return <React.Fragment key={i}>{seg.text}</React.Fragment>;
         const h = HIGHLIGHT[seg.issue.category] ?? FALLBACK_HIGHLIGHT;
@@ -167,6 +226,14 @@ export const GrammarHighlightedText: React.FC<GrammarHighlightedTextProps> = ({ 
           </div>
         );
       })()}
+
+      {defWord && defAnchor && (
+        <WordDefinitionPopup
+          word={defWord}
+          anchorRect={defAnchor}
+          onClose={() => { setDefWord(null); setDefAnchor(null); }}
+        />
+      )}
     </div>
   );
 };

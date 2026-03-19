@@ -1,0 +1,42 @@
+@startuml ReadTrack Activity Diagram (Simplified)
+title ReadTrack - Activity Diagram (Simplified)
+
+start
+
+:User opens ReadTrack;
+
+if (Authenticated?) then (no)
+  :Login via Supabase;
+else (yes)
+endif
+
+:Display Dashboard;
+
+switch (Select Action)
+case (Student Grading)
+  :Input Text\n(Type / Image OCR / PDF);
+  :Analyze Text\n(Language Detection,\nFeature Extraction,\nGrammar Check);
+  :Classify with SVM\n(Proficiency & Complexity);
+  :Display Results;
+  :Save to History;
+
+case (Material Library)
+  :Upload / Browse Materials;
+  :Auto-classify Complexity;
+
+case (Grammar Checker)
+  :Input Text;
+  :Check Grammar & Spelling;
+  :Display Issues & Suggestions;
+
+case (Model Evaluation)
+  :View ML Model Metrics;
+
+case (AI Chat)
+  :Chat with Gemini AI;
+
+endswitch
+
+stop
+
+@enduml

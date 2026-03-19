@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Teacher Feedback Learning System — Visual Plan</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; color: #1a1a2e; }
+
+  .page { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
+
+  h1 { font-size: 22px; font-weight: 900; color: #1a1a2e; margin-bottom: 4px; }
+  .subtitle { font-size: 12px; color: #6b7280; margin-bottom: 32px; font-weight: 500; text-transform: uppercase; letter-spacing: .06em; }
+
+  /* ── Flow bar ── */
+  .flow { display: flex; align-items: center; gap: 0; margin-bottom: 40px; overflow-x: auto; padding-bottom: 8px; }
+  .flow-step { background: white; border: 1.5px solid #e5e7eb; border-radius: 12px; padding: 10px 16px; font-size: 11px; font-weight: 700; white-space: nowrap; color: #374151; }
+  .flow-step.done { background: #ecfdf5; border-color: #6ee7b7; color: #065f46; }
+  .flow-step.active { background: #eff6ff; border-color: #93c5fd; color: #1e3a8a; }
+  .arrow { color: #9ca3af; font-size: 16px; padding: 0 6px; flex-shrink: 0; }
+
+  /* ── Sections ── */
+  .section { margin-bottom: 36px; }
+  .section-title { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; color: #9ca3af; margin-bottom: 12px; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+
+  /* ── Cards ── */
+  .card { background: white; border-radius: 16px; padding: 20px; border: 1.5px solid #f3f4f6; }
+  .card-title { font-size: 12px; font-weight: 800; color: #374151; margin-bottom: 12px; display: flex; align-items: center; gap-6px; gap: 6px; }
+  .badge { font-size: 9px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+  .badge-blue { background: #dbeafe; color: #1e40af; }
+  .badge-green { background: #d1fae5; color: #065f46; }
+  .badge-amber { background: #fef3c7; color: #92400e; }
+  .badge-red { background: #fee2e2; color: #991b1b; }
+  .badge-purple { background: #ede9fe; color: #5b21b6; }
+  .badge-pink { background: #fce7f3; color: #9d174d; }
+
+  /* ── UI Mockups ── */
+  .mockup { background: #f9fafb; border: 1.5px solid #e5e7eb; border-radius: 12px; padding: 14px; font-size: 11px; }
+  .mockup-title { font-size: 9px; font-weight: 800; color: #9ca3af; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
+
+  .dim-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 12px; padding: 5px 0; border-bottom: 1px solid #f3f4f6; }
+  .dim-label { font-size: 11px; font-weight: 600; color: #374151; }
+  .dim-label small { font-size: 9px; color: #9ca3af; display: block; }
+  .pips { display: flex; gap: 3px; }
+  .pip { width: 8px; height: 8px; border-radius: 50%; }
+  .pip-filled { background: #14b8a6; }
+  .pip-empty { background: #e5e7eb; }
+  .stars { display: flex; gap: 2px; font-size: 13px; }
+  .star-filled { color: #f59e0b; }
+  .star-empty { color: #e5e7eb; }
+  .col-header { font-size: 9px; font-weight: 700; color: #9ca3af; text-align: center; }
+
+  .overall-row { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; padding: 8px 0 0; margin-top: 4px; }
+  .overall-label { font-size: 10px; font-weight: 800; color: #6b7280; text-transform: uppercase; letter-spacing: .06em; }
+  .overall-sys { font-size: 13px; font-weight: 800; color: #14b8a6; text-align: center; }
+  .overall-teacher { font-size: 13px; font-weight: 800; color: #f59e0b; text-align: center; }
+
+  .save-btn { background: #0d9488; color: white; border: none; border-radius: 10px; padding: 8px 16px; font-size: 11px; font-weight: 700; margin-top: 12px; cursor: pointer; width: 100%; }
+
+  /* ── Sidebar mockup ── */
+  .sidebar-widget { background: #f9fafb; border: 1.5px solid #e5e7eb; border-radius: 12px; padding: 12px; }
+  .conf-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; }
+  .conf-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .dot-green { background: #22c55e; }
+  .dot-yellow { background: #eab308; }
+  .dot-red { background: #ef4444; }
+  .conf-label { font-size: 10px; color: #4b5563; font-weight: 500; }
+  .conf-count { font-size: 9px; color: #9ca3af; }
+  .retrain-btn { width: 100%; margin-top: 8px; border-radius: 8px; padding: 6px 12px; font-size: 10px; font-weight: 700; border: none; cursor: pointer; }
+  .retrain-btn-en { background: #dbeafe; color: #1e40af; }
+  .retrain-btn-tl { background: #fce7f3; color: #9d174d; }
+
+  /* ── EssayPanel mockup ── */
+  .essay-card { background: white; border: 1.5px solid #e0e7ff; border-radius: 10px; padding: 10px; margin-bottom: 8px; }
+  .essay-title { font-size: 11px; font-weight: 700; color: #1f2937; margin-bottom: 5px; }
+  .essay-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .prof-badge { font-size: 9px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+
+  /* ── Label changes ── */
+  .label-change { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid #f3f4f6; font-size: 11px; }
+  .label-old { color: #9ca3af; text-decoration: line-through; }
+  .arrow-small { color: #d1d5db; font-size: 12px; }
+  .label-new { font-weight: 700; }
+  .label-new.green { color: #059669; }
+  .label-new.amber { color: #d97706; }
+  .label-new.red { color: #dc2626; }
+
+  /* ── Scale change ── */
+  .scale-visual { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .scale-item { border-radius: 8px; padding: 6px 12px; font-size: 10px; font-weight: 700; text-align: center; min-width: 60px; }
+
+  /* ── Chunk flow ── */
+  .chunks { display: flex; flex-direction: column; gap: 10px; }
+  .chunk-row { display: flex; gap: 12px; align-items: stretch; }
+  .chunk-num { background: #1a1a2e; color: white; border-radius: 10px; width: 32px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 900; }
+  .chunk-body { flex: 1; background: white; border-radius: 10px; border: 1.5px solid #f3f4f6; padding: 12px 16px; }
+  .chunk-name { font-size: 12px; font-weight: 800; color: #374151; margin-bottom: 4px; }
+  .chunk-files { display: flex; flex-wrap: wrap; gap: 5px; }
+  .file-tag { font-size: 9px; font-weight: 600; background: #f3f4f6; color: #6b7280; padding: 2px 8px; border-radius: 6px; font-family: monospace; }
+  .file-tag.backend { background: #fef3c7; color: #92400e; }
+  .file-tag.frontend { background: #dbeafe; color: #1e40af; }
+
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>Teacher Feedback Learning System</h1>
+  <div class="subtitle">Implementation Plan · 9 Tasks · 5 Chunks</div>
+
+  <!-- Chunk overview -->
+  <div class="section">
+    <div class="section-title">Implementation Chunks</div>
+    <div class="chunks">
+      <div class="chunk-row">
+        <div class="chunk-num">1</div>
+        <div class="chunk-body">
+          <div class="chunk-name">DepEd Label Alignment — rename proficiency badges everywhere</div>
+          <div class="chunk-files">
+            <span class="file-tag frontend">types.ts</span>
+            <span class="file-tag frontend">MaterialChecker.tsx</span>
+            <span class="file-tag frontend">Analyzer.tsx</span>
+            <span class="file-tag frontend">EssayViewerModal.tsx</span>
+            <span class="file-tag frontend">EssayPanel.tsx</span>
+            <span class="file-tag backend">svm_models.py</span>
+            <span class="file-tag backend">main.py</span>
+          </div>
+        </div>
+      </div>
+      <div class="chunk-row">
+        <div class="chunk-num">2</div>
+        <div class="chunk-body">
+          <div class="chunk-name">Gemini Rubric Scale 1-5 → 1-4 (DepEd official 4-level scale)</div>
+          <div class="chunk-files">
+            <span class="file-tag backend">main.py (prompt)</span>
+            <span class="file-tag frontend">EssayViewerModal.tsx (pips, labels)</span>
+          </div>
+        </div>
+      </div>
+      <div class="chunk-row">
+        <div class="chunk-num">3</div>
+        <div class="chunk-body">
+          <div class="chunk-name">Per-Dimension Teacher Rubric UI — replace star rating with 5-row 4-star table</div>
+          <div class="chunk-files">
+            <span class="file-tag frontend">EssayViewerModal.tsx (big change)</span>
+          </div>
+        </div>
+      </div>
+      <div class="chunk-row">
+        <div class="chunk-num">4</div>
+        <div class="chunk-body">
+          <div class="chunk-name">Sidebar Retrain Widget — confidence indicator + retrain button</div>
+          <div class="chunk-files">
+            <span class="file-tag frontend">Sidebar.tsx</span>
+            <span class="file-tag frontend">index.tsx (fetch + wire)</span>
+          </div>
+        </div>
+      </div>
+      <div class="chunk-row">
+        <div class="chunk-num">5</div>
+        <div class="chunk-body">
+          <div class="chunk-name">EssayPanel Display — system pips + ⚠️ confidence warning on cards</div>
+          <div class="chunk-files">
+            <span class="file-tag frontend">EssayPanel.tsx</span>
+            <span class="file-tag frontend">index.tsx (pass trainStatus)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Label changes -->
+  <div class="grid-2" style="margin-bottom:36px">
+    <div class="card">
+      <div class="card-title">Chunk 1 · ProficiencyLevel Enum Values <span class="badge badge-blue">3 files</span></div>
+      <div class="label-change">
+        <span class="label-old">Independent</span>
+        <span class="arrow-small">→</span>
+        <span class="label-new green">Mahusay</span>
+        <span style="font-size:9px;color:#9ca3af;margin-left:auto">avg score 3.5–4.0</span>
+      </div>
+      <div class="label-change">
+        <span class="label-old">Instructional</span>
+        <span class="arrow-small">→</span>
+        <span class="label-new amber">Papaunlad</span>
+        <span style="font-size:9px;color:#9ca3af;margin-left:auto">avg score 2.5–3.4</span>
+      </div>
+      <div class="label-change" style="border:none">
+        <span class="label-old">Frustration</span>
+        <span class="arrow-small">→</span>
+        <span class="label-new red">Nagsisimula</span>
+        <span style="font-size:9px;color:#9ca3af;margin-left:auto">avg score 1.0–2.4</span>
+      </div>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid #f3f4f6;font-size:10px;color:#6b7280">
+        PhilIriLevel enum is <strong>unchanged</strong> — only ProficiencyLevel values change
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Chunk 2 · DepEd 4-Level Scale <span class="badge badge-purple">was 1-5</span></div>
+      <div style="margin-bottom:10px">
+        <div class="scale-visual">
+          <div class="scale-item" style="background:#d1fae5;color:#065f46">4<br><small style="font-weight:500;font-size:8px">Mahusay</small></div>
+          <div class="scale-item" style="background:#dbeafe;color:#1e40af">3<br><small style="font-weight:500;font-size:8px">Papalapit</small></div>
+          <div class="scale-item" style="background:#fef3c7;color:#92400e">2<br><small style="font-weight:500;font-size:8px">Papaunlad</small></div>
+          <div class="scale-item" style="background:#fee2e2;color:#991b1b">1<br><small style="font-weight:500;font-size:8px">Nagsisimula</small></div>
+        </div>
+      </div>
+      <div style="font-size:10px;color:#6b7280;margin-bottom:6px">Gemini prompt + display pips updated. Score comment in types.ts updated to 1–4.</div>
+      <div style="font-size:10px;color:#6b7280">Rubric blend divisor in svm_models.py: <span style="font-family:monospace;background:#f3f4f6;padding:1px 6px;border-radius:4px">5.0 → 4.0</span></div>
+    </div>
+  </div>
+
+  <!-- Main UI mockups -->
+  <div class="section">
+    <div class="section-title">Chunk 3 · EssayViewerModal — Teacher Rubric Section (replaces star rating)</div>
+    <div class="grid-2">
+      <!-- Before -->
+      <div class="card">
+        <div class="card-title" style="color:#dc2626">Before <span class="badge badge-red">broken TS</span></div>
+        <div class="mockup">
+          <div class="mockup-title">Star Rating ng Guro</div>
+          <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px">
+            <span style="font-size:22px;color:#f59e0b">★★★☆☆</span>
+            <span style="font-size:11px;color:#6b7280">3/5</span>
+          </div>
+          <div style="background:#f3f4f6;border-radius:8px;padding:8px;font-size:10px;color:#9ca3af;min-height:50px">Opsyonal na komento ng guro…</div>
+          <div style="margin-top:8px;background:#0d9488;color:white;border-radius:8px;padding:6px;font-size:10px;font-weight:700;text-align:center">I-save ang Rating ng Guro</div>
+          <div style="margin-top:8px;font-size:9px;color:#ef4444">⚠ TS error: 'rating: number' vs 'TeacherRubricScores'</div>
+        </div>
+      </div>
+
+      <!-- After -->
+      <div class="card">
+        <div class="card-title" style="color:#059669">After <span class="badge badge-green">TS fixed</span></div>
+        <div class="mockup">
+          <div class="mockup-title">Marka ng Guro — DepEd Rubrik</div>
+          <div class="dim-row" style="padding-top:0">
+            <div></div>
+            <div class="col-header">Sistema</div>
+            <div class="col-header">Guro</div>
+          </div>
+          <div class="dim-row">
+            <div class="dim-label">Nilalaman <small>Content</small></div>
+            <div class="pips">
+              <div class="pip pip-filled"></div><div class="pip pip-filled"></div><div class="pip pip-filled"></div><div class="pip pip-empty"></div>
+            </div>
+            <div class="stars">
+              <span class="star-filled">★</span><span class="star-filled">★</span><span class="star-filled">★</span><span class="star-empty">★</span>
+            </div>
+          </div>
+          <div class="dim-row">
+            <div class="dim-label">Organisasyon <small>Organization</small></div>
+            <div class="pips">
+              <div class="pip pip-filled"></div><div class="pip pip-filled"></div><div class="pip pip-empty"></div><div class="pip pip-empty"></div>
+            </div>
+            <div class="stars">
+              <span class="star-filled">★</span><span class="star-filled">★</span><span class="star-empty">★</span><span class="star-empty">★</span>
+            </div>
+          </div>
+          <div class="dim-row">
+            <div class="dim-label">Gramatika <small>Grammar</small></div>
+            <div class="pips">
+              <div class="pip pip-filled"></div><div class="pip pip-filled"></div><div class="pip pip-filled"></div><div class="pip pip-filled"></div>
+            </div>
+            <div class="stars">
+              <span class="star-filled">★</span><span class="star-filled">★</span><span class="star-filled">★</span><span class="star-filled">★</span>
+            </div>
+          </div>
+          <div class="dim-row">
+            <div class="dim-label">Wika/Talasalitaan <small>Language</small></div>
+            <div class="pips">
+              <div class="pip pip-filled"></div><div class="pip pip-filled"></div><div class="pip pip-filled"></div><div class="pip pip-empty"></div>
+            </div>
+            <div class="stars">
+              <span class="star-filled">★</span><span class="star-filled">★</span><span class="star-filled">★</span><span class="star-empty">★</span>
+            </div>
+          </div>
+          <div class="dim-row" style="border:none">
+            <div class="dim-label">Mekanika <small>Mechanics</small></div>
+            <div class="pips">
+              <div class="pip pip-filled"></div><div class="pip pip-filled"></div><div class="pip pip-empty"></div><div class="pip pip-empty"></div>
+            </div>
+            <div class="stars">
+              <span class="star-filled">★</span><span class="star-filled">★</span><span class="star-filled">★</span><span class="star-empty">★</span>
+            </div>
+          </div>
+          <div class="overall-row">
+            <div class="overall-label">Kabuuan</div>
+            <div class="overall-sys">2.8/4</div>
+            <div class="overall-teacher">3.0/4</div>
+          </div>
+          <button class="save-btn">I-save ang Marka ng Guro</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar + EssayPanel -->
+  <div class="grid-2" style="margin-bottom:36px">
+    <div class="card">
+      <div class="card-title">Chunk 4 · Sidebar — Retrain Widget <span class="badge badge-amber">new</span></div>
+      <div class="sidebar-widget">
+        <div style="font-size:8px;font-weight:800;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Katumpakan ng Modelo</div>
+        <div class="conf-row">
+          <div><span class="conf-dot dot-yellow"></span><span class="conf-label">🇺🇸 Papaunlad</span></div>
+          <span class="conf-count">12 rated</span>
+        </div>
+        <div class="conf-row">
+          <div><span class="conf-dot dot-red"></span><span class="conf-label">🇵🇭 Natututo pa</span></div>
+          <span class="conf-count">3 rated</span>
+        </div>
+        <button class="retrain-btn retrain-btn-en" style="margin-top:10px">🔄 I-retrain English (7 bago)</button>
+        <div style="margin-top:6px;font-size:9px;color:#9ca3af;text-align:center">Filipino: need 2 more ratings</div>
+      </div>
+      <div style="margin-top:12px;font-size:10px;color:#6b7280">Fetched on mount via <code style="background:#f3f4f6;padding:1px 5px;border-radius:4px;font-size:9px">getTrainStatusAPI()</code> in index.tsx. Retrain button appears when <code style="background:#f3f4f6;padding:1px 5px;border-radius:4px;font-size:9px">new_since_retrain ≥ 5</code>.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Chunk 5 · EssayPanel Cards <span class="badge badge-blue">display update</span></div>
+      <!-- Essay card: unrated, Natututo pa -->
+      <div class="essay-card" style="border-color:#fde68a">
+        <div class="essay-title">Ang Aking Pamilya</div>
+        <div class="essay-meta">
+          <span class="prof-badge" style="background:#d1fae5;color:#065f46">Mahusay</span>
+          <div class="pips">
+            <div class="pip pip-filled"></div><div class="pip pip-filled"></div><div class="pip pip-filled"></div><div class="pip pip-empty"></div>
+          </div>
+          <span style="font-size:10px">⚠️</span>
+          <span style="font-size:9px;color:#9ca3af;margin-left:auto">Mar 17</span>
+        </div>
+        <div style="font-size:9px;color:#d97706;margin-top:4px">Unrated · model is Natututo pa</div>
+      </div>
+      <!-- Essay card: rated -->
+      <div class="essay-card">
+        <div class="essay-title">Ang Kahalagahan ng Edukasyon</div>
+        <div class="essay-meta">
+          <span class="prof-badge" style="background:#fef3c7;color:#92400e">Papaunlad</span>
+          <div class="pips">
+            <div class="pip pip-filled"></div><div class="pip pip-filled"></div><div class="pip pip-empty"></div><div class="pip pip-empty"></div>
+          </div>
+          <span style="font-size:10px;color:#f59e0b;display:flex;align-items:center;gap:2px">★ 2.4/4</span>
+          <span style="font-size:9px;color:#9ca3af;margin-left:auto">Mar 15</span>
+        </div>
+      </div>
+      <div style="margin-top:8px;font-size:10px;color:#6b7280">Teal pips = system Gemini suggestion. Amber ★ = teacher rubric score. ⚠️ = model still learning.</div>
+    </div>
+  </div>
+
+  <!-- Data flow -->
+  <div class="section">
+    <div class="section-title">Data Flow — Teacher Rating → Retrain</div>
+    <div class="flow">
+      <div class="flow-step">Teacher rates 5 dimensions<br><small style="font-weight:500;color:#6b7280">1–4 per dim in EssayViewerModal</small></div>
+      <span class="arrow">→</span>
+      <div class="flow-step">TeacherRubricScores saved<br><small style="font-weight:500;color:#6b7280">Supabase teacher_rubric_scores JSONB</small></div>
+      <span class="arrow">→</span>
+      <div class="flow-step active">Sidebar shows "N bago"<br><small style="font-weight:500;color:#1e3a8a">new_since_retrain counter</small></div>
+      <span class="arrow">→</span>
+      <div class="flow-step active">Teacher clicks Retrain<br><small style="font-weight:500;color:#1e3a8a">POST /train/retrain</small></div>
+      <span class="arrow">→</span>
+      <div class="flow-step active">Backend pulls rated essays<br><small style="font-weight:500;color:#1e3a8a">service key · no student names</small></div>
+      <span class="arrow">→</span>
+      <div class="flow-step">Retrains SVM · saves .pkl<br><small style="font-weight:500;color:#6b7280">proficiency_model_en/tl.pkl</small></div>
+      <span class="arrow">→</span>
+      <div class="flow-step done">Confidence level upgrades<br><small style="font-weight:500;color:#065f46">Sidebar badge updates</small></div>
+    </div>
+  </div>
+
+  <!-- Already done -->
+  <div class="card" style="border-color:#d1fae5">
+    <div class="card-title" style="color:#059669">✓ Already Implemented (no plan tasks needed)</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">
+      <span class="badge badge-green">GET /train/status</span>
+      <span class="badge badge-green">POST /train/retrain</span>
+      <span class="badge badge-green">getTrainStatusAPI()</span>
+      <span class="badge badge-green">triggerRetrainAPI()</span>
+      <span class="badge badge-green">saveTeacherRubricScores()</span>
+      <span class="badge badge-green">TeacherRubricScores type</span>
+      <span class="badge badge-green">Supabase migration SQL</span>
+      <span class="badge badge-green">Two SVM model loading</span>
+      <span class="badge badge-green">handleSaveEvaluation() in index.tsx</span>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

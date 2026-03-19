@@ -43,6 +43,20 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
   const initialStudents = initialStudentsRef.current;
 
   const [students, setStudents] = useState<Student[]>(initialStudents);
+  const pendingRubricSavesRef = React.useRef<Record<string, TeacherRubricScores>>({});
+
+  const flushPendingRubricSave = useCallback(async (tempEssayId: string, realEssayId: string) => {
+    const pending = pendingRubricSavesRef.current[tempEssayId];
+    if (!pending) return;
+
+    delete pendingRubricSavesRef.current[tempEssayId];
+    const { error } = await saveTeacherRubricScores(realEssayId, pending);
+    if (error) {
+      console.error('Flushed rubric score save failed:', error, 'id:', realEssayId);
+    } else {
+      getTrainStatusAPI().then(setTrainStatus).catch(() => {});
+    }
+  }, []);
 
   // ── Navigation state ──────────────────────────────────
   const [selectedSectionId, setSelectedSectionId] = useState<string>(sections[0]?.id ?? '');
@@ -233,7 +247,8 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
 
     const targetStudent = next.find(s => s.id === params.studentId);
     const sectionName = sections.find(sec => sec.id === targetStudent?.sectionId)?.name;
-    saveStudentGradingUpload({
+    let persistedEssayId = essay.id;
+    const { data, error } = await saveStudentGradingUpload({
       student_name: targetStudent?.name ?? 'Unknown Student',
       essay_title: essay.title,
       essay_text: essay.text,
@@ -245,30 +260,43 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
       subject_name: selectedSubjectForUpload?.name,
       subject_language: selectedSubjectForUpload?.language === 'english' ? 'en' : 'tl',
       original_file: essay.originalFile ?? null,
-    }).then(({ data }) => {
-      if (data?.id) {
-        // Replace temp timestamp ID with the real Supabase UUID — persist to localStorage too
-        setStudents(prev => {
-          const updated = prev.map(s => ({
-            ...s,
-            essays: s.essays.map(e => e.id === essay.id ? { ...e, id: data.id } : e),
-          }));
-          saveStudents(updated);
-          return updated;
-        });
-        setSelectedEssayId(id => id === essay.id ? data.id : id);
-      }
-    }).catch(console.error);
+    });
+
+    if (error) {
+      console.error('saveStudentGradingUpload failed:', error);
+    }
+
+    let realId: string | null = data?.id ?? null;
+    if (!realId) {
+      // Fallback: resolve by text in case insert completed but id was not returned.
+      realId = await lookupEssayIdByText(essay.text);
+    }
+
+    if (realId) {
+      persistedEssayId = realId;
+      // Replace temp timestamp ID with the real Supabase UUID — persist to localStorage too
+      setStudents(prev => {
+        const updated = prev.map(s => ({
+          ...s,
+          essays: s.essays.map(e => e.id === essay.id ? { ...e, id: realId } : e),
+        }));
+        saveStudents(updated);
+        return updated;
+      });
+
+      // If teacher saved while ID was still temporary, persist the queued rubric now.
+      flushPendingRubricSave(essay.id, realId).catch(console.error);
+    }
 
     setSelectedStudentId(params.studentId);
-    setSelectedEssayId(essay.id);
+    setSelectedEssayId(persistedEssayId);
     const student = next.find(s => s.id === params.studentId);
     if (student) setSelectedSectionId(student.sectionId);
     setSelectedSubjectId(params.subjectId);
 
     if (onSaveAnalysis) {
       onSaveAnalysis({
-        id: essay.id,
+        id: persistedEssayId,
         timestamp: essay.uploadedAt,
         title: essay.title,
         studentText: essay.text,
@@ -310,7 +338,16 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
     if (isTempId) {
       const essayText = students.flatMap(s => s.essays).find(e => e.id === essayId)?.text;
       if (essayText) {
-        const realId = await lookupEssayIdByText(essayText);
+        // If the teacher clicks save immediately after upload, the insert may still be in flight.
+        // Retry briefly before giving up to avoid sending an invalid UUID to Supabase.
+        let realId: string | null = null;
+        for (let attempt = 0; attempt < 3 && !realId; attempt++) {
+          realId = await lookupEssayIdByText(essayText);
+          if (!realId) {
+            await new Promise(resolve => setTimeout(resolve, 300));
+          }
+        }
+
         if (realId) {
           idToUse = realId;
           setStudents(prev => {
@@ -324,10 +361,58 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
           setSelectedEssayId(id => id === essayId ? realId : id);
         }
       }
+
+      // UUID still not resolved — the initial INSERT likely failed.
+      // Do a full INSERT now with rubric scores included so data reaches Supabase.
+      if (!idToUse || /^\d+$/.test(idToUse)) {
+        const essayRef = students.flatMap(s => s.essays).find(e => e.id === essayId);
+        if (essayRef) {
+          const studentRef = students.find(s => s.essays.some(e => e.id === essayId));
+          const subjectRef = subjects.find(s => s.id === essayRef.subjectId);
+          const sectionRef = sections.find(s => s.id === studentRef?.sectionId);
+          const { data: insertData, error: insertError } = await saveStudentGradingUpload({
+            student_name: studentRef?.name ?? '',
+            essay_title: essayRef.title,
+            essay_text: essayRef.text,
+            proficiency_level: essayRef.diagnosisResult?.proficiency,
+            nat_score: essayRef.diagnosisResult?.natScore ?? null,
+            diagnosis_result: essayRef.diagnosisResult,
+            complexity_result: essayRef.complexityResult,
+            section_name: sectionRef?.name,
+            subject_name: subjectRef?.name,
+            subject_language: subjectRef?.language === 'english' ? 'en' : 'tl',
+            teacher_rubric_scores: rubricScores,
+            original_file: essayRef.originalFile ?? null,
+          });
+          if (insertError) {
+            console.error('Fallback INSERT with rubric failed:', insertError);
+            throw new Error(insertError);
+          }
+          if (insertData?.id) {
+            const newRealId = insertData.id;
+            setStudents(prev => {
+              const updated = prev.map(s => ({
+                ...s,
+                essays: s.essays.map(e => e.id === essayId ? { ...e, id: newRealId } : e),
+              }));
+              saveStudents(updated);
+              return updated;
+            });
+            setSelectedEssayId(id => id === essayId ? newRealId : id);
+          }
+        } else {
+          throw new Error('Essay data not found; cannot save to Supabase.');
+        }
+        getTrainStatusAPI().then(setTrainStatus).catch(() => {});
+        return;
+      }
     }
 
     const { error } = await saveTeacherRubricScores(idToUse, rubricScores);
-    if (error) console.error('saveTeacherRubricScores failed:', error, 'id:', idToUse);
+    if (error) {
+      console.error('saveTeacherRubricScores failed:', error, 'id:', idToUse);
+      throw new Error(error);
+    }
     getTrainStatusAPI().then(setTrainStatus).catch(() => {});
   };
 

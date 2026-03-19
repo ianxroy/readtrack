@@ -1,5 +1,16 @@
 import { StudentDiagnosisResult, TextComplexityResult } from '../../types';
 
+export interface TeacherRubricScores {
+  content: number;
+  organization: number;
+  languageVocab: number;
+  grammar: number;
+  mechanics: number;
+  overall: number;
+  percentage: number;
+  transmuted?: number;
+}
+
 export interface Section {
   id: string;   // Date.now().toString()
   name: string;
@@ -21,6 +32,7 @@ export interface StudentEssay {
   complexityResult?: TextComplexityResult;
   teacherRating?: number;
   teacherComment?: string;
+  teacherRubricScores?: TeacherRubricScores;
   originalFile?: { base64: string; mimeType: string; name: string };
 }
 

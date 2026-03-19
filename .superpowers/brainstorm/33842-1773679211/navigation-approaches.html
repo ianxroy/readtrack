@@ -1,0 +1,211 @@
+<style>
+  .approaches { display: flex; flex-direction: column; gap: 28px; }
+  .approach { border: 2px solid #e5e7eb; border-radius: 14px; overflow: hidden; cursor: pointer; transition: all 0.2s; }
+  .approach:hover { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+  .approach.selected { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.15); }
+  .approach-header { padding: 14px 18px; background: #f8fafc; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e5e7eb; }
+  .approach-label { font-weight: 700; font-size: 13px; color: #1e293b; }
+  .approach-tag { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 999px; }
+  .tag-recommended { background: #dcfce7; color: #15803d; }
+  .tag-simple { background: #dbeafe; color: #1d4ed8; }
+  .tag-compact { background: #fef3c7; color: #b45309; }
+  .mockup-wrap { padding: 16px; background: white; }
+
+  /* Approach A: Three-panel */
+  .panel-layout { display: flex; height: 200px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; font-size: 11px; }
+  .p-sections { width: 22%; background: #1e293b; color: white; padding: 8px; }
+  .p-students { width: 38%; background: #f8fafc; border-right: 1px solid #e5e7eb; padding: 8px; }
+  .p-essay { width: 40%; background: white; padding: 8px; }
+  .p-title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.5; margin-bottom: 6px; }
+  .p-item { padding: 5px 7px; border-radius: 5px; margin-bottom: 3px; cursor: pointer; }
+  .p-item.active { background: #6366f1; color: white; }
+  .p-item.section-active { background: rgba(255,255,255,0.15); }
+  .subject-tabs { display: flex; gap: 4px; margin-bottom: 8px; }
+  .stab { padding: 3px 8px; border-radius: 5px; font-size: 10px; font-weight: 600; border: 1px solid #e5e7eb; }
+  .stab.active { background: #6366f1; color: white; border-color: #6366f1; }
+  .student-card { border: 1px solid #e5e7eb; border-radius: 5px; padding: 5px 7px; margin-bottom: 4px; background: white; }
+  .sc-name { font-weight: 600; font-size: 10px; color: #1e293b; }
+  .sc-meta { font-size: 9px; color: #94a3b8; }
+  .essay-item { border-bottom: 1px solid #f1f5f9; padding: 5px 0; }
+  .essay-title { font-weight: 600; font-size: 10px; color: #1e293b; }
+  .badge { font-size: 9px; padding: 1px 5px; border-radius: 3px; }
+  .badge-en { background: #dbeafe; color: #1d4ed8; }
+  .badge-fil { background: #fce7f3; color: #be185d; }
+
+  /* Approach B: Drilldown */
+  .drilldown { border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; font-size: 11px; }
+  .breadcrumb { background: #f8fafc; border-bottom: 1px solid #e5e7eb; padding: 8px 12px; display: flex; align-items: center; gap: 6px; font-size: 10px; color: #64748b; }
+  .bc-active { color: #6366f1; font-weight: 700; }
+  .bc-sep { color: #cbd5e1; }
+  .section-cards { display: flex; gap: 8px; padding: 12px; flex-wrap: wrap; }
+  .sec-card { border: 1.5px solid #e5e7eb; border-radius: 7px; padding: 8px 12px; flex: 1; min-width: 110px; cursor: pointer; background: white; }
+  .sec-card.active { border-color: #6366f1; background: #eef2ff; }
+  .sec-name { font-weight: 700; font-size: 11px; color: #1e293b; }
+  .sec-count { font-size: 9px; color: #94a3b8; }
+  .subj-row { display: flex; gap: 8px; padding: 8px 12px; border-top: 1px solid #f1f5f9; background: #fafbff; }
+  .subj-pill { padding: 4px 14px; border-radius: 99px; font-size: 10px; font-weight: 700; border: 1.5px solid #e5e7eb; cursor: pointer; }
+  .subj-pill.en-active { background: #dbeafe; border-color: #3b82f6; color: #1d4ed8; }
+  .subj-pill.fil-active { background: #fce7f3; border-color: #ec4899; color: #be185d; }
+  .student-list-drill { padding: 8px 12px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .std-chip { padding: 4px 10px; border-radius: 99px; background: #f1f5f9; font-size: 10px; font-weight: 600; color: #475569; cursor: pointer; border: 1px solid #e5e7eb; }
+  .std-chip.active { background: #6366f1; color: white; border-color: #6366f1; }
+
+  /* Approach C: Sidebar + grid */
+  .sidebar-grid { display: flex; height: 190px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; font-size: 11px; }
+  .sg-sidebar { width: 30%; background: #f8fafc; border-right: 1px solid #e5e7eb; padding: 8px; overflow: hidden; }
+  .sg-main { width: 70%; padding: 8px; background: white; }
+  .sec-row { padding: 5px 7px; border-radius: 5px; margin-bottom: 2px; font-weight: 600; color: #475569; font-size: 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+  .sec-row.active { background: #eef2ff; color: #6366f1; }
+  .sec-badge { background: #e0e7ff; color: #6366f1; border-radius: 99px; padding: 1px 6px; font-size: 9px; }
+  .subj-header { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+  .mini-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+  .mini-card { border: 1px solid #e5e7eb; border-radius: 5px; padding: 5px; background: #fafafa; }
+  .mc-name { font-weight: 700; font-size: 9px; color: #1e293b; }
+  .mc-meta { font-size: 8px; color: #94a3b8; }
+</style>
+
+<h2>How should the Section → Subject → Student → Essay navigation work?</h2>
+<p class="subtitle">All three approaches support the full Section &gt; Subject &gt; Student &gt; Essay hierarchy. Pick based on how you prefer to navigate.</p>
+
+<div class="approaches">
+
+  <!-- Approach A -->
+  <div class="option approach" data-choice="a" onclick="toggleSelect(this)">
+    <div class="approach-header">
+      <span class="approach-label">A — Three-Panel (Gmail-style)</span>
+      <span class="approach-tag tag-recommended">⭐ Recommended</span>
+    </div>
+    <div class="mockup-wrap">
+      <div class="panel-layout">
+        <div class="p-sections">
+          <div class="p-title">Sections</div>
+          <div class="p-item section-active">Gr. 7 – Rizal</div>
+          <div class="p-item">Gr. 7 – Bonifacio</div>
+          <div class="p-item">Gr. 8 – Luna</div>
+        </div>
+        <div class="p-students">
+          <div class="subject-tabs">
+            <div class="stab active">🇺🇸 English</div>
+            <div class="stab">🇵🇭 Filipino</div>
+          </div>
+          <div class="p-title">Students — 3 essays</div>
+          <div class="student-card" style="border-color:#6366f1; background:#eef2ff;">
+            <div class="sc-name">Juan Dela Cruz</div>
+            <div class="sc-meta">3 essays · Avg ★4.2</div>
+          </div>
+          <div class="student-card">
+            <div class="sc-name">Maria Santos</div>
+            <div class="sc-meta">2 essays · Avg ★3.8</div>
+          </div>
+          <div class="student-card">
+            <div class="sc-name">Pedro Reyes</div>
+            <div class="sc-meta">1 essay · —</div>
+          </div>
+        </div>
+        <div class="p-essay">
+          <div class="p-title">Juan Dela Cruz</div>
+          <div class="essay-item">
+            <div class="essay-title">Narrative Essay #1 <span class="badge badge-en">EN</span></div>
+            <div class="sc-meta">Independent · Score 88%</div>
+          </div>
+          <div class="essay-item">
+            <div class="essay-title">Persuasive Essay <span class="badge badge-en">EN</span></div>
+            <div class="sc-meta">Instructional · Score 72%</div>
+          </div>
+          <div class="essay-item">
+            <div class="essay-title">Poem Analysis <span class="badge badge-en">EN</span></div>
+            <div class="sc-meta">Frustration · Score 51%</div>
+          </div>
+        </div>
+      </div>
+      <p style="font-size:10px;color:#94a3b8;margin-top:8px;">Always-visible sections rail + subject tabs + student list + essay panel. No back buttons needed.</p>
+    </div>
+  </div>
+
+  <!-- Approach B -->
+  <div class="option approach" data-choice="b" onclick="toggleSelect(this)">
+    <div class="approach-header">
+      <span class="approach-label">B — Drilldown with Breadcrumb</span>
+      <span class="approach-tag tag-simple">Clean &amp; Sequential</span>
+    </div>
+    <div class="mockup-wrap">
+      <div class="drilldown">
+        <div class="breadcrumb">
+          <span>Sections</span>
+          <span class="bc-sep">›</span>
+          <span class="bc-active">Gr. 7 – Rizal</span>
+          <span class="bc-sep">›</span>
+          <span class="bc-active">English</span>
+          <span class="bc-sep">›</span>
+          <span class="bc-active">Juan Dela Cruz</span>
+        </div>
+        <div class="section-cards" style="padding:8px 12px 0;">
+          <div class="sec-card active">
+            <div class="sec-name">Gr. 7 – Rizal</div>
+            <div class="sec-count">28 students</div>
+          </div>
+        </div>
+        <div class="subj-row">
+          <div class="subj-pill en-active">🇺🇸 English</div>
+          <div class="subj-pill">🇵🇭 Filipino</div>
+        </div>
+        <div class="student-list-drill">
+          <div class="std-chip active">Juan Dela Cruz</div>
+          <div class="std-chip">Maria Santos</div>
+          <div class="std-chip">Pedro Reyes</div>
+          <div class="std-chip">Ana Lim</div>
+          <div class="std-chip">Carlo Bautista</div>
+        </div>
+      </div>
+      <p style="font-size:10px;color:#94a3b8;margin-top:8px;">Step-by-step navigation. Each level drills deeper. Breadcrumb lets you jump back to any level.</p>
+    </div>
+  </div>
+
+  <!-- Approach C -->
+  <div class="option approach" data-choice="c" onclick="toggleSelect(this)">
+    <div class="approach-header">
+      <span class="approach-label">C — Sidebar Sections + Subject Tabs + Card Grid</span>
+      <span class="approach-tag tag-compact">Compact Overview</span>
+    </div>
+    <div class="mockup-wrap">
+      <div class="sidebar-grid">
+        <div class="sg-sidebar">
+          <div class="p-title">Sections</div>
+          <div class="sec-row active">Gr. 7 – Rizal <span class="sec-badge">28</span></div>
+          <div class="sec-row">Gr. 7 – Bonifacio <span class="sec-badge">25</span></div>
+          <div class="sec-row">Gr. 8 – Luna <span class="sec-badge">30</span></div>
+          <div style="margin-top:8px; border-top:1px solid #e5e7eb; padding-top:6px;">
+            <div style="font-size:9px; color:#94a3b8; font-weight:600; margin-bottom:4px;">SUBJECT</div>
+            <div class="subj-pill en-active" style="display:inline-block; margin-bottom:4px;">🇺🇸 English</div><br/>
+            <div class="subj-pill" style="display:inline-block;">🇵🇭 Filipino</div>
+          </div>
+        </div>
+        <div class="sg-main">
+          <div class="subj-header">
+            <span style="font-size:11px; font-weight:700; color:#1e293b;">Grade 7 – Rizal</span>
+            <span class="badge badge-en">English</span>
+          </div>
+          <div class="mini-grid">
+            <div class="mini-card" style="border-color:#6366f1;">
+              <div class="mc-name">Juan Dela Cruz</div>
+              <div class="mc-meta">3 essays · ★4.2</div>
+              <div class="mc-meta" style="color:#15803d;">Independent</div>
+            </div>
+            <div class="mini-card">
+              <div class="mc-name">Maria Santos</div>
+              <div class="mc-meta">2 essays · ★3.8</div>
+              <div class="mc-meta" style="color:#b45309;">Instructional</div>
+            </div>
+            <div class="mini-card">
+              <div class="mc-name">Pedro Reyes</div>
+              <div class="mc-meta">1 essay · —</div>
+              <div class="mc-meta" style="color:#dc2626;">Frustration</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p style="font-size:10px;color:#94a3b8;margin-top:8px;">Section + subject always visible in sidebar. Student grid updates live as you switch. Dense overview.</p>
+    </div>
+  </div>
+
+</div>

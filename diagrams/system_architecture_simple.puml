@@ -1,0 +1,64 @@
+@startuml ReadTrack System Architecture (Simplified)
+top to bottom direction
+title ReadTrack - System Architecture (Simplified)
+skinparam linetype ortho
+skinparam nodesep 50
+skinparam ranksep 40
+
+skinparam component {
+  BackgroundColor #F0F8FF
+  BorderColor #4682B4
+}
+skinparam node {
+  BackgroundColor #F0FFF0
+  BorderColor #2E8B57
+}
+skinparam database {
+  BackgroundColor #FFF8DC
+  BorderColor #DAA520
+}
+skinparam cloud {
+  BackgroundColor #F5F5F5
+  BorderColor #778899
+}
+
+actor "Teacher / Student" as user
+
+node "Frontend\n(React + TypeScript + Vite)" as frontend {
+  [Pages & Components] as pages
+  [Frontend Services] as services
+  [State & Storage] as state
+}
+
+node "Backend\n(FastAPI + Python 3.9)" as backend {
+  [API Endpoints] as api
+  [NLP Processing] as nlp
+  [ML Models (SVM)] as ml
+  [Text Extraction] as extraction
+  [Training Scripts] as training
+}
+
+cloud "Google Gemini API" as gemini
+
+database "Supabase\n(Auth + PostgreSQL)" as supabase
+
+database "Training Data\n(ASAP2 Dataset)" as asapdata
+
+user -down-> pages
+pages -down-> services
+services -down-> state
+
+services -down-> api : HTTP REST
+services -down-> gemini : HTTPS
+services -down-> supabase : HTTPS
+
+api -down-> nlp
+api -down-> ml
+api -down-> extraction
+
+extraction -down-> gemini : Gemini Vision
+
+training -down-> asapdata
+training -down-> ml : generates
+
+@enduml

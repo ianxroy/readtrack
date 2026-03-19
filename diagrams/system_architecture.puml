@@ -1,0 +1,192 @@
+@startuml ReadTrack System Architecture
+top to bottom direction
+title ReadTrack - System Architecture Diagram
+skinparam linetype ortho
+skinparam nodesep 60
+skinparam ranksep 50
+
+skinparam component {
+  BackgroundColor #F0F8FF
+  BorderColor #4682B4
+}
+skinparam package {
+  BackgroundColor #FAFAFA
+  BorderColor #708090
+}
+skinparam database {
+  BackgroundColor #FFF8DC
+  BorderColor #DAA520
+}
+skinparam cloud {
+  BackgroundColor #F5F5F5
+  BorderColor #778899
+}
+skinparam node {
+  BackgroundColor #F0FFF0
+  BorderColor #2E8B57
+}
+
+' =============================================
+' LAYER 1: User
+' =============================================
+actor "Teacher / Student" as user
+
+' =============================================
+' LAYER 2: Frontend
+' =============================================
+node "Frontend (React + TypeScript + Vite)" as frontend {
+
+  package "Pages / Components" as pages {
+    [App.tsx\n(Router & Layout)] as app
+    [StudentGrading.tsx] as grading
+    [MaterialLibrary.tsx] as matlib
+    [GrammarChecker.tsx] as grammarui
+    [Dashboard.tsx] as dashboard
+    [ModelEvaluation.tsx] as evalui
+    [ChatInterface.tsx] as chatui
+    [Analyzer.tsx] as analyzer
+  }
+
+  package "Frontend Services" as services {
+    [pythonService.ts\n(Backend API)] as pyservice
+    [grammarService.ts\n(Grammar API)] as gramservice
+    [geminiService.ts\n(Gemini API)] as gemservice
+    [supabaseService.ts\n(Auth & Data)] as supaservice
+  }
+
+  package "State & Storage" as state {
+    [localStorage\n(Essays, History,\nMaterials, References)] as localstorage
+    [React State] as reactstate
+  }
+}
+
+' =============================================
+' LAYER 3: Backend
+' =============================================
+node "Backend (FastAPI + Python 3.9)" as backend {
+
+  package "API Endpoints" as endpoints {
+    [main.py\n/analyze/student\n/analyze/complexity\n/ocr/extract\n/reference/ingest] as mainapi
+    [grammar_service.py\n/api/grammar/check\n/api/spelling/check\n/api/definition] as grammarapi
+    [tagalog_service.py\n/api/tagalog/analyze\n/api/tagalog/pos-tags] as tagalogapi
+  }
+
+  package "NLP Processing" as nlp {
+    [preprocessing.py\n(Feature Extraction)\n50+ linguistic features] as preprocess
+    [spaCy\n(en_core_web_lg)] as spacy
+    [calamanCy\n(Tagalog NLP)] as calamancy
+    [LanguageTool\n(Grammar Check)] as langtool
+    [langdetect] as langdetect
+  }
+
+  package "ML Models (SVM)" as ml {
+    [svm_models.py\nProficiency & Complexity] as svmmodels
+    [proficiency_model.pkl\n(85.1% accuracy)] as profmodel
+    [complexity_model.pkl] as compmodel
+    [scaler .pkl files] as scalers
+  }
+
+  package "Text Extraction" as extraction {
+    [ocr.py\n(Gemini Vision OCR)] as ocr
+    [PyPDF2\n(PDF Extraction)] as pypdf
+  }
+
+  package "Training Scripts" as training {
+    [train_proficiency.py] as trainprof
+    [train_complexity.py] as traincomp
+    [train_utils.py] as trainutils
+  }
+}
+
+' =============================================
+' LAYER 4: External Services & Data
+' =============================================
+cloud "Google Gemini API\n(gemini-2.0-flash)" as gemini
+
+database "Supabase" as supabase {
+  [Authentication] as auth
+  [PostgreSQL] as postgres
+}
+
+database "Training Data\nASAP2 (15,926 essays)" as asapdata
+
+' =============================================
+' CONNECTIONS: User -> Frontend
+' =============================================
+user -down-> app
+
+' =============================================
+' CONNECTIONS: App -> Pages (internal)
+' =============================================
+app -down-> grading
+app -down-> matlib
+app -down-> grammarui
+app -down-> dashboard
+app -down-> evalui
+app -down-> chatui
+
+' =============================================
+' CONNECTIONS: Pages -> Services
+' =============================================
+grading -down-> pyservice
+grading -down-> analyzer
+matlib -down-> pyservice
+grammarui -down-> gramservice
+evalui -down-> pyservice
+chatui -down-> gemservice
+analyzer -down-> pyservice
+dashboard -down-> localstorage
+
+' =============================================
+' CONNECTIONS: Frontend -> Backend (HTTP REST)
+' =============================================
+pyservice -down-> mainapi : HTTP REST
+gramservice -down-> grammarapi : HTTP REST
+pyservice -down-> tagalogapi : HTTP REST
+
+' =============================================
+' CONNECTIONS: Frontend -> External
+' =============================================
+gemservice -down-> gemini : HTTPS
+supaservice -down-> auth : HTTPS
+
+' =============================================
+' CONNECTIONS: Backend internal
+' =============================================
+mainapi -down-> preprocess
+mainapi -down-> svmmodels
+mainapi -down-> ocr
+mainapi -down-> pypdf
+mainapi -down-> langdetect
+
+svmmodels -down-> profmodel
+svmmodels -down-> compmodel
+svmmodels -down-> scalers
+
+preprocess -down-> spacy
+preprocess -down-> calamancy
+
+grammarapi -down-> langtool
+tagalogapi -down-> calamancy
+
+' =============================================
+' CONNECTIONS: Backend -> External
+' =============================================
+ocr -down-> gemini : Gemini Vision
+
+' =============================================
+' CONNECTIONS: Training
+' =============================================
+trainprof -down-> asapdata
+traincomp -down-> asapdata
+trainprof -right-> trainutils
+traincomp -right-> trainutils
+trainprof -left-> profmodel : generates
+traincomp -left-> compmodel : generates
+
+' =============================================
+' CONNECTIONS: Supabase internal
+' =============================================
+auth -down-> postgres
+
+@enduml

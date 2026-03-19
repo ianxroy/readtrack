@@ -1,0 +1,189 @@
+<style>
+  .spill { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 99px; font-size: 9px; font-weight: 700; border: 1.5px solid; }
+  .spill-en  { background: #dbeafe; color: #1d4ed8; border-color: #93c5fd; }
+  .spill-fil { background: #fce7f3; color: #be185d; border-color: #f9a8d4; }
+  .badge { font-size: 9px; padding: 2px 6px; border-radius: 4px; font-weight: 700; }
+  .badge-ind { background: #dcfce7; color: #15803d; }
+  .badge-ins { background: #fef3c7; color: #b45309; }
+  .badge-fru { background: #fee2e2; color: #dc2626; }
+  .p-title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #94a3b8; margin-bottom: 6px; }
+
+  /* shared sidebar */
+  .layout { display: flex; height: 260px; border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden; font-size: 11px; }
+  .sidebar { width: 28%; background: #f8fafc; border-right: 1px solid #e5e7eb; padding: 8px; overflow-y: auto; flex-shrink: 0; }
+  .sec-row { padding: 5px 7px; border-radius: 5px; margin-bottom: 2px; font-weight: 700; color: #475569; font-size: 10px; }
+  .sec-row.active { background: #eef2ff; color: #6366f1; }
+  .subj-indent { padding-left: 10px; margin-bottom: 2px; }
+  .subj-row { display: flex; align-items: center; gap: 4px; padding: 3px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; color: #374151; cursor: pointer; }
+  .subj-row.active { background: #e0e7ff; color: #4f46e5; }
+
+  /* option X: right panel replaces grid */
+  .grid-area { flex: 1; padding: 10px; background: white; overflow-y: auto; }
+  .student-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+  .mini-card { border: 1.5px solid #e5e7eb; border-radius: 7px; padding: 8px; cursor: pointer; transition: all 0.15s; }
+  .mini-card:hover { border-color: #6366f1; background: #fafbff; }
+  .mini-card.selected { border-color: #6366f1; background: #eef2ff; }
+  .mc-name { font-weight: 700; font-size: 10px; color: #1e293b; }
+  .mc-meta { font-size: 9px; color: #94a3b8; margin-top: 2px; }
+
+  /* essay panel */
+  .essay-panel { width: 36%; border-left: 1px solid #e5e7eb; background: white; padding: 10px; overflow-y: auto; flex-shrink: 0; }
+  .essay-list-item { border: 1px solid #e5e7eb; border-radius: 7px; padding: 8px 10px; margin-bottom: 6px; cursor: pointer; transition: all 0.15s; }
+  .essay-list-item:hover { border-color: #6366f1; background: #fafbff; }
+  .essay-list-item.sel { border-color: #6366f1; background: #eef2ff; }
+  .et { font-weight: 700; font-size: 10px; color: #1e293b; margin-bottom: 3px; }
+  .em { font-size: 9px; color: #94a3b8; display: flex; align-items: center; gap: 4px; }
+
+  /* option Y: expand card inline */
+  .expanded-card { border: 1.5px solid #6366f1; border-radius: 8px; background: #eef2ff; margin-bottom: 6px; overflow: hidden; }
+  .expanded-header { display: flex; justify-content: space-between; align-items: center; padding: 7px 10px; border-bottom: 1px solid #c7d2fe; }
+  .expanded-essays { padding: 6px 10px; display: flex; flex-direction: column; gap: 4px; }
+  .exp-essay { display: flex; justify-content: space-between; align-items: center; padding: 4px 6px; border-radius: 5px; background: white; border: 1px solid #e0e7ff; font-size: 9px; cursor: pointer; }
+  .exp-essay:hover { border-color: #6366f1; }
+
+  .option-wrap { margin-bottom: 32px; }
+  .option-label { font-weight: 700; font-size: 13px; color: #1e293b; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+  .opt-tag { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 99px; }
+  .tag-rec { background: #dcfce7; color: #15803d; }
+  .tag-alt { background: #f1f5f9; color: #475569; }
+  .option-desc { font-size: 11px; color: #64748b; margin-bottom: 10px; }
+</style>
+
+<h2>Where do essays appear? (Layout C selected)</h2>
+<p class="subtitle">You clicked a student — here are two ways essays can appear.</p>
+
+<div class="options">
+
+  <!-- Option X: Third column -->
+  <div class="option" data-choice="x" onclick="toggleSelect(this)">
+    <div class="letter">X</div>
+    <div class="content">
+      <h3>Essays slide in as a 3rd column</h3>
+      <p>Clicking a student opens an essay list panel on the right. Sidebar stays. Student grid narrows. Everything visible at once.</p>
+
+      <div class="layout" style="margin-top:10px;">
+        <!-- Sidebar -->
+        <div class="sidebar">
+          <div class="p-title">Sections</div>
+          <div class="sec-row active">Gr. 7 – Rizal</div>
+          <div class="subj-indent">
+            <div class="subj-row active"><span class="spill spill-en">🇺🇸</span> English</div>
+            <div class="subj-row"><span class="spill spill-fil">🇵🇭</span> Filipino</div>
+            <div class="subj-row"><span class="spill spill-fil">🇵🇭</span> AP</div>
+            <div class="subj-row"><span class="spill spill-en">🇺🇸</span> Math</div>
+          </div>
+          <div class="sec-row" style="margin-top:6px;">Gr. 7 – Bonifacio</div>
+          <div class="sec-row">Gr. 8 – Luna</div>
+        </div>
+
+        <!-- Student mini-grid (narrowed) -->
+        <div class="grid-area" style="padding:10px 8px;">
+          <div class="p-title">Students — English</div>
+          <div class="student-grid">
+            <div class="mini-card selected">
+              <div class="mc-name">Juan Dela Cruz</div>
+              <div class="mc-meta">3 essays · ★ 4.2</div>
+            </div>
+            <div class="mini-card">
+              <div class="mc-name">Maria Santos</div>
+              <div class="mc-meta">2 essays</div>
+            </div>
+            <div class="mini-card">
+              <div class="mc-name">Pedro Reyes</div>
+              <div class="mc-meta">1 essay</div>
+            </div>
+            <div class="mini-card">
+              <div class="mc-name">Ana Lim</div>
+              <div class="mc-meta">2 essays · ★ 4.0</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Essay panel -->
+        <div class="essay-panel">
+          <div class="p-title">Juan Dela Cruz — Essays</div>
+          <div class="essay-list-item sel">
+            <div class="et">Narrative Essay #1</div>
+            <div class="em"><span class="badge badge-ind">Independent</span> · 88% · ★ 5</div>
+          </div>
+          <div class="essay-list-item">
+            <div class="et">Persuasive Essay</div>
+            <div class="em"><span class="badge badge-ins">Instructional</span> · 72% · ★ 3</div>
+          </div>
+          <div class="essay-list-item">
+            <div class="et">Poem Analysis</div>
+            <div class="em"><span class="badge badge-fru">Frustration</span> · 51%</div>
+          </div>
+          <div style="font-size:9px;color:#6366f1;margin-top:6px;cursor:pointer;">+ Upload essay for Juan</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option Y: Expand inline -->
+  <div class="option" data-choice="y" onclick="toggleSelect(this)">
+    <div class="letter">Y</div>
+    <div class="content">
+      <h3>Student card expands inline to show essays</h3>
+      <p>Clicking a student expands their card in place to reveal their essays. Simple but less screen-efficient with many students.</p>
+
+      <div class="layout" style="margin-top:10px;">
+        <!-- Sidebar -->
+        <div class="sidebar">
+          <div class="p-title">Sections</div>
+          <div class="sec-row active">Gr. 7 – Rizal</div>
+          <div class="subj-indent">
+            <div class="subj-row active"><span class="spill spill-en">🇺🇸</span> English</div>
+            <div class="subj-row"><span class="spill spill-fil">🇵🇭</span> Filipino</div>
+            <div class="subj-row"><span class="spill spill-fil">🇵🇭</span> AP</div>
+            <div class="subj-row"><span class="spill spill-en">🇺🇸</span> Math</div>
+          </div>
+          <div class="sec-row" style="margin-top:6px;">Gr. 7 – Bonifacio</div>
+        </div>
+
+        <!-- Grid with one card expanded -->
+        <div class="grid-area">
+          <div class="p-title">Students — English</div>
+
+          <!-- Expanded card -->
+          <div class="expanded-card">
+            <div class="expanded-header">
+              <div>
+                <div style="font-weight:700;font-size:10px;color:#4f46e5;">Juan Dela Cruz</div>
+                <div style="font-size:9px;color:#94a3b8;">3 essays · ★ 4.2</div>
+              </div>
+              <span style="font-size:9px;color:#94a3b8;">▲ collapse</span>
+            </div>
+            <div class="expanded-essays">
+              <div class="exp-essay">
+                <span style="font-weight:600;color:#1e293b;">Narrative Essay #1</span>
+                <span class="badge badge-ind">Independent · 88%</span>
+              </div>
+              <div class="exp-essay">
+                <span style="font-weight:600;color:#1e293b;">Persuasive Essay</span>
+                <span class="badge badge-ins">Instructional · 72%</span>
+              </div>
+              <div class="exp-essay">
+                <span style="font-weight:600;color:#1e293b;">Poem Analysis</span>
+                <span class="badge badge-fru">Frustration · 51%</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Collapsed cards -->
+          <div class="mini-card" style="margin-bottom:6px;">
+            <div class="mc-name">Maria Santos</div>
+            <div class="mc-meta">2 essays · ★ 3.8</div>
+          </div>
+          <div class="mini-card">
+            <div class="mc-name">Pedro Reyes</div>
+            <div class="mc-meta">1 essay</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<p style="font-size:11px;color:#64748b;margin-top:16px;">After picking an essay from either option, it opens a full-screen essay viewer (same as the current modal with analysis, grammar, teacher rating).</p>

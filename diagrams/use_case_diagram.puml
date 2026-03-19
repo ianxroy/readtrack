@@ -1,0 +1,121 @@
+@startuml ReadTrack Use Case Diagram
+left to right direction
+skinparam actorStyle awesome
+skinparam packageStyle rectangle
+skinparam linetype ortho
+skinparam nodesep 10
+skinparam ranksep 40
+skinparam usecase {
+  BackgroundColor #F0F8FF
+  BorderColor #4682B4
+  ArrowColor #4682B4
+}
+skinparam package {
+  BackgroundColor #FAFAFA
+}
+
+' === Actors ===
+actor "Teacher" as teacher
+
+' === System boundary ===
+rectangle "ReadTrack System" {
+
+  package "Authentication" {
+    usecase "Login" as UC_LOGIN
+    usecase "Logout" as UC_LOGOUT
+    usecase "View Profile" as UC_PROFILE
+  }
+
+  package "Text Analysis & Diagnosis" {
+    usecase "Analyze Student Text" as UC_ANALYZE
+    usecase "Classify Text Complexity" as UC_COMPLEXITY
+    usecase "Detect Language\n(English / Tagalog)" as UC_LANG
+    usecase "Extract Text Features\n(50+ linguistic features)" as UC_FEATURES
+    usecase "Classify Proficiency Level\n(Frustration / Instructional\n/ Independent)" as UC_PROFICIENCY
+    usecase "Determine Learning Band\n(Intervention / Consolidation\n/ Enhancement)" as UC_BAND
+  }
+
+  package "OCR & File Processing" {
+    usecase "Extract Text from Image\n(Handwritten / Printed)" as UC_OCR
+    usecase "Extract Text from PDF" as UC_PDF
+    usecase "Upload Student Essay" as UC_UPLOAD
+  }
+
+  package "Grammar & Language" {
+    usecase "Check Grammar" as UC_GRAMMAR
+    usecase "Check Spelling" as UC_SPELLING
+    usecase "Analyze Tagalog Text" as UC_TAGALOG
+    usecase "Get Word Definition\n(CEFR Level, Synonyms)" as UC_DEFINITION
+  }
+
+  package "Material Library" {
+    usecase "Upload Teaching Material" as UC_MATERIAL
+    usecase "Upload Reference Document" as UC_REFERENCE
+    usecase "Browse Material Library" as UC_BROWSE
+    usecase "Classify Material Complexity\n(Literal / Inferential / Evaluative)" as UC_MAT_CLASSIFY
+  }
+
+  package "AI-Powered Features" {
+    usecase "Generate AI Content" as UC_AI_CONTENT
+    usecase "Enhance Grammar\nwith AI" as UC_AI_GRAMMAR
+    usecase "Validate Content\nagainst References" as UC_AI_VALIDATE
+    usecase "Get Overall Feedback" as UC_FEEDBACK
+  }
+
+  package "Dashboard & History" {
+    usecase "View Analysis Results\n(Metrics & Charts)" as UC_DASHBOARD
+    usecase "View Analysis History" as UC_HISTORY
+    usecase "Save Analysis" as UC_SAVE
+    usecase "Delete Analysis\nfrom History" as UC_DELETE
+    usecase "Rate Student Work\n(1-5 Stars)" as UC_RATE
+  }
+
+  package "Model Evaluation" {
+    usecase "View ML Model Metrics\n(Accuracy, Precision, Recall)" as UC_EVAL
+    usecase "View Confusion Matrices" as UC_CONFMATRIX
+  }
+}
+
+' === Teacher connections ===
+teacher -- UC_LOGIN
+teacher -- UC_ANALYZE
+teacher -- UC_COMPLEXITY
+teacher -- UC_UPLOAD
+teacher -- UC_OCR
+teacher -- UC_PDF
+teacher -- UC_GRAMMAR
+teacher -- UC_DEFINITION
+teacher -- UC_MATERIAL
+teacher -- UC_REFERENCE
+teacher -- UC_BROWSE
+teacher -- UC_AI_CONTENT
+teacher -- UC_DASHBOARD
+teacher -- UC_HISTORY
+teacher -- UC_SAVE
+teacher -- UC_DELETE
+teacher -- UC_RATE
+teacher -- UC_EVAL
+
+' === Additional Teacher connections (formerly Student) ===
+teacher -- UC_SPELLING
+teacher -- UC_TAGALOG
+
+' === Include relationships ===
+UC_ANALYZE ..> UC_LANG : <<include>>
+UC_ANALYZE ..> UC_FEATURES : <<include>>
+UC_ANALYZE ..> UC_PROFICIENCY : <<include>>
+UC_ANALYZE ..> UC_BAND : <<include>>
+UC_COMPLEXITY ..> UC_FEATURES : <<include>>
+UC_MATERIAL ..> UC_MAT_CLASSIFY : <<include>>
+
+' === Extend relationships ===
+UC_OCR ..> UC_ANALYZE : <<extend>>
+UC_PDF ..> UC_ANALYZE : <<extend>>
+UC_FEEDBACK ..> UC_ANALYZE : <<extend>>
+UC_AI_VALIDATE ..> UC_ANALYZE : <<extend>>
+UC_SPELLING ..> UC_GRAMMAR : <<extend>>
+UC_TAGALOG ..> UC_GRAMMAR : <<extend>>
+UC_AI_GRAMMAR ..> UC_GRAMMAR : <<extend>>
+UC_CONFMATRIX ..> UC_EVAL : <<extend>>
+
+@enduml

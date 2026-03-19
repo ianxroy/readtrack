@@ -1,0 +1,225 @@
+<h2>Word Definition Popup</h2>
+<p class="subtitle">Click any word in the essay text below to see how the definition popup looks. Shows loading → result states.</p>
+
+<style>
+  .essay-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 24px 28px;
+    font-size: 14px;
+    line-height: 2.2;
+    color: #1e293b;
+    font-family: Georgia, serif;
+    max-width: 700px;
+    margin: 0 auto;
+    position: relative;
+    user-select: none;
+  }
+
+  .word {
+    cursor: pointer;
+    border-radius: 2px;
+    transition: background 0.1s;
+  }
+  .word:hover { background: #e0f2fe; }
+  .word.active { background: #bae6fd; color: #0369a1; }
+
+  /* Grammar highlight (pre-existing) */
+  .hl-grammar { background: #fee2e2; color: #991b1b; border-radius: 3px; padding: 1px 3px; cursor: pointer; }
+  .hl-vocab   { background: #dbeafe; color: #1e40af; border-radius: 3px; padding: 1px 3px; cursor: pointer; }
+
+  /* Definition popup */
+  .def-popup {
+    position: fixed;
+    width: 280px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.14), 0 4px 12px rgba(0,0,0,0.08);
+    padding: 14px 16px;
+    z-index: 9999;
+    font-family: -apple-system, sans-serif;
+    display: none;
+  }
+  .def-popup.visible { display: block; }
+  .def-popup::before {
+    content: '';
+    position: absolute;
+    top: -7px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-bottom: 7px solid #e2e8f0;
+  }
+  .def-popup::after {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-bottom: 7px solid white;
+  }
+
+  .def-word {
+    font-size: 15px;
+    font-weight: 800;
+    color: #0f172a;
+    margin-bottom: 2px;
+  }
+  .def-pos {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: #94a3b8;
+    margin-bottom: 8px;
+  }
+  .def-divider { height: 1px; background: #f1f5f9; margin: 8px 0; }
+  .def-meaning {
+    font-size: 12px;
+    color: #334155;
+    line-height: 1.6;
+    margin-bottom: 6px;
+  }
+  .def-example {
+    font-size: 11px;
+    color: #94a3b8;
+    font-style: italic;
+    line-height: 1.5;
+  }
+  .def-source {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: #cbd5e1;
+    margin-top: 8px;
+  }
+  .def-source.ai { color: #a78bfa; }
+
+  .def-loading {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 11px; color: #94a3b8; padding: 4px 0;
+  }
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid #e2e8f0;
+    border-top-color: #6366f1;
+    border-radius: 50%;
+    animation: spin .6s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .def-notfound {
+    font-size: 11px; color: #94a3b8; font-style: italic; padding: 4px 0;
+  }
+
+  .close-btn {
+    position: absolute; top: 10px; right: 10px;
+    width: 20px; height: 20px;
+    border: none; background: #f1f5f9;
+    border-radius: 50%; cursor: pointer;
+    font-size: 11px; color: #64748b;
+    display: flex; align-items: center; justify-content: center;
+    line-height: 1;
+  }
+  .close-btn:hover { background: #e2e8f0; }
+</style>
+
+<!-- The popup -->
+<div class="def-popup" id="popup">
+  <button class="close-btn" onclick="closePopup()">✕</button>
+  <div id="popup-content"></div>
+</div>
+
+<div class="essay-box" id="essay">
+  <span class="word" data-word="Noong" data-def='{"word":"Noong","pos":"adverb","meaning":"A Filipino word meaning \"when\" or \"during\" a past time. Used to introduce past events.","example":"Noong nakaraan, pumunta kami sa palengke.","source":"ai"}'>Noong</span>
+  <span class="word" data-word="nakaraan">nakaraan</span>,
+  ang aking
+  <span class="word" data-word="pamilya" data-def='{"word":"pamilya","pos":"noun","meaning":"The Filipino word for \"family\" — a group of people related by blood, marriage, or adoption living together.","example":"Ang aking pamilya ay nakatira sa Maynila.","source":"ai"}'>pamilya</span>
+  ay pumunta sa isang
+  <span class="hl-vocab" data-word="tahimik" data-def='{"word":"tahimik","pos":"adjective","meaning":"Filipino: quiet, calm, peaceful. Describes a place or person that is free from noise or disturbance.","example":"Tahimik ang gabi sa probinsya.","source":"ai"}'>tahimik</span>
+  na lugar sa
+  <span class="word" data-word="probinsya" data-def='{"word":"probinsya","pos":"noun","meaning":"Province — a principal administrative division of a country. In the Philippines, refers to areas outside Metro Manila.","example":"Lumaki siya sa probinsya ng Batangas.","source":"ai"}'>probinsya</span>.
+  Doon, nakita namin ang isang
+  <span class="word" data-word="magandang" data-def='{"word":"maganda","pos":"adjective","meaning":"Beautiful, pretty, lovely. One of the most common Filipino adjectives describing physical or abstract beauty.","example":"Maganda ang panahon ngayon.","source":"dictionary"}'>magandang</span>
+  <span class="word" data-word="tanawin" data-def='{"word":"tanawin","pos":"noun","meaning":"Scenery, landscape, or vista. Refers to a view or a scenic area observed from a vantage point.","example":"Kahanga-hanga ang tanawin mula sa bundok.","source":"dictionary"}'>tanawin</span>.
+</div>
+
+<script>
+  let activeWord = null;
+
+  document.querySelectorAll('.word, .hl-vocab, .hl-grammar').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const word = el.dataset.word;
+      const defData = el.dataset.def;
+
+      if (activeWord === el) { closePopup(); return; }
+      if (activeWord) activeWord.classList.remove('active');
+      activeWord = el;
+      el.classList.add('active');
+
+      const rect = el.getBoundingClientRect();
+      const popup = document.getElementById('popup');
+      popup.classList.add('visible');
+
+      // Position below the word
+      popup.style.top = (rect.bottom + 10) + 'px';
+      popup.style.left = Math.max(8, Math.min(rect.left + rect.width/2 - 140, window.innerWidth - 296)) + 'px';
+
+      if (defData) {
+        // Simulate loading then show result
+        showLoading(word);
+        setTimeout(() => {
+          const def = JSON.parse(defData);
+          showDefinition(def);
+        }, 600);
+      } else {
+        showLoading(word);
+        setTimeout(() => showNotFound(word), 700);
+      }
+    });
+  });
+
+  document.addEventListener('click', closePopup);
+
+  function closePopup() {
+    document.getElementById('popup').classList.remove('visible');
+    if (activeWord) { activeWord.classList.remove('active'); activeWord = null; }
+  }
+
+  function showLoading(word) {
+    document.getElementById('popup-content').innerHTML = `
+      <div class="def-word">${word}</div>
+      <div class="def-loading"><div class="spinner"></div>Looking up definition…</div>
+    `;
+  }
+
+  function showDefinition(def) {
+    const sourceLabel = def.source === 'ai'
+      ? '<div class="def-source ai">✦ AI generated</div>'
+      : '<div class="def-source">📖 Dictionary</div>';
+    document.getElementById('popup-content').innerHTML = `
+      <div class="def-word">${def.word}</div>
+      <div class="def-pos">${def.pos}</div>
+      <div class="def-divider"></div>
+      <div class="def-meaning">${def.meaning}</div>
+      ${def.example ? `<div class="def-example">"${def.example}"</div>` : ''}
+      ${sourceLabel}
+    `;
+  }
+
+  function showNotFound(word) {
+    document.getElementById('popup-content').innerHTML = `
+      <div class="def-word">${word}</div>
+      <div class="def-divider"></div>
+      <div class="def-notfound">No definition found for this word.</div>
+    `;
+  }
+</script>

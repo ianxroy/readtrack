@@ -1,0 +1,372 @@
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif; }
+
+  .spill { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px; border-radius: 99px; font-size: 9px; font-weight: 700; border: 1.5px solid; white-space: nowrap; }
+  .spill-en  { background: #dbeafe; color: #1d4ed8; border-color: #93c5fd; }
+  .spill-fil { background: #fce7f3; color: #be185d; border-color: #f9a8d4; }
+  .badge { font-size: 9px; padding: 2px 6px; border-radius: 4px; font-weight: 700; }
+  .badge-ind { background: #dcfce7; color: #15803d; }
+  .badge-ins { background: #fef3c7; color: #b45309; }
+  .badge-fru { background: #fee2e2; color: #dc2626; }
+  .tag { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 99px; }
+  .tag-new { background: #dcfce7; color: #15803d; }
+
+  h2 { font-size: 20px; font-weight: 800; color: #1e293b; margin-bottom: 4px; }
+  .subtitle { color: #64748b; font-size: 13px; margin-bottom: 24px; }
+
+  /* ─── FULL APP MOCKUP ─── */
+  .app-shell { border: 2px solid #e5e7eb; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.07); }
+
+  /* Header */
+  .app-header { height: 48px; background: white; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; gap: 10px; }
+  .header-left { display: flex; align-items: center; gap: 8px; }
+  .app-logo { font-weight: 800; font-size: 13px; color: #1e293b; }
+  .app-logo span { color: #6366f1; }
+  .header-search { flex: 1; max-width: 220px; height: 28px; background: #f1f5f9; border: 1px solid #e5e7eb; border-radius: 8px; display: flex; align-items: center; padding: 0 8px; gap: 5px; font-size: 10px; color: #94a3b8; }
+  .header-actions { display: flex; align-items: center; gap: 6px; }
+  .hbtn { padding: 4px 10px; border-radius: 7px; font-size: 10px; font-weight: 700; border: 1.5px solid; cursor: pointer; }
+  .hbtn-ghost { border-color: #e5e7eb; color: #475569; background: white; }
+  .hbtn-primary { border-color: #6366f1; color: white; background: #6366f1; }
+
+  /* Body */
+  .app-body { display: flex; height: 460px; }
+
+  /* ─ SIDEBAR ─ */
+  .sidebar { width: 200px; flex-shrink: 0; background: #f8fafc; border-right: 1px solid #e5e7eb; display: flex; flex-direction: column; overflow: hidden; }
+  .sb-section-header { padding: 10px 12px 6px; display: flex; justify-content: space-between; align-items: center; }
+  .sb-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #94a3b8; }
+  .sb-add { font-size: 9px; color: #6366f1; font-weight: 700; cursor: pointer; }
+  .sb-scroll { flex: 1; overflow-y: auto; padding: 0 8px 8px; }
+
+  .section-item { margin-bottom: 4px; }
+  .section-row { display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 6px; cursor: pointer; }
+  .section-row:hover { background: #eef2ff; }
+  .section-row.active { background: #eef2ff; }
+  .section-name { font-size: 10px; font-weight: 700; color: #1e293b; }
+  .section-row.active .section-name { color: #4f46e5; }
+  .section-count { font-size: 9px; color: #94a3b8; background: #e0e7ff; border-radius: 99px; padding: 1px 6px; font-weight: 600; }
+  .section-row.active .section-count { background: #c7d2fe; color: #4338ca; }
+  .section-chevron { font-size: 9px; color: #94a3b8; }
+
+  .subjects-list { padding: 2px 0 4px 12px; }
+  .subject-row { display: flex; align-items: center; gap: 5px; padding: 4px 7px; border-radius: 5px; cursor: pointer; margin-bottom: 1px; }
+  .subject-row:hover { background: #e0e7ff; }
+  .subject-row.active { background: #e0e7ff; }
+  .subject-name { font-size: 10px; font-weight: 600; color: #374151; flex: 1; }
+  .subject-row.active .subject-name { color: #4f46e5; font-weight: 700; }
+
+  .sb-divider { border: none; border-top: 1px solid #e5e7eb; margin: 8px 0; }
+
+  .sb-manage { padding: 6px 8px 10px; }
+  .sb-manage-btn { width: 100%; padding: 5px 8px; border-radius: 7px; border: 1.5px dashed #c7d2fe; background: transparent; font-size: 9px; font-weight: 700; color: #6366f1; cursor: pointer; text-align: center; display: block; }
+  .sb-manage-btn:hover { background: #eef2ff; }
+
+  /* ─ STUDENT GRID ─ */
+  .student-grid-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .grid-toolbar { padding: 10px 14px; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: space-between; background: white; flex-shrink: 0; }
+  .gt-breadcrumb { display: flex; align-items: center; gap: 5px; font-size: 11px; }
+  .gt-sec { font-weight: 700; color: #1e293b; }
+  .gt-sep { color: #cbd5e1; }
+  .gt-sub { font-weight: 700; color: #6366f1; }
+  .gt-lang { }
+  .grid-actions { display: flex; align-items: center; gap: 6px; }
+  .ga-sort { font-size: 9px; color: #64748b; border: 1px solid #e5e7eb; padding: 3px 8px; border-radius: 6px; background: white; cursor: pointer; }
+  .ga-search { font-size: 9px; color: #94a3b8; border: 1px solid #e5e7eb; padding: 3px 8px; border-radius: 6px; background: #f8fafc; width: 100px; }
+
+  .grid-scroll { flex: 1; overflow-y: auto; padding: 12px 14px; }
+  .student-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .student-card { border: 1.5px solid #e5e7eb; border-radius: 9px; padding: 10px; cursor: pointer; transition: all 0.15s; background: white; }
+  .student-card:hover { border-color: #a5b4fc; box-shadow: 0 2px 8px rgba(99,102,241,0.08); }
+  .student-card.selected { border-color: #6366f1; background: #eef2ff; box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+  .sc-name { font-weight: 700; font-size: 11px; color: #1e293b; margin-bottom: 4px; }
+  .sc-stats { display: flex; gap: 6px; flex-wrap: wrap; }
+  .sc-stat { font-size: 9px; color: #64748b; }
+  .sc-level { margin-top: 4px; }
+
+  /* ─ ESSAY PANEL ─ */
+  .essay-panel { width: 210px; flex-shrink: 0; border-left: 1px solid #e5e7eb; background: white; display: flex; flex-direction: column; overflow: hidden; }
+  .ep-header { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; background: #fafbff; flex-shrink: 0; }
+  .ep-name { font-weight: 800; font-size: 11px; color: #1e293b; }
+  .ep-meta { font-size: 9px; color: #94a3b8; margin-top: 1px; }
+  .ep-scroll { flex: 1; overflow-y: auto; padding: 8px 10px; }
+  .essay-item { border: 1.5px solid #e5e7eb; border-radius: 7px; padding: 8px 10px; margin-bottom: 6px; cursor: pointer; transition: all 0.15s; }
+  .essay-item:hover { border-color: #a5b4fc; }
+  .essay-item.active { border-color: #6366f1; background: #eef2ff; }
+  .ei-title { font-weight: 700; font-size: 10px; color: #1e293b; margin-bottom: 4px; }
+  .ei-meta { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .ei-date { font-size: 9px; color: #94a3b8; margin-top: 3px; }
+  .ep-upload { padding: 8px 10px; border-top: 1px solid #f1f5f9; flex-shrink: 0; }
+  .ep-upload-btn { width: 100%; padding: 6px; border-radius: 7px; border: 1.5px dashed #c7d2fe; background: transparent; font-size: 9px; font-weight: 700; color: #6366f1; cursor: pointer; text-align: center; }
+  .ep-upload-btn:hover { background: #eef2ff; }
+
+  /* ─ ESSAY VIEWER (full modal layer hint) ─ */
+  .viewer-hint { margin-top: 20px; border: 2px solid #e5e7eb; border-radius: 14px; overflow: hidden; }
+  .vh-header { background: #1e293b; color: white; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; }
+  .vh-title { font-weight: 700; font-size: 12px; }
+  .vh-tabs { display: flex; gap: 2px; }
+  .vh-tab { padding: 3px 10px; border-radius: 5px; font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.5); cursor: pointer; }
+  .vh-tab.active { background: rgba(255,255,255,0.15); color: white; }
+  .vh-body { display: flex; height: 130px; font-size: 10px; }
+  .vh-col { flex: 1; padding: 10px 12px; border-right: 1px solid #e5e7eb; overflow: hidden; }
+  .vh-col:last-child { border-right: none; }
+  .vh-col-title { font-size: 9px; font-weight: 700; text-transform: uppercase; color: #94a3b8; margin-bottom: 6px; }
+  .vh-metric { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid #f8fafc; }
+  .vh-metric-label { color: #64748b; font-size: 9px; }
+  .vh-metric-val { font-weight: 700; font-size: 9px; color: #1e293b; }
+  .stars { color: #f59e0b; font-size: 12px; }
+
+  /* annotations */
+  .annotation { display: flex; gap: 8px; margin-top: 8px; align-items: flex-start; }
+  .ann-num { background: #6366f1; color: white; border-radius: 99px; width: 16px; height: 16px; font-size: 9px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+  .ann-text { font-size: 10px; color: #374151; line-height: 1.5; }
+  .ann-text strong { color: #1e293b; }
+</style>
+
+<h2>Full Design — Student Grading Redesign</h2>
+<p class="subtitle">Section › Subject › Student › Essays — Layout C with 3rd-column essay panel</p>
+
+<!-- ═══ APP MOCKUP ═══ -->
+<div class="app-shell">
+
+  <!-- Header -->
+  <div class="app-header">
+    <div class="header-left">
+      <div class="app-logo">Read<span>Track</span></div>
+      <div style="font-size:10px;color:#94a3b8;">Student Grading</div>
+    </div>
+    <div class="header-search">🔍 Search students or essays…</div>
+    <div class="header-actions">
+      <div class="hbtn hbtn-ghost">⚙ Manage Subjects</div>
+      <div class="hbtn hbtn-primary">＋ Upload Essay</div>
+    </div>
+  </div>
+
+  <!-- Body -->
+  <div class="app-body">
+
+    <!-- ── SIDEBAR ── -->
+    <div class="sidebar">
+      <div class="sb-section-header">
+        <span class="sb-label">Sections (Seksyon)</span>
+        <span class="sb-add">＋ Add</span>
+      </div>
+      <div class="sb-scroll">
+
+        <!-- Section 1 — expanded & active -->
+        <div class="section-item">
+          <div class="section-row active">
+            <div style="display:flex;align-items:center;gap:5px;">
+              <span class="section-chevron">▾</span>
+              <span class="section-name">Gr. 7 – Rizal</span>
+            </div>
+            <span class="section-count">28</span>
+          </div>
+          <div class="subjects-list">
+            <div class="subject-row active">
+              <span class="spill spill-en">🇺🇸</span>
+              <span class="subject-name">English</span>
+            </div>
+            <div class="subject-row">
+              <span class="spill spill-fil">🇵🇭</span>
+              <span class="subject-name">Filipino</span>
+            </div>
+            <div class="subject-row">
+              <span class="spill spill-fil">🇵🇭</span>
+              <span class="subject-name">AP</span>
+            </div>
+            <div class="subject-row">
+              <span class="spill spill-en">🇺🇸</span>
+              <span class="subject-name">Math</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 2 — collapsed -->
+        <div class="section-item">
+          <div class="section-row">
+            <div style="display:flex;align-items:center;gap:5px;">
+              <span class="section-chevron">▸</span>
+              <span class="section-name">Gr. 7 – Bonifacio</span>
+            </div>
+            <span class="section-count">25</span>
+          </div>
+        </div>
+
+        <!-- Section 3 — collapsed -->
+        <div class="section-item">
+          <div class="section-row">
+            <div style="display:flex;align-items:center;gap:5px;">
+              <span class="section-chevron">▸</span>
+              <span class="section-name">Gr. 8 – Luna</span>
+            </div>
+            <span class="section-count">30</span>
+          </div>
+        </div>
+
+      </div>
+      <div class="sb-manage">
+        <div class="sb-manage-btn">＋ New Section</div>
+      </div>
+    </div>
+
+    <!-- ── STUDENT GRID ── -->
+    <div class="student-grid-area">
+      <div class="grid-toolbar">
+        <div class="gt-breadcrumb">
+          <span class="gt-sec">Gr. 7 – Rizal</span>
+          <span class="gt-sep">›</span>
+          <span class="gt-sub">English</span>
+          <span class="gt-lang"><span class="spill spill-en" style="font-size:8px;padding:1px 5px;">🇺🇸 EN</span></span>
+          <span style="font-size:9px;color:#94a3b8;">· 28 students</span>
+        </div>
+        <div class="grid-actions">
+          <input class="ga-search" placeholder="Search…" readonly />
+          <select class="ga-sort"><option>Sort: Newest</option></select>
+        </div>
+      </div>
+
+      <!-- proficiency filter -->
+      <div style="padding:6px 14px;display:flex;gap:5px;border-bottom:1px solid #f1f5f9;background:#fafbff;">
+        <div style="padding:3px 9px;border-radius:99px;font-size:9px;font-weight:700;background:#eef2ff;color:#6366f1;border:1.5px solid #c7d2fe;">All (Lahat)</div>
+        <div style="padding:3px 9px;border-radius:99px;font-size:9px;font-weight:700;background:white;color:#64748b;border:1.5px solid #e5e7eb;">🟢 Independent</div>
+        <div style="padding:3px 9px;border-radius:99px;font-size:9px;font-weight:700;background:white;color:#64748b;border:1.5px solid #e5e7eb;">🟡 Instructional</div>
+        <div style="padding:3px 9px;border-radius:99px;font-size:9px;font-weight:700;background:white;color:#64748b;border:1.5px solid #e5e7eb;">🔴 Frustration</div>
+      </div>
+
+      <div class="grid-scroll">
+        <div class="student-grid">
+          <div class="student-card selected">
+            <div class="sc-name">Juan Dela Cruz</div>
+            <div class="sc-stats">
+              <span class="sc-stat">3 essays</span>
+              <span class="sc-stat">· ★ 4.2</span>
+            </div>
+            <div class="sc-level"><span class="badge badge-ind">Independent</span></div>
+          </div>
+          <div class="student-card">
+            <div class="sc-name">Maria Santos</div>
+            <div class="sc-stats"><span class="sc-stat">2 essays</span><span class="sc-stat">· ★ 3.8</span></div>
+            <div class="sc-level"><span class="badge badge-ins">Instructional</span></div>
+          </div>
+          <div class="student-card">
+            <div class="sc-name">Pedro Reyes</div>
+            <div class="sc-stats"><span class="sc-stat">1 essay</span></div>
+            <div class="sc-level"><span class="badge badge-fru">Frustration</span></div>
+          </div>
+          <div class="student-card">
+            <div class="sc-name">Ana Lim</div>
+            <div class="sc-stats"><span class="sc-stat">2 essays</span><span class="sc-stat">· ★ 4.0</span></div>
+            <div class="sc-level"><span class="badge badge-ind">Independent</span></div>
+          </div>
+          <div class="student-card">
+            <div class="sc-name">Carlo Bautista</div>
+            <div class="sc-stats"><span class="sc-stat">0 essays</span></div>
+            <div class="sc-level" style="font-size:9px;color:#94a3b8;">No submissions yet</div>
+          </div>
+          <div class="student-card" style="border:1.5px dashed #e5e7eb;background:#fafafa;display:flex;align-items:center;justify-content:center;">
+            <div style="text-align:center;">
+              <div style="font-size:18px;color:#c7d2fe;margin-bottom:2px;">＋</div>
+              <div style="font-size:9px;font-weight:700;color:#94a3b8;">Add Student</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ESSAY PANEL ── -->
+    <div class="essay-panel">
+      <div class="ep-header">
+        <div class="ep-name">Juan Dela Cruz</div>
+        <div class="ep-meta">Gr. 7 – Rizal · English</div>
+      </div>
+      <div class="ep-scroll">
+        <div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:6px;letter-spacing:0.08em;">Essays (Sanaysay)</div>
+        <div class="essay-item active">
+          <div class="ei-title">Narrative Essay #1</div>
+          <div class="ei-meta">
+            <span class="badge badge-ind">Independent</span>
+            <span style="font-size:9px;color:#64748b;">88%</span>
+            <span style="font-size:9px;color:#f59e0b;">★ 5</span>
+          </div>
+          <div class="ei-date">Mar 10, 2026</div>
+        </div>
+        <div class="essay-item">
+          <div class="ei-title">Persuasive Essay</div>
+          <div class="ei-meta">
+            <span class="badge badge-ins">Instructional</span>
+            <span style="font-size:9px;color:#64748b;">72%</span>
+            <span style="font-size:9px;color:#f59e0b;">★ 3</span>
+          </div>
+          <div class="ei-date">Feb 28, 2026</div>
+        </div>
+        <div class="essay-item">
+          <div class="ei-title">Poem Analysis</div>
+          <div class="ei-meta">
+            <span class="badge badge-fru">Frustration</span>
+            <span style="font-size:9px;color:#64748b;">51%</span>
+          </div>
+          <div class="ei-date">Feb 14, 2026</div>
+        </div>
+      </div>
+      <div class="ep-upload">
+        <div class="ep-upload-btn">＋ Upload Essay for Juan</div>
+      </div>
+    </div>
+
+  </div><!-- end app-body -->
+</div><!-- end app-shell -->
+
+<!-- ═══ ESSAY VIEWER HINT ═══ -->
+<div style="margin-top:20px;">
+  <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:8px;">↓ Clicking an essay opens the full viewer (existing modal, unchanged)</div>
+  <div class="viewer-hint">
+    <div class="vh-header">
+      <div class="vh-title">Narrative Essay #1 — Juan Dela Cruz · English</div>
+      <div class="vh-tabs">
+        <div class="vh-tab active">Original</div>
+        <div class="vh-tab">Analysis</div>
+        <div class="vh-tab">Grammar</div>
+      </div>
+      <div style="font-size:11px;color:rgba(255,255,255,0.5);cursor:pointer;">✕ Close</div>
+    </div>
+    <div class="vh-body">
+      <div class="vh-col" style="flex:2;">
+        <div class="vh-col-title">Essay text</div>
+        <div style="font-size:10px;color:#374151;line-height:1.6;">The story began on a rainy afternoon…<br>
+          <span style="background:#fee2e2;border-bottom:2px solid #ef4444;cursor:pointer;">teh</span> children ran inside quickly. Maria
+          <span style="background:#fef3c7;border-bottom:2px solid #f59e0b;cursor:pointer;">dont</span> know what to do…</div>
+      </div>
+      <div class="vh-col">
+        <div class="vh-col-title">Result (Resulta)</div>
+        <div class="vh-metric"><span class="vh-metric-label">Score</span><span class="vh-metric-val" style="color:#6366f1;">88%</span></div>
+        <div class="vh-metric"><span class="vh-metric-label">Proficiency</span><span class="vh-metric-val" style="color:#15803d;">Independent</span></div>
+        <div class="vh-metric"><span class="vh-metric-label">Grammar Score</span><span class="vh-metric-val">91/100</span></div>
+        <div class="vh-metric"><span class="vh-metric-label">Teacher Rating</span><span class="vh-metric-val"><span class="stars">★★★★★</span></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ DATA MODEL SUMMARY ═══ -->
+<div style="margin-top:24px;padding:16px;background:#f8fafc;border-radius:10px;border:1px solid #e5e7eb;">
+  <div style="font-size:11px;font-weight:800;color:#1e293b;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.05em;">Data Model Changes</div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;font-size:10px;">
+    <div style="background:white;border-radius:7px;padding:8px 10px;border:1px solid #e5e7eb;">
+      <div style="font-weight:800;color:#6366f1;margin-bottom:4px;">Section</div>
+      <div style="color:#64748b;">id<br>name</div>
+    </div>
+    <div style="background:white;border-radius:7px;padding:8px 10px;border:1px solid #e5e7eb;">
+      <div style="font-weight:800;color:#6366f1;margin-bottom:4px;">Subject <span class="tag tag-new">NEW</span></div>
+      <div style="color:#64748b;">id<br>name<br>language: en | fil</div>
+    </div>
+    <div style="background:white;border-radius:7px;padding:8px 10px;border:1px solid #e5e7eb;">
+      <div style="font-weight:800;color:#6366f1;margin-bottom:4px;">Student</div>
+      <div style="color:#64748b;">id<br>name<br><strong>sectionId</strong> <span class="tag tag-new">NEW</span></div>
+    </div>
+    <div style="background:white;border-radius:7px;padding:8px 10px;border:1px solid #e5e7eb;">
+      <div style="font-weight:800;color:#6366f1;margin-bottom:4px;">Essay</div>
+      <div style="color:#64748b;">id, title, text…<br><strong>subjectId</strong> <span class="tag tag-new">NEW</span><br>analysis, rating…</div>
+    </div>
+  </div>
+</div>

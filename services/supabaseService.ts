@@ -110,6 +110,7 @@ async function sha256Hex(value: string): Promise<string> {
 
 export async function saveTeacherEvaluation(evaluation: TeacherEvaluation): Promise<{ error: string | null }> {
   const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Not authenticated' };
 
   const studentNameSha = evaluation.student_name
     ? await sha256Hex(normalizeStudentName(evaluation.student_name))
@@ -122,7 +123,7 @@ export async function saveTeacherEvaluation(evaluation: TeacherEvaluation): Prom
     rating: evaluation.rating,
     comment: evaluation.comment,
     student_name_sha: studentNameSha,
-    teacher_id: user?.id ?? null,
+    teacher_id: user.id,
   }]);
 
   return { error: error ? error.message : null };
@@ -130,11 +131,12 @@ export async function saveTeacherEvaluation(evaluation: TeacherEvaluation): Prom
 
 export async function saveStudentGradingUpload(upload: StudentGradingUpload): Promise<{ data: any | null; error: string | null }> {
   const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { data: null, error: 'Not authenticated' };
 
   const studentNameSha = await sha256Hex(normalizeStudentName(upload.student_name));
 
-  const { data, error } = await supabase.from('student_grading_uploads').insert([{
-    teacher_id: user?.id ?? null,
+  const payload: Record<string, any> = {
+    teacher_id: user.id,
     student_name_sha: studentNameSha,
     student_name: upload.student_name,
     essay_title: upload.essay_title,
@@ -148,16 +150,41 @@ export async function saveStudentGradingUpload(upload: StudentGradingUpload): Pr
     subject_name: upload.subject_name ?? null,
     teacher_rubric_scores: upload.teacher_rubric_scores ?? null,
     original_file: upload.original_file ?? null,
-  }]).select().single();
+  };
 
-  return { data: data ?? null, error: error ? error.message : null };
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { data, error } = await supabase
+      .from('student_grading_uploads')
+      .insert([payload])
+      .select()
+      .single();
+
+    if (!error) {
+      return { data: data ?? null, error: null };
+    }
+
+    const msg = error.message || '';
+    const missingColumnMatch = msg.match(/Could not find the '([^']+)' column of 'student_grading_uploads'/i);
+    const missingColumn = missingColumnMatch?.[1];
+
+    if (missingColumn && missingColumn in payload) {
+      console.warn(`student_grading_uploads is missing column '${missingColumn}'. Retrying without it.`);
+      delete payload[missingColumn];
+      continue;
+    }
+
+    return { data: null, error: msg };
+  }
+
+  return { data: null, error: 'Insert failed after schema fallback retries' };
 }
 
 export async function saveMaterialUpload(upload: MaterialUpload): Promise<{ error: string | null }> {
   const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Not authenticated' };
 
   const { error } = await supabase.from('material_uploads').insert([{
-    teacher_id: user?.id ?? null,
+    teacher_id: user.id,
     material_name: upload.material_name,
     material_text: upload.material_text,
     complexity_level: upload.complexity_level ?? null,
@@ -370,7 +397,7 @@ export async function lookupEssayIdByText(essayText: string): Promise<string | n
     .eq('teacher_id', user.id)
     .eq('essay_text', essayText)
     .limit(1)
-    .single();
+    .maybeSingle();
 
   return data?.id ?? null;
 }
@@ -383,13 +410,21 @@ export async function saveTeacherRubricScores(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: 'Not authenticated' };
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('student_grading_uploads')
     .update({ teacher_rubric_scores: rubricScores })
     .eq('id', uploadId)
-    .eq('teacher_id', user.id);
+    .eq('teacher_id', user.id)
+    .select('id');
 
-  return { error: error ? error.message : null };
+  if (error) return { error: error.message };
+
+  // If no rows were updated, the ID didn't match any row for this teacher.
+  if (!data || data.length === 0) {
+    return { error: `No row found for essay id=${uploadId}. Upload may have failed.` };
+  }
+
+  return { error: null };
 }
 
 /** Load material uploads for the current teacher */

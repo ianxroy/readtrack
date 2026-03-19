@@ -1,0 +1,209 @@
+<h2>Highlight Style + Tooltip</h2>
+<p class="subtitle">Hover over any highlighted word to see the tooltip. Which style + tooltip combination feels best?</p>
+
+<style>
+  .preview-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 20px 24px;
+    font-size: 13px;
+    line-height: 2;
+    color: #1e293b;
+    font-family: Georgia, serif;
+    position: relative;
+  }
+
+  /* --- shared tooltip --- */
+  .iss {
+    position: relative;
+    cursor: pointer;
+    display: inline;
+  }
+  .iss .tip {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 200px;
+    max-width: 260px;
+    background: #1e293b;
+    color: #f1f5f9;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 11px;
+    font-family: -apple-system, sans-serif;
+    line-height: 1.5;
+    z-index: 100;
+    pointer-events: none;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    white-space: normal;
+  }
+  .iss .tip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: #1e293b;
+  }
+  .iss:hover .tip { display: block; }
+  .tip-badge {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    border-radius: 99px;
+    padding: 1px 6px;
+    margin-bottom: 5px;
+  }
+  .tip-strike { text-decoration: line-through; opacity: .6; }
+  .tip-arrow { color: #4ade80; font-weight: 800; margin: 0 4px; }
+  .tip-suggestion { color: #4ade80; font-weight: 700; }
+  .tip-explanation { color: #94a3b8; margin-top: 4px; font-size: 10px; }
+
+  /* Style A — wavy */
+  .wavy { text-decoration: underline wavy; text-underline-offset: 3px; }
+  .wavy.g { text-decoration-color: #ef4444; }
+  .wavy.s { text-decoration-color: #f59e0b; }
+  .wavy.v { text-decoration-color: #3b82f6; }
+  .badge-g { background: #fee2e2; color: #ef4444; }
+  .badge-s { background: #fef3c7; color: #d97706; }
+  .badge-v { background: #dbeafe; color: #3b82f6; }
+
+  /* Style B — bg highlight */
+  .bghigh { border-radius: 3px; padding: 1px 3px; }
+  .bghigh.g { background: #fee2e2; }
+  .bghigh.s { background: #fef3c7; }
+  .bghigh.v { background: #dbeafe; }
+
+  /* Style C — solid underline */
+  .solid { border-bottom: 2px solid; }
+  .solid.g { border-color: #ef4444; }
+  .solid.s { border-color: #f59e0b; }
+  .solid.v { border-color: #3b82f6; }
+
+  .label-row {
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: #94a3b8;
+    margin-bottom: 8px;
+  }
+</style>
+
+<div class="cards">
+
+  <!-- A: wavy + tooltip -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px 20px;background:white;min-height:160px;">
+      <div class="label-row">A — Wavy + Tooltip</div>
+      <div class="preview-box">
+        Ang aking pamilya at
+        <span class="iss">
+          <span class="wavy g">ako ay pumunta</span>
+          <span class="tip">
+            <span class="tip-badge badge-g">Grammar</span><br>
+            <span class="tip-strike">ako ay pumunta</span>
+            <span class="tip-arrow">→</span>
+            <span class="tip-suggestion">pumunta kami</span>
+            <span class="tip-explanation">Subject-verb agreement: use "kami" when the subject includes the speaker.</span>
+          </span>
+        </span>
+        sa isang
+        <span class="iss">
+          <span class="wavy v">napaka-tahimik</span>
+          <span class="tip">
+            <span class="tip-badge badge-v">Vocabulary</span><br>
+            <span class="tip-strike">napaka-tahimik</span>
+            <span class="tip-arrow">→</span>
+            <span class="tip-suggestion">maligayang-tahimik</span>
+            <span class="tip-explanation">Consider a more expressive word for richer vocabulary.</span>
+          </span>
+        </span>
+        na lugar.
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Wavy + Tooltip</h3>
+      <p>Lightest visual treatment. Grammarly-standard. Hover reveals full correction + explanation.</p>
+    </div>
+  </div>
+
+  <!-- B: bg highlight + tooltip -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px 20px;background:white;min-height:160px;">
+      <div class="label-row">B — Highlight + Tooltip</div>
+      <div class="preview-box">
+        Ang aking pamilya at
+        <span class="iss">
+          <span class="bghigh g">ako ay pumunta</span>
+          <span class="tip">
+            <span class="tip-badge badge-g">Grammar</span><br>
+            <span class="tip-strike">ako ay pumunta</span>
+            <span class="tip-arrow">→</span>
+            <span class="tip-suggestion">pumunta kami</span>
+            <span class="tip-explanation">Subject-verb agreement: use "kami" when the subject includes the speaker.</span>
+          </span>
+        </span>
+        sa isang
+        <span class="iss">
+          <span class="bghigh v">napaka-tahimik</span>
+          <span class="tip">
+            <span class="tip-badge badge-v">Vocabulary</span><br>
+            <span class="tip-strike">napaka-tahimik</span>
+            <span class="tip-arrow">→</span>
+            <span class="tip-suggestion">maligayang-tahimik</span>
+            <span class="tip-explanation">Consider a more expressive word for richer vocabulary.</span>
+          </span>
+        </span>
+        na lugar.
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Highlight + Tooltip</h3>
+      <p>More scannable at a glance. Issues are immediately obvious even before hovering.</p>
+    </div>
+  </div>
+
+  <!-- C: solid underline + tooltip -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px 20px;background:white;min-height:160px;">
+      <div class="label-row">C — Solid Underline + Tooltip</div>
+      <div class="preview-box">
+        Ang aking pamilya at
+        <span class="iss">
+          <span class="solid g">ako ay pumunta</span>
+          <span class="tip">
+            <span class="tip-badge badge-g">Grammar</span><br>
+            <span class="tip-strike">ako ay pumunta</span>
+            <span class="tip-arrow">→</span>
+            <span class="tip-suggestion">pumunta kami</span>
+            <span class="tip-explanation">Subject-verb agreement: use "kami" when the subject includes the speaker.</span>
+          </span>
+        </span>
+        sa isang
+        <span class="iss">
+          <span class="solid v">napaka-tahimik</span>
+          <span class="tip">
+            <span class="tip-badge badge-v">Vocabulary</span><br>
+            <span class="tip-strike">napaka-tahimik</span>
+            <span class="tip-arrow">→</span>
+            <span class="tip-suggestion">maligayang-tahimik</span>
+            <span class="tip-explanation">Consider a more expressive word for richer vocabulary.</span>
+          </span>
+        </span>
+        na lugar.
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Solid Underline + Tooltip</h3>
+      <p>Clean and readable. Underline is subtler than wavy but cleaner than background fill.</p>
+    </div>
+  </div>
+
+</div>

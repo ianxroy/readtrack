@@ -218,6 +218,13 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
   const dr = essay.diagnosisResult;
   const pMeta = dr ? proficiencyMeta[dr.proficiency] : null;
 
+  const teacherProficiency = essay.teacherRubricScores
+    ? essay.teacherRubricScores.overall >= 3.5 ? ProficiencyLevel.MAHUSAY
+      : essay.teacherRubricScores.overall >= 2.5 ? ProficiencyLevel.PAPAUNLAD
+      : ProficiencyLevel.NAGSISIMULA
+    : null;
+  const teacherPMeta = teacherProficiency ? proficiencyMeta[teacherProficiency] : null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-md p-4 animate-in fade-in duration-300">
       <div className="bg-white rounded-[32px] shadow-2xl border border-white/20 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
@@ -322,33 +329,48 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
               {/* Scoring Grid */}
               {dr && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Mungkahing Marka — AI predicted + teacher actual */}
+                  <div className="p-4 rounded-2xl border border-blue-100 bg-blue-50 md:col-span-2">
+                    <div className="flex items-center gap-2 mb-3">
+                      <IoStatsChartOutline className="text-xs text-blue-600" />
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-blue-600">Mungkahing Marka</span>
+                    </div>
+                    <div className="flex items-start gap-6">
+                      <div className="flex-1">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Hinulaang (AI)</p>
+                        <p className="text-xl font-black text-blue-600">
+                          {dr.rubricScore ? `${dr.rubricScore.overallScore.toFixed(1)}/4` : `${dr.natScore}%`}
+                        </p>
+                        <p className="mt-1 text-[11px] text-gray-500 leading-relaxed">
+                          Numerikong antas ng kasanayan batay sa kayamanan ng wika at istrukturang pagkakaisa.
+                        </p>
+                      </div>
+                      {essay.teacherRubricScores ? (
+                        <>
+                          <div className="w-px self-stretch bg-blue-200" />
+                          <div className="flex-1">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Aktwal (Guro)</p>
+                            <p className="text-xl font-black text-blue-600">
+                              {essay.teacherRubricScores.overall.toFixed(1)}/4
+                              <span className="text-xs font-normal text-gray-400 ml-2">
+                                ({essay.teacherRubricScores.percentage.toFixed(0)}%
+                                {essay.teacherRubricScores.transmuted != null && ` · ${essay.teacherRubricScores.transmuted.toFixed(0)} transmuted`})
+                              </span>
+                            </p>
+                            <p className="mt-1 text-[11px] text-gray-500 leading-relaxed">
+                              Marka ng guro batay sa 5-dimensyong rubrik ng DepEd.
+                            </p>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex-1 flex items-center justify-center">
+                          <p className="text-[10px] text-gray-400 italic">I-rate ang sanaysay para makita ang aktwal na marka.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   {[
-                    {
-                      label: 'Mungkahing Marka', // Suggested Score
-                      value: dr.rubricScore
-                        ? `${dr.rubricScore.overallScore.toFixed(1)}/4`
-                        : `${dr.natScore}%`,
-                      definition:
-                        'Numerikong antas ng kasanayan batay sa kayamanan ng wika at istrukturang pagkakaisa.', // Numerical proficiency rating based on linguistic richness and structural cohesion.
-                      icon: IoStatsChartOutline,
-                      meta: {
-                        color: 'text-blue-600',
-                        bg: 'bg-blue-50',
-                        border: 'border-blue-100',
-                      },
-                    },
-                    {
-                      label: 'Antas ng Kahusayan', // Proficiency
-                      value: dr.proficiency,
-                      definition:
-                        dr.proficiency === ProficiencyLevel.NAGSISIMULA
-                          ? 'Nangangailangan ng matinding suporta at gabay ng guro.' // Needs intensive support and guided intervention.
-                          : dr.proficiency === ProficiencyLevel.PAPAUNLAD
-                            ? 'Maaaring sumulong sa tulong ng guro at pagsasanay.' // Can progress with teacher scaffolding and practice.
-                            : 'Kaya niyang magtrabaho nang mag-isa sa mga gawaing angkop sa kanyang antas.', // Can work independently on grade-level tasks.
-                      icon: IoCheckmarkCircleOutline,
-                      meta: pMeta,
-                    },
                   ].map((item, idx) => (
                     <div
                       key={idx}
@@ -374,53 +396,59 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
                       </p>
                     </div>
                   ))}
+
+                  {/* Antas ng Kahusayan — predicted (AI) + actual (teacher) */}
+                  {dr && (
+                    <div className={`p-4 rounded-2xl border col-span-full ${pMeta?.border || 'border-gray-100'} ${pMeta?.bg || 'bg-gray-50'}`}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <IoCheckmarkCircleOutline className={`text-xs ${pMeta?.color || 'text-gray-400'}`} />
+                        <span className={`text-[10px] font-bold uppercase tracking-widest ${pMeta?.color || 'text-gray-400'}`}>
+                          Antas ng Kahusayan
+                        </span>
+                      </div>
+                      <div className="flex items-start gap-6">
+                        <div className="flex-1">
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Hinulaang (AI)</p>
+                          <p className={`text-xl font-black ${pMeta?.color || 'text-gray-900'}`}>{dr.proficiency}</p>
+                          <p className="mt-1 text-[11px] text-gray-500 leading-relaxed">
+                            {dr.proficiency === ProficiencyLevel.NAGSISIMULA
+                              ? 'Nangangailangan ng matinding suporta at gabay ng guro.'
+                              : dr.proficiency === ProficiencyLevel.PAPAUNLAD
+                                ? 'Maaaring sumulong sa tulong ng guro at pagsasanay.'
+                                : 'Kaya niyang magtrabaho nang mag-isa sa mga gawaing angkop sa kanyang antas.'}
+                          </p>
+                        </div>
+                        {teacherProficiency && teacherPMeta && (
+                          <>
+                            <div className="w-px self-stretch bg-gray-200" />
+                            <div className="flex-1">
+                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Aktwal (Guro)</p>
+                              <p className={`text-xl font-black ${teacherPMeta.color}`}>{teacherProficiency}</p>
+                              <p className="mt-1 text-[11px] text-gray-500 leading-relaxed">
+                                {teacherProficiency === ProficiencyLevel.NAGSISIMULA
+                                  ? 'Nangangailangan ng matinding suporta at gabay ng guro.'
+                                  : teacherProficiency === ProficiencyLevel.PAPAUNLAD
+                                    ? 'Maaaring sumulong sa tulong ng guro at pagsasanay.'
+                                    : 'Kaya niyang magtrabaho nang mag-isa sa mga gawaing angkop sa kanyang antas.'}
+                              </p>
+                            </div>
+                          </>
+                        )}
+                        {!teacherProficiency && (
+                          <div className="flex-1 flex items-center justify-center">
+                            <p className="text-[10px] text-gray-400 italic">I-rate ang sanaysay para makita ang aktwal na antas.</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
               {/* Performance Metrics & Feedback */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div className="space-y-6">
-                  {dr && (
-                    <div className="bg-white border border-gray-100 rounded-[24px] p-6 shadow-sm">
-                      <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4 flex items-center gap-2">
-                        <IoStatsChartOutline className="text-teal-500" />{' '}
-                        Mga Sukatan ng Pagganap {/* Performance Metrics */}
-                      </h4>
-                      <div className="space-y-4">
-                        {[
-                          {
-                            label: 'Katumpakan ng Gramatika', // Grammar Accuracy
-                            val: dr.metrics.grammarAccuracy,
-                          },
-                          {
-                            label: 'Kayamanan ng Talasalitaan', // Vocabulary Richness
-                            val: dr.metrics.vocabularyRichness,
-                          },
-                          {
-                            label: 'Kumplikasyon ng Pangungusap', // Sentence Complexity
-                            val: dr.metrics.sentenceComplexity,
-                          },
-                          {
-                            label: 'Istruktura at Pagkakaisa', // Structure & Cohesion
-                            val: dr.metrics.structureCohesion,
-                          },
-                        ].map((m, i) => (
-                          <div key={i}>
-                            <div className="flex justify-between text-xs font-bold text-gray-700 mb-1.5">
-                              <span>{m.label}</span>
-                              <span className="text-teal-600">{m.val}%</span>
-                            </div>
-                            <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-teal-500 rounded-full"
-                                style={{ width: `${m.val}%` }}
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  {/* Mga Sukatan ng Pagganap — temporarily hidden (metrics conflict with DepEd rubric labels) */}
 
                   {dr?.feedback && (
                     <div className="bg-teal-50 border border-teal-100 rounded-[24px] p-6">
