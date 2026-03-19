@@ -30,28 +30,57 @@ flowchart LR
 
 ## Step 1: Feature Extraction
 
-Every text is converted into a **7-dimensional numerical vector** using NLP techniques. Feature extraction happens in `preprocessing.py` using spaCy and CEFRpy linguistic analysis.
+Every text is converted into a **24-dimensional numerical vector** using NLP techniques. Feature extraction happens in `preprocessing.py` using spaCy (`en_core_web_sm`) and CEFRpy linguistic analysis.
 
 ### Extracted Features
+
+**Base Features (18)**
 
 | # | Feature | Description | How It's Calculated |
 |---|---------|-------------|---------------------|
 | 1 | **TTR (Type-Token Ratio)** | Lexical diversity | Unique words ÷ Total words |
 | 2 | **Avg Sentence Length** | Syntactic complexity | Total words ÷ Number of sentences |
-| 3 | **Difficult Word Ratio** | Word-level difficulty | % of words with >9 characters |
+| 3 | **Difficult Word Ratio** | Word-level difficulty | % of words with >9 characters × 100 |
 | 4 | **Clause Density** | Grammatical complexity | Verbs per sentence |
-| 5 | **Advanced CEFR Ratio** | Vocabulary proficiency | % of C1/C2 level words |
+| 5 | **Advanced CEFR Ratio** | Vocabulary proficiency | C1/C2 word count ÷ Total words |
 | 6 | **Flesch-Kincaid Grade** | Readability metric | Standard FK formula |
 | 7 | **Gunning Fog Index** | Prose complexity | Measures text "fog" |
+| 8 | **Verb Ratio** | Grammatical density | Verbs ÷ Total words |
+| 9 | **Noun Ratio** | Nominal density | Nouns ÷ Total words |
+| 10 | **Adjective Ratio** | Descriptive density | Adjectives ÷ Total words |
+| 11 | **Avg Dependency Distance** | Syntactic complexity | Mean token–head distance in parse tree |
+| 12 | **Word Count** | Text length | Total alpha tokens |
+| 13 | **Sentence Count** | Text structure | Total sentences |
+| 14 | **Sentence Length Std Dev** | Sentence burstiness | Std deviation of per-sentence word counts |
+| 15 | **Punctuation Density** | Writing maturity | Punctuation marks ÷ Total words |
+| 16 | **Stopword Ratio** | Functional word usage | Stopwords ÷ Total words |
+| 17 | **Avg Word Length** | Vocabulary complexity | Mean character count per word |
+| 18 | **Syllables per Word** | Phonological complexity | Total syllables ÷ Total words |
+
+**CEFR Distribution Features (6)**
+
+| # | Feature | Description |
+|---|---------|-------------|
+| 19 | **A1 Ratio** | Basic beginner vocabulary proportion |
+| 20 | **A2 Ratio** | Elementary vocabulary proportion |
+| 21 | **B1 Ratio** | Intermediate vocabulary proportion |
+| 22 | **B2 Ratio** | Upper-intermediate vocabulary proportion |
+| 23 | **C1 Ratio** | Advanced vocabulary proportion |
+| 24 | **C2 Ratio** | Mastery vocabulary proportion |
 
 ### CEFR Vocabulary Analysis
 
-The system uses `cefrpy` to classify each word into CEFR levels (English only):
-- **A1-A2**: Basic vocabulary
-- **B1-B2**: Independent user vocabulary
-- **C1-C2**: Proficient/Advanced vocabulary
+The system uses `cefrpy` to classify each word into CEFR levels (**English only**). Each ratio = count of words at that level ÷ total word count.
 
-> **Note**: CEFR analysis is disabled for Filipino (Tagalog) text. Filipino essays use a reduced feature set without the Advanced CEFR Ratio.
+### Filipino Text Feature Extraction
+
+For Filipino text (`language != "en"`), the code currently still uses the English spaCy model (`en_core_web_sm`) for tokenization and POS tagging. All CEFR-related features (5, 19–24) are set to **0** since CEFRpy does not support Filipino.
+
+> **Known limitation**: Using an English POS model on Filipino text produces inaccurate POS tags, which makes POS-derived features (verb ratio, noun ratio, adjective ratio, clause density, avg dependency distance) unreliable for Filipino essays.
+
+> **calamanCy** (`tl_calamancy_md`) is already loaded in `tagalog_service.py` and returns a full spaCy `Doc` object with accurate Filipino POS tags, lemmas, and dependency parses — but it is not yet wired into `preprocessing.py`. It should be used here instead of `en_core_web_sm` for Filipino text.
+
+Effective dimensionality for Filipino: 24 features, 7 of which are always 0 (Advanced CEFR Ratio + 6 CEFR level ratios).
 
 ---
 

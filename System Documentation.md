@@ -32,7 +32,7 @@ ReadTrack uses a **hybrid approach** combining traditional NLP tools with genera
 
 - **Spelling Correction**: SymSpellPy for fast dictionary-based corrections + Gemini for context-aware suggestions
 - **Grammar Checking**: LanguageTool for rules-based detection + Gemini for semantic corrections
-- **Text Analysis**: spaCy for linguistic features + SVM models for complexity and proficiency scoring
+- **Text Analysis**: spaCy (`en_core_web_sm`) for 24-dimensional linguistic feature extraction + SVM models for complexity and proficiency scoring
 - **OCR**: Gemini Vision for accurate image text extraction and material ingestion
 - **Student Feedback**: Gemini for rubric-based evaluation and detailed AI-generated feedback
 
@@ -182,7 +182,8 @@ stateDiagram-v2
 | **Spell Checking** | Hybrid: SymSpellPy dictionary-based + Gemini context-aware suggestions | **Implemented** |
 | **OCR Processing** | Extract text from images using Gemini Vision with multi-language support | **Implemented** |
 | **PDF Text Extraction** | Extract text from PDF documents using pypdf | **Implemented** |
-| **Filipino NLP** | calamanCy for POS tagging, NER, and dependency parsing on Filipino text | **Implemented** |
+| **Filipino NLP (Display)** | calamanCy for POS tagging, NER, and dependency parsing — used for UI display in `tagalog_service.py` | **Implemented** |
+| **Filipino NLP (SVM Features)** | Currently uses `en_core_web_sm` (English model) for Filipino feature extraction — inaccurate for POS-derived features. Should be migrated to calamanCy | **Needs Fix** |
 | **AI Chat Interface** | Interactive chat with Google Gemini, context-aware with reference documents | **Implemented** |
 | **Dashboard Analytics** | Visual metrics, progress charts, and model performance with Recharts | **Implemented** |
 | **Model Retraining** | Retrain SVM models from Supabase teacher-rated essays (min. 5 samples) | **Implemented** |
@@ -360,9 +361,10 @@ The user-facing interface built with React 19 and TypeScript.
 - Model loading, prediction, and confidence scoring
 
 **`preprocessing.py`** — Feature extraction
-- 7-dimensional linguistic feature vectors
-- spaCy and CEFRpy integration
-- Language-specific feature pipelines
+- 24-dimensional linguistic feature vectors (18 base + 6 CEFR distribution ratios)
+- spaCy `en_core_web_sm` used for tokenization/POS on both English and Filipino text
+- CEFRpy features (dimensions 5, 19–24) zeroed out for Filipino text
+- **Known limitation**: `en_core_web_sm` is an English model; POS-derived features (verb/noun/adj ratios, clause density, dependency distance) are inaccurate for Filipino. calamanCy (`tl_calamancy_md`), already loaded in `tagalog_service.py`, should be used for Filipino feature extraction instead
 
 **`grammar_service.py`** — Grammar checking
 - LanguageTool integration
