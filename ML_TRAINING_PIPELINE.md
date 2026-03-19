@@ -1,4 +1,4 @@
-# How the ReadTrack Models Are Trained
+# ReadTrack ML Training Pipeline
 
 This document explains the machine learning pipeline used in ReadTrack for text complexity and student proficiency analysis.
 
@@ -10,8 +10,8 @@ ReadTrack uses **Support Vector Machine (SVM)** classifiers trained with scikit-
 
 | Model | Purpose | Output Labels |
 |-------|---------|---------------|
-| **Student Proficiency Model** | Assesses student writing ability | Independent, Instructional, Frustration |
-| **Text Complexity Model** | Measures reading difficulty | Literal, Inferential, Evaluative |
+| **Student Proficiency Model** | Assesses student writing ability (DepEd scale) | Nagsisimula, Papaunlad, Mahusay |
+| **Text Complexity Model** | Measures reading material difficulty | Literal, Inferential, Evaluative |
 
 ---
 
@@ -30,7 +30,7 @@ flowchart LR
 
 ## Step 1: Feature Extraction
 
-Every text is converted into a **7-dimensional numerical vector** using NLP techniques. The feature extraction happens in `preprocessing.py` using spaCy and CEFR linguistic analysis.
+Every text is converted into a **7-dimensional numerical vector** using NLP techniques. Feature extraction happens in `preprocessing.py` using spaCy and CEFRpy linguistic analysis.
 
 ### Extracted Features
 
@@ -46,10 +46,12 @@ Every text is converted into a **7-dimensional numerical vector** using NLP tech
 
 ### CEFR Vocabulary Analysis
 
-The system uses `cefrpy` to classify each word into CEFR levels:
+The system uses `cefrpy` to classify each word into CEFR levels (English only):
 - **A1-A2**: Basic vocabulary
 - **B1-B2**: Independent user vocabulary
 - **C1-C2**: Proficient/Advanced vocabulary
+
+> **Note**: CEFR analysis is disabled for Filipino (Tagalog) text. Filipino essays use a reduced feature set without the Advanced CEFR Ratio.
 
 ---
 
@@ -57,7 +59,17 @@ The system uses `cefrpy` to classify each word into CEFR levels:
 
 ### Student Proficiency Model
 
-**Dataset**: ASAP2 (Automated Student Assessment Prize) essay dataset
+**Initial Training Dataset**: ASAP2 (Automated Student Assessment Prize) essay dataset
+
+**Label Mapping** (Score → DepEd Reading Level):
+
+| ASAP Score | DepEd Level |
+|------------|-------------|
+| 6 | Mahusay (Independent) |
+| 3–5 | Papaunlad (Instructional) |
+| 1–2 | Nagsisimula (Frustration) |
+
+**Continuous Retraining**: After initial training, the proficiency model is retrained using teacher-rated essays stored in the Supabase `teacher_evaluations` table. A minimum of **5 labeled samples** is required to trigger retraining.
 
 **Data Loading** (`train_utils.py`):
 ```python
@@ -67,22 +79,16 @@ results = Parallel(n_jobs=-1)(
 )
 ```
 
-**Label Mapping** (Score → Phil-IRI Level):
-| ASAP Score | Phil-IRI Level |
-|------------|----------------|
-| 6 | Independent |
-| 3-5 | Instructional |
-| 1-2 | Frustration |
-
 ### Text Complexity Model
 
 **Dataset**: CommonLit Readability dataset
 
 **Label Mapping** (Flesch-Kincaid → Complexity):
+
 | FK Grade Level | Complexity |
 |----------------|------------|
 | < 12.0 | Literal |
-| 12.0 - 15.0 | Inferential |
+| 12.0–15.0 | Inferential |
 | ≥ 15.0 | Evaluative |
 
 ---
@@ -91,7 +97,7 @@ results = Parallel(n_jobs=-1)(
 
 ### Feature Scaling
 
-Features are normalized using **RobustScaler** (for proficiency) or **StandardScaler** (for complexity) to handle outliers and ensure all features contribute equally:
+Features are normalized using **RobustScaler** (for proficiency) or **StandardScaler** (for complexity) to handle outliers and ensure equal feature contribution:
 
 ```python
 scaler = RobustScaler()
@@ -115,7 +121,7 @@ X_train, X_test, y_train, y_test = train_test_split(
 
 ### SVM with RBF Kernel
 
-Both models use **Support Vector Classification (SVC)** with an **RBF (Radial Basis Function)** kernel, which is effective for non-linear classification problems.
+Both models use **Support Vector Classification (SVC)** with an **RBF (Radial Basis Function)** kernel, effective for non-linear classification problems.
 
 ### Hyperparameter Tuning (GridSearchCV)
 
@@ -171,6 +177,16 @@ sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
 plt.savefig('confusion_matrix.png')
 ```
 
+Performance metrics are also exposed via the API:
+
+```
+GET /train/performance
+Response: {
+    "proficiency": { "accuracy": 0.88, "f1": 0.86 },
+    "complexity":  { "accuracy": 0.91, "f1": 0.89 }
+}
+```
+
 ---
 
 ## Step 6: Model Serialization
@@ -208,6 +224,12 @@ python train_proficiency.py
 python train_complexity.py
 ```
 
+### Trigger Retraining via API (uses Supabase data)
+
+```bash
+curl -X POST http://localhost:8000/train/retrain
+```
+
 ### Output Files
 
 After training, the following files are created:
@@ -229,12 +251,28 @@ When analyzing new text:
 
 ```mermaid
 flowchart TD
-    A[Text Input] --> B[Feature Extraction Function];
-    B --> C[7D Feature Vector];
-    C --> D[Load Saved Model and Scaler];
-    D --> E[Scale Feature Vector];
-    E --> F[Predict Label with SVM];
-    F --> G[Return Label Example Instructional];
+    A[Text Input] --> B[Feature Extraction<br/>preprocessing.py]
+    B --> C[7D Feature Vector]
+    C --> D[Load Saved Model and Scaler]
+    D --> E[Scale Feature Vector]
+    E --> F[Predict Label with SVM]
+    F --> G[Return Label + Confidence Score<br/>e.g. Papaunlad, 0.87]
+```
+
+---
+
+## Retraining Flow (Supabase-Driven)
+
+```mermaid
+flowchart TD
+    A[Teacher rates student essay] --> B[Saved to teacher_evaluations in Supabase]
+    B --> C{≥ 5 labeled samples?}
+    C -->|No| D[Wait for more data]
+    C -->|Yes| E[POST /train/retrain triggered]
+    E --> F[Fetch labeled data from Supabase]
+    F --> G[Feature extraction + GridSearchCV]
+    G --> H[Save updated .pkl files]
+    H --> I[Performance metrics updated]
 ```
 
 ---
@@ -248,14 +286,14 @@ If model files are missing, the system uses **heuristic scoring** as a fallback:
 score = (vocab_richness * 0.4) + (structure_cohesion * 0.6) + cefr_boost
 
 if score >= 80:
-    proficiency = "Independent"
+    proficiency = "Mahusay"
 elif score >= 50:
-    proficiency = "Instructional"
+    proficiency = "Papaunlad"
 else:
-    proficiency = "Frustration"
+    proficiency = "Nagsisimula"
 ```
 
-This ensures the application remains functional even without trained models.
+This ensures the application remains functional even without trained model files.
 
 ---
 
@@ -271,8 +309,10 @@ This ensures the application remains functional even without trained models.
 ## Summary
 
 1. **Feature Engineering**: Text → 7 linguistic features (TTR, sentence length, CEFR, etc.)
-2. **Data**: ASAP2 essays (proficiency), CommonLit texts (complexity)
-3. **Algorithm**: SVM with RBF kernel
-4. **Optimization**: GridSearchCV with 3-fold cross-validation
-5. **Output**: Serialized `.pkl` files with model + scaler
-6. **Fallback**: Heuristic scoring if models unavailable
+2. **Initial Data**: ASAP2 essays (proficiency), CommonLit texts (complexity)
+3. **Continuous Data**: Teacher-rated essays from Supabase `teacher_evaluations`
+4. **Algorithm**: SVM with RBF kernel
+5. **Optimization**: GridSearchCV with 3-fold cross-validation
+6. **Output Labels**: DepEd scale (Nagsisimula / Papaunlad / Mahusay) for proficiency; Literal / Inferential / Evaluative for complexity
+7. **Serialization**: `.pkl` files with model + scaler bundled
+8. **Fallback**: Heuristic scoring if models unavailable
