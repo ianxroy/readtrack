@@ -792,6 +792,21 @@ def ingest_reference(request: ReferenceIngestRequest):
 
 
 
+class DetectLanguageRequest(BaseModel):
+    text: str
+
+@app.post("/detect-language")
+async def detect_language_endpoint(request: DetectLanguageRequest):
+    try:
+        from grammar_service import detect_language
+        if not request.text or len(request.text.strip()) < 10:
+            return {"language": "fil"}
+        lang = detect_language(request.text)
+        return {"language": "eng" if lang == "en" else "fil"}
+    except Exception:
+        return {"language": "fil"}
+
+
 @app.post("/analyze/complexity")
 def analyze_complexity_text(request: TextRequest):
     print(f"DEBUG: analyze_complexity_text called. Has image: {bool(request.image)}, Has text: {bool(request.text)}")
