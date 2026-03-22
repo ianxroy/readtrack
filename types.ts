@@ -134,6 +134,10 @@ export interface LibraryMaterial {
   uploadedAt: Date;
   complexityResult: TextComplexityResult;
   originalFile?: OriginalFile;
+  // ISO-style language code detected from material text.
+  // Distinct from the Language enum ('English'/'Filipino') used elsewhere.
+  // 'eng' = English, 'fil' = Filipino (default/fallback).
+  language?: 'eng' | 'fil';
 }
 
 export interface ReferenceFile {
