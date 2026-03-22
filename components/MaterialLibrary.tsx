@@ -108,14 +108,14 @@ const REASONING_KEYWORDS: Record<ComplexityLevel, Array<{ pattern: RegExp; tag: 
   // Spec-defined keywords + two intentional extras per level for better coverage:
   // 'May need support' and 'Needs scaffolding' extend the spec's list deliberately.
   [ComplexityLevel.INFERENTIAL]: [
-    { pattern: /impl[yi]|infer/i, tag: 'Implied meaning' },
-    { pattern: /moderate/i, tag: 'Moderate vocabulary' },
+    { pattern: /\bimpl(?:y|ied)\b|\binfer/i, tag: 'Implied meaning' },
+    { pattern: /\bmoderate\b/i, tag: 'Moderate vocabulary' },
     { pattern: /context.{0,10}clue/i, tag: 'Context clues needed' },
     { pattern: /some.{0,10}support|teacher.{0,10}support/i, tag: 'May need support' },
   ],
   [ComplexityLevel.EVALUATIVE]: [
-    { pattern: /abstract/i, tag: 'Abstract concepts' },
-    { pattern: /complex/i, tag: 'Complex structure' },
+    { pattern: /\babstract\b/i, tag: 'Abstract concepts' },
+    { pattern: /\bcomplex\b/i, tag: 'Complex structure' },
     { pattern: /advanced|difficult/i, tag: 'Advanced vocabulary' },
     { pattern: /scaffold/i, tag: 'Needs scaffolding' },
   ],
@@ -151,6 +151,9 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
   
   const meta = levelMeta[material.complexityResult.level] ?? levelMeta[ComplexityLevel.LITERAL];
   const cr = material.complexityResult;
+  const { summary: reasoningSummary, tags: reasoningTags } = parseReasoning(
+    cr.reasoning, material.complexityResult.level
+  );
 
   const handleSave = () => {
     onUpdate({
@@ -253,29 +256,24 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
           )}
 
           {/* Reasoning */}
-          {(() => {
-            const { summary, tags } = parseReasoning(cr.reasoning, material.complexityResult.level);
-            return (
-              <div className={`mx-5 mt-3 rounded-xl border p-4 ${meta.bg} ${meta.border}`}>
-                <div className={`text-[10px] font-bold uppercase tracking-widest mb-1.5 ${meta.text}`}>
-                  Why is this {meta.label}?
-                </div>
-                <p className={`text-xs leading-relaxed mb-2 ${meta.text}`}>{summary}</p>
-                {tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {tags.map(tag => (
-                      <span
-                        key={tag}
-                        className={`text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/60 ${meta.text}`}
-                      >
-                        ✓ {tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
+          <div className={`mx-5 mt-3 rounded-xl border p-4 ${meta.bg} ${meta.border}`}>
+            <div className={`text-[10px] font-bold uppercase tracking-widest mb-1.5 ${meta.text}`}>
+              Why is this {meta.label}?
+            </div>
+            <p className={`text-xs leading-relaxed mb-2 ${meta.text}`}>{reasoningSummary}</p>
+            {reasoningTags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {reasoningTags.map(tag => (
+                  <span
+                    key={tag}
+                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/60 ${meta.text}`}
+                  >
+                    ✓ {tag}
+                  </span>
+                ))}
               </div>
-            );
-          })()}
+            )}
+          </div>
 
           {/* Material text */}
           <div className="mx-5 mt-3 mb-5">
