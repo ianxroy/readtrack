@@ -145,7 +145,9 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
   const [isEditing, setIsEditing] = useState(false);
   const [editedName, setEditedName] = useState(material.name);
   const [editedText, setEditedText] = useState(material.text);
-  const [viewMode, setViewMode] = useState<'text' | 'sideBySide'>('text');
+  const [viewMode, setViewMode] = useState<'text' | 'sideBySide'>(
+    material.originalFile ? 'sideBySide' : 'text'
+  );
   
   const meta = levelMeta[material.complexityResult.level] ?? levelMeta[ComplexityLevel.LITERAL];
   const cr = material.complexityResult;
@@ -304,7 +306,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
                 {/* Original file preview */}
                 <div className="flex-1 bg-gray-50 border border-gray-100 rounded-xl p-3 overflow-auto">
                   <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 flex items-center gap-1.5">
-                    <IoImageOutline /> Original File
+                    <IoImageOutline /> Uploaded Material
                   </div>
                   {material.originalFile.mimeType.startsWith('image/') ? (
                     <img
@@ -327,7 +329,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
                 {/* Extracted text */}
                 <div className="flex-1 bg-gray-50 border border-gray-100 rounded-xl p-3 overflow-auto">
                   <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 flex items-center gap-1.5">
-                    <IoDocumentTextOutline /> Scanned Text
+                    <IoDocumentTextOutline /> Extracted Text
                   </div>
                   <div className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap font-mono">
                     {material.text}
