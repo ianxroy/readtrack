@@ -14,7 +14,7 @@ import {
   IoGridOutline,
 } from 'react-icons/io5';
 import { LibraryMaterial, TextComplexityResult, ComplexityLevel } from '../types';
-import { classifyTextComplexityAPI, extractTextFromImageAPI } from '../services/pythonService';
+import { classifyTextComplexityAPI, extractTextFromImageAPI, detectLanguageAPI } from '../services/pythonService';
 import { saveMaterialUpload, loadMaterialUploads, deleteMaterialUpload } from '../services/supabaseService';
 import { useEffect } from 'react';
 
@@ -174,6 +174,15 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
               <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border ${meta.badge}`}>
                 {meta.label}
               </span>
+              {material.language && (
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                  material.language === 'eng'
+                    ? 'bg-blue-50 text-blue-600 border-blue-100'
+                    : 'bg-purple-50 text-purple-600 border-purple-100'
+                }`}>
+                  {material.language === 'eng' ? '🇬🇧 English' : '🇵🇭 Filipino'}
+                </span>
+              )}
               <span className="text-[10px] text-gray-400">{meta.desc}</span>
             </div>
             {isEditing ? (
@@ -361,14 +370,22 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [showSortMenu, setShowSortMenu] = useState(false);
+  const [langFilter, setLangFilter] = useState<'all' | 'eng' | 'fil'>('all');
   const dragCount = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let cancelled = false;
-    loadMaterialUploads().then(({ data, error }) => {
+    loadMaterialUploads().then(async ({ data, error }) => {
       if (!cancelled) {
-        if (!error) setMaterials(data);
+        if (!error && data.length > 0) {
+          // Re-detect language for all loaded materials in parallel
+          const langs = await Promise.all(data.map(m => detectLanguageAPI(m.text)));
+          const withLangs = data.map((m, i) => ({ ...m, language: langs[i] }));
+          setMaterials(withLangs);
+        } else if (!error) {
+          setMaterials(data);
+        }
         setMaterialsLoading(false);
       }
     });
@@ -376,8 +393,14 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
   }, []);
 
   const refreshMaterials = async () => {
-    const { data } = await loadMaterialUploads();
-    setMaterials(data);
+    const { data, error } = await loadMaterialUploads();
+    if (error) return; // keep current state on error, same as original
+    if (data.length > 0) {
+      const langs = await Promise.all(data.map(m => detectLanguageAPI(m.text)));
+      setMaterials(data.map((m, i) => ({ ...m, language: langs[i] })));
+    } else {
+      setMaterials(data);
+    }
   };
 
   const persist = (updated: LibraryMaterial[]) => {
@@ -469,7 +492,11 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
         complexityResult: result,
         originalFile: base64 ? { base64, mimeType, name: file.name } : undefined,
       };
-      persist([material, ...materials]);
+      // Detect language for the new material
+      const detectedLang = await detectLanguageAPI(extractedText);
+      const materialWithLang: LibraryMaterial = { ...material, language: detectedLang };
+
+      persist([materialWithLang, ...materials]);
 
       const { error } = await saveMaterialUpload({
         material_name: material.name,
@@ -512,6 +539,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
   const displayed = sortMaterials(
     materials.filter(m => {
       if (filter !== 'all' && m.complexityResult.level !== filter) return false;
+      if (langFilter !== 'all' && m.language !== langFilter) return false;
       if (search && !m.name.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     }),
@@ -531,6 +559,11 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
     [ComplexityLevel.LITERAL]: materials.filter(m => m.complexityResult.level === ComplexityLevel.LITERAL).length,
     [ComplexityLevel.INFERENTIAL]: materials.filter(m => m.complexityResult.level === ComplexityLevel.INFERENTIAL).length,
     [ComplexityLevel.EVALUATIVE]: materials.filter(m => m.complexityResult.level === ComplexityLevel.EVALUATIVE).length,
+  };
+
+  const langCounts = {
+    eng: materials.filter(m => m.language === 'eng').length,
+    fil: materials.filter(m => m.language === 'fil').length,
   };
 
   return (
@@ -626,27 +659,52 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
           </div>
 
           {/* Filter tabs */}
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-2 flex-wrap items-center">
+            {/* Language filters */}
             {([
-              { key: 'all' as const, label: 'All' },
-              { key: ComplexityLevel.LITERAL, label: 'Literal' },
-              { key: ComplexityLevel.INFERENTIAL, label: 'Inferential' },
-              { key: ComplexityLevel.EVALUATIVE, label: 'Evaluative' },
-            ]).map(({ key, label }) => {
+              { key: 'all' as const, label: 'All', count: materials.length },
+              { key: 'eng' as const, label: '🇬🇧 English', count: langCounts.eng },
+              { key: 'fil' as const, label: '🇵🇭 Filipino', count: langCounts.fil },
+            ]).map(({ key, label, count }) => (
+              <button
+                key={key}
+                onClick={() => setLangFilter(key)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                  langFilter === key
+                    ? 'bg-teal-50 text-teal-700 border-teal-200'
+                    : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                {label}
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${langFilter === key ? 'bg-white/60' : 'bg-gray-100'}`}>
+                  {count}
+                </span>
+              </button>
+            ))}
+
+            {/* Divider */}
+            <div className="w-px h-5 bg-gray-200 mx-1" />
+
+            {/* Complexity filters */}
+            {([
+              { key: 'all' as const, label: 'All', meta: null },
+              { key: ComplexityLevel.LITERAL, label: 'Literal', meta: levelMeta[ComplexityLevel.LITERAL] },
+              { key: ComplexityLevel.INFERENTIAL, label: 'Inferential', meta: levelMeta[ComplexityLevel.INFERENTIAL] },
+              { key: ComplexityLevel.EVALUATIVE, label: 'Evaluative', meta: levelMeta[ComplexityLevel.EVALUATIVE] },
+            ]).map(({ key, label, meta: m }) => {
               const count = counts[key];
               const isActive = filter === key;
-              const meta = key !== 'all' ? levelMeta[key] : null;
               return (
                 <button
                   key={key}
                   onClick={() => setFilter(key)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
                     isActive
-                      ? meta ? `${meta.bg} ${meta.text} ${meta.border}` : 'bg-teal-50 text-teal-700 border-teal-200'
+                      ? m ? `${m.bg} ${m.text} ${m.border}` : 'bg-teal-50 text-teal-700 border-teal-200'
                       : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
                   }`}
                 >
-                  {meta && <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />}
+                  {m && <span className={`w-1.5 h-1.5 rounded-full ${m.dot}`} />}
                   {label}
                   <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${isActive ? 'bg-white/60' : 'bg-gray-100'}`}>
                     {count}
@@ -724,9 +782,20 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
 
                     <div className="flex items-start justify-between gap-2 mb-3 pt-1">
                       <div className="flex-1 min-w-0">
-                        <div className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border mb-1.5 ${meta.badge}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
-                          {meta.label}
+                        <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
+                          <div className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${meta.badge}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
+                            {meta.label}
+                          </div>
+                          {mat.language && (
+                            <span className={`inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
+                              mat.language === 'eng'
+                                ? 'bg-blue-50 text-blue-600 border-blue-100'
+                                : 'bg-purple-50 text-purple-600 border-purple-100'
+                            }`}>
+                              {mat.language === 'eng' ? '🇬🇧 EN' : '🇵🇭 FIL'}
+                            </span>
+                          )}
                         </div>
                         <h3 className="text-sm font-semibold text-gray-800 truncate group-hover:text-teal-600 transition-colors">
                           {mat.name}
