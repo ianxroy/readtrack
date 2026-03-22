@@ -380,7 +380,12 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
       if (!cancelled) {
         if (!error && data.length > 0) {
           // Re-detect language for all loaded materials in parallel
-          const langs = await Promise.all(data.map(m => detectLanguageAPI(m.text)));
+          let langs: Array<'eng' | 'fil'>;
+          try {
+            langs = await Promise.all(data.map(m => detectLanguageAPI(m.text)));
+          } catch {
+            langs = data.map(() => 'fil' as const);
+          }
           const withLangs = data.map((m, i) => ({ ...m, language: langs[i] }));
           setMaterials(withLangs);
         } else if (!error) {
@@ -396,7 +401,12 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
     const { data, error } = await loadMaterialUploads();
     if (error) return; // keep current state on error, same as original
     if (data.length > 0) {
-      const langs = await Promise.all(data.map(m => detectLanguageAPI(m.text)));
+      let langs: Array<'eng' | 'fil'>;
+      try {
+        langs = await Promise.all(data.map(m => detectLanguageAPI(m.text)));
+      } catch {
+        langs = data.map(() => 'fil' as const);
+      }
       setMaterials(data.map((m, i) => ({ ...m, language: langs[i] })));
     } else {
       setMaterials(data);
@@ -493,7 +503,12 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
         originalFile: base64 ? { base64, mimeType, name: file.name } : undefined,
       };
       // Detect language for the new material
-      const detectedLang = await detectLanguageAPI(extractedText);
+      let detectedLang: 'eng' | 'fil' = 'fil';
+      try {
+        detectedLang = await detectLanguageAPI(extractedText);
+      } catch {
+        // detectLanguageAPI is fail-safe but wrapping as extra guard
+      }
       const materialWithLang: LibraryMaterial = { ...material, language: detectedLang };
 
       persist([materialWithLang, ...materials]);
