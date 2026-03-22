@@ -251,12 +251,29 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
           )}
 
           {/* Reasoning */}
-          {cr.reasoning && (
-            <div className="mx-5 mt-3 bg-teal-50 border border-teal-100 rounded-xl p-4">
-              <div className="text-[10px] font-bold uppercase tracking-widest text-teal-500 mb-1.5">Model Reasoning</div>
-              <p className="text-xs text-teal-800 leading-relaxed">{cr.reasoning}</p>
-            </div>
-          )}
+          {(() => {
+            const { summary, tags } = parseReasoning(cr.reasoning, material.complexityResult.level);
+            return (
+              <div className={`mx-5 mt-3 rounded-xl border p-4 ${meta.bg} ${meta.border}`}>
+                <div className={`text-[10px] font-bold uppercase tracking-widest mb-1.5 ${meta.text}`}>
+                  Why is this {meta.label}?
+                </div>
+                <p className={`text-xs leading-relaxed mb-2 ${meta.text}`}>{summary}</p>
+                {tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {tags.map(tag => (
+                      <span
+                        key={tag}
+                        className={`text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/60 ${meta.text}`}
+                      >
+                        ✓ {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Material text */}
           <div className="mx-5 mt-3 mb-5">
