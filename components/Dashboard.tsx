@@ -3,31 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { ComplexityLevel, ProficiencyLevel } from "../types";
 import { loadDashboardStats } from "../services/supabaseService";
 
-interface ToolCardProps {
-  title: string;
-  description: string;
-  badge: string;
-  icon: string;
-  onClick?: () => void;
-  accent: string;
-  badgeColor: string;
-}
-
-const ToolCard: React.FC<ToolCardProps> = ({ title, description, badge, icon, onClick, accent, badgeColor }) => (
-  <button
-    onClick={onClick}
-    className="group flex flex-col items-start text-left p-6 bg-white border border-gray-100
-               rounded-2xl shadow-sm transition-all duration-200 outline-none
-               hover:-translate-y-1 hover:shadow-md hover:border-gray-200"
-  >
-    <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-2xl mb-4 ${accent}`}>
-      {icon}
-    </div>
-    <span className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${badgeColor}`}>{badge}</span>
-    <h3 className="text-sm font-bold text-gray-800 mb-1 group-hover:text-teal-600 transition-colors">{title}</h3>
-    <p className="text-xs text-gray-400 leading-relaxed">{description}</p>
-  </button>
-);
 
 interface MetricCardProps {
   label: string;
@@ -228,30 +203,43 @@ export const Dashboard: React.FC<DashboardProps> = ({ view: _view }) => {
         </section>
 
         <section className="grid sm:grid-cols-2 gap-4">
-          <ToolCard
-            title="Material Library"
-            description="Upload reading materials and measure if they are appropriate for Grade 7 students using the Complexity SVM."
-            badge="Complexity"
-            icon="📚"
-            accent="bg-blue-50"
-            badgeColor="text-blue-500"
-            onClick={() => navigate("/material")}
-          />
-          <ToolCard
-            title="Essay Scoring"
-            description="Analyze student-written essays, score proficiency level, and estimate NAT scores using the Proficiency SVM."
-            badge="Proficiency"
-            icon="📝"
-            accent="bg-teal-50"
-            badgeColor="text-teal-500"
-            onClick={() => navigate("/student")}
-          />
+          <div className="flex flex-col items-start p-6 bg-white border border-gray-100 rounded-2xl shadow-sm gap-3">
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center text-2xl bg-blue-50">📚</div>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-blue-500">Complexity</span>
+            <div>
+              <h3 className="text-sm font-bold text-gray-800 mb-1">Upload a Material</h3>
+              <p className="text-xs text-gray-400 leading-relaxed">Check if a reading material is appropriate for Grade 7 students.</p>
+            </div>
+            <button
+              onClick={() => navigate("/material")}
+              className="mt-auto w-full py-2 rounded-xl bg-teal-500 hover:bg-teal-600 text-white text-xs font-semibold transition-colors"
+            >
+              Go to Material Library →
+            </button>
+          </div>
+          <div className="flex flex-col items-start p-6 bg-white border border-gray-100 rounded-2xl shadow-sm gap-3">
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center text-2xl bg-teal-50">📝</div>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-teal-500">Proficiency</span>
+            <div>
+              <h3 className="text-sm font-bold text-gray-800 mb-1">Grade an Essay</h3>
+              <p className="text-xs text-gray-400 leading-relaxed">Score a student essay and estimate their reading proficiency level.</p>
+            </div>
+            <button
+              onClick={() => navigate("/student")}
+              className="mt-auto w-full py-2 rounded-xl bg-teal-500 hover:bg-teal-600 text-white text-xs font-semibold transition-colors"
+            >
+              Go to Essay Scoring →
+            </button>
+          </div>
         </section>
 
-        <section className="bg-white border border-gray-100 rounded-xl px-4 py-3 shadow-sm text-xs text-gray-500 leading-relaxed">
-          <span className="font-semibold text-blue-600">Complexity</span> — measures if a reading material is G7-readable.&nbsp;
-          <span className="font-semibold text-teal-600">Proficiency</span> — measures a student's writing quality and scores their essay.
-          These are two separate models. See <button onClick={() => navigate("/about")} className="underline text-teal-500 hover:text-teal-600">About</button> for details.
+        <section className="bg-white border border-gray-100 rounded-xl px-4 py-3 shadow-sm">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">How to read this dashboard</div>
+          <p className="text-xs text-gray-500 leading-relaxed">
+            <span className="font-semibold text-blue-600">Complexity</span> — measures if a reading material is G7-readable.{' '}
+            <span className="font-semibold text-teal-600">Proficiency</span> — measures a student's writing quality. These are two separate AI models.{' '}
+            See <button onClick={() => navigate("/about")} className="underline text-teal-500 hover:text-teal-600">About</button> for details.
+          </p>
         </section>
       </div>
     </main>
