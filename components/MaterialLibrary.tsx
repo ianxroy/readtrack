@@ -87,6 +87,53 @@ function sortMaterials(items: LibraryMaterial[], key: SortKey): LibraryMaterial[
   }
 }
 
+interface ReasoningResult {
+  summary: string;
+  tags: string[];
+}
+
+const REASONING_SUMMARIES: Record<ComplexityLevel, string> = {
+  [ComplexityLevel.LITERAL]: 'This material uses simple words and short sentences that Grade 7 students can read on their own.',
+  [ComplexityLevel.INFERENTIAL]: 'This material requires students to read between the lines — some teacher support may be needed.',
+  [ComplexityLevel.EVALUATIVE]: 'This material uses complex ideas and language that are above Grade 7 level — scaffolding is recommended.',
+};
+
+const REASONING_KEYWORDS: Record<ComplexityLevel, Array<{ pattern: RegExp; tag: string }>> = {
+  [ComplexityLevel.LITERAL]: [
+    { pattern: /short.{0,10}sentence/i, tag: 'Short sentences' },
+    { pattern: /common.{0,10}word|simple.{0,10}word|basic.{0,10}word/i, tag: 'Common words' },
+    { pattern: /direct|explicit/i, tag: 'Direct ideas' },
+    { pattern: /low.{0,10}readab|easy.{0,10}read/i, tag: 'Easy to read' },
+  ],
+  // Spec-defined keywords + two intentional extras per level for better coverage:
+  // 'May need support' and 'Needs scaffolding' extend the spec's list deliberately.
+  [ComplexityLevel.INFERENTIAL]: [
+    { pattern: /impl[yi]|infer/i, tag: 'Implied meaning' },
+    { pattern: /moderate/i, tag: 'Moderate vocabulary' },
+    { pattern: /context.{0,10}clue/i, tag: 'Context clues needed' },
+    { pattern: /some.{0,10}support|teacher.{0,10}support/i, tag: 'May need support' },
+  ],
+  [ComplexityLevel.EVALUATIVE]: [
+    { pattern: /abstract/i, tag: 'Abstract concepts' },
+    { pattern: /complex/i, tag: 'Complex structure' },
+    { pattern: /advanced|difficult/i, tag: 'Advanced vocabulary' },
+    { pattern: /scaffold/i, tag: 'Needs scaffolding' },
+  ],
+};
+
+function parseReasoning(reasoning: string | undefined, level: ComplexityLevel): ReasoningResult {
+  const summary = REASONING_SUMMARIES[level] ?? REASONING_SUMMARIES[ComplexityLevel.LITERAL];
+  if (!reasoning || reasoning.trim().length === 0) {
+    return { summary, tags: [] };
+  }
+  const keywords = REASONING_KEYWORDS[level] ?? [];
+  const tags = keywords
+    .filter(({ pattern }) => pattern.test(reasoning))
+    .map(({ tag }) => tag)
+    .slice(0, 4);
+  return { summary, tags };
+}
+
 interface DetailModalProps {
   material: LibraryMaterial;
   onClose: () => void;
