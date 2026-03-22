@@ -580,9 +580,15 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
           )}
 
           {/* Upload note */}
-          <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-xs text-blue-700 leading-relaxed">
-            <span className="font-semibold">Complexity</span> measures if a material is readable by Grade 7 students (Literal → easy, Inferential → moderate, Evaluative → difficult).
-            This is separate from student essay <span className="font-semibold">Proficiency</span> scoring.
+          <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-blue-600 mb-1">
+              Grade 7 Readability Check (Philippines DepEd)
+            </div>
+            <p className="text-xs text-blue-700 leading-relaxed">
+              <span className="font-semibold">Literal</span> = Easy, students can read independently.{' '}
+              <span className="font-semibold">Inferential</span> = Borderline, may need teacher support.{' '}
+              <span className="font-semibold">Evaluative</span> = Above G7, not recommended without scaffolding.
+            </p>
           </div>
 
           {/* Search + Sort row */}
