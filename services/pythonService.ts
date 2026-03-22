@@ -233,3 +233,18 @@ export const getModelPerformanceAPI = async (lang: 'en' | 'tl'): Promise<ModelPe
     if (data?.error) throw new Error(data.error);
     return data;
 };
+
+export const detectLanguageAPI = async (text: string): Promise<'eng' | 'fil'> => {
+    try {
+        const response = await fetch('http://localhost:8000/detect-language', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'accept': 'application/json' },
+            body: JSON.stringify({ text }),
+        });
+        if (!response.ok) return 'fil';
+        const data = await response.json();
+        return data.language === 'eng' ? 'eng' : 'fil';
+    } catch {
+        return 'fil';
+    }
+};
