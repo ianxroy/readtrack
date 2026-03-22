@@ -23,6 +23,97 @@ import {
   IoMenuOutline,
 } from "react-icons/io5";
 
+type G7Verdict = 'ready' | 'support' | 'above';
+type PhilIriReadingLevel = 'independent' | 'instructional' | 'frustration';
+
+function deriveG7Verdict(level: ComplexityLevel): G7Verdict {
+  if (level === ComplexityLevel.EVALUATIVE) return 'above';
+  if (level === ComplexityLevel.INFERENTIAL) return 'support';
+  return 'ready'; // LITERAL
+}
+
+function derivePhilIriLevel(fkGradeLevel: number | undefined): PhilIriReadingLevel {
+  if (fkGradeLevel === undefined) return 'instructional';
+  if (fkGradeLevel <= 5) return 'independent';
+  if (fkGradeLevel <= 8) return 'instructional';
+  return 'frustration';
+}
+
+const VERDICT_CONFIG = {
+  ready: {
+    badge: '✅ Ready for Grade 7',
+    sentence: 'Students can read this material independently at Grade 7 level.',
+    badgeClass: 'bg-green-100 text-green-700',
+  },
+  support: {
+    badge: '⚠️ Use with Teacher Support',
+    sentence: 'This material may challenge some Grade 7 students — teacher guidance is recommended.',
+    badgeClass: 'bg-amber-100 text-amber-700',
+  },
+  above: {
+    badge: '❌ Above Grade 7 Level',
+    sentence: 'This material is above Grade 7 readability — scaffolding or simplification is recommended before use.',
+    badgeClass: 'bg-red-100 text-red-700',
+  },
+} as const;
+
+const PHIL_IRI_LABELS: Record<PhilIriReadingLevel, string> = {
+  independent: 'Independent (below G7 — may be too easy)',
+  instructional: 'Instructional (on G7 level — ideal)',
+  frustration: 'Frustration (above G7 — too difficult)',
+};
+
+const G7SuitabilityPanel = ({ result }: { result: TextComplexityResult }) => {
+  const verdict = deriveG7Verdict(result.level);
+  const philIriLevel = derivePhilIriLevel(result.readability?.flesch_kincaid);
+  const config = VERDICT_CONFIG[verdict];
+
+  // Vocabulary breakdown — only shown if CEFR data is available on the result
+  const cefr = (result as any).metrics?.cefrWordGroups as
+    | { basic: string[]; independent: string[]; proficient: string[] }
+    | undefined;
+  const totalCefrWords =
+    (cefr?.basic.length ?? 0) +
+    (cefr?.independent.length ?? 0) +
+    (cefr?.proficient.length ?? 0);
+  const basicPct =
+    totalCefrWords > 0 ? Math.round(((cefr?.basic.length ?? 0) / totalCefrWords) * 100) : null;
+  const midPct =
+    totalCefrWords > 0 ? Math.round(((cefr?.independent.length ?? 0) / totalCefrWords) * 100) : null;
+  const advPct =
+    totalCefrWords > 0 ? Math.round(((cefr?.proficient.length ?? 0) / totalCefrWords) * 100) : null;
+
+  return (
+    <div className="bg-teal-50 border border-teal-100 rounded-xl p-4 shadow-sm">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-teal-600 mb-3">
+        Grade 7 Suitability (DepEd / Phil-IRI)
+      </p>
+
+      <span className={`inline-block text-xs font-semibold px-2 py-1 rounded-full mb-2 ${config.badgeClass}`}>
+        {config.badge}
+      </span>
+
+      <p className="text-xs text-gray-600 leading-relaxed mb-3">{config.sentence}</p>
+
+      <div className="space-y-1">
+        <div className="flex gap-2 text-xs">
+          <span className="text-gray-500 min-w-[130px]">Phil-IRI Reading Level:</span>
+          <span className="text-gray-700">{PHIL_IRI_LABELS[philIriLevel]}</span>
+        </div>
+
+        {basicPct !== null && (
+          <div className="flex gap-2 text-xs">
+            <span className="text-gray-500 min-w-[130px]">Vocabulary Mix:</span>
+            <span className="text-gray-700">
+              {basicPct}% basic · {midPct}% intermediate · {advPct}% advanced
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const ResultCard = ({
   title,
   children,
@@ -369,6 +460,7 @@ export const MaterialChecker: React.FC<MaterialProps> = ({
               </div>
 
               <div className="w-full lg:w-[360px] shrink-0 space-y-3">
+                <G7SuitabilityPanel result={complexityResult} />
                 <ResultCard
                   title="Readability"
                   description={
