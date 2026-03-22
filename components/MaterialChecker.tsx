@@ -517,7 +517,7 @@ export const MaterialChecker: React.FC<MaterialProps> = ({
                       Flesch Kincaid
                     </div>
                     <div className="text-base font-bold text-teal-600">
-                      {complexityResult.readability.flesch_kincaid}
+                      {complexityResult.readability?.flesch_kincaid ?? '—'}
                     </div>
                   </div>
                   <div className="flex-1 mt-1 bg-white border border-gray-200 rounded-lg p-2 text-center cursor-pointer hover:border-teal-200 hover:shadow-md transition-all group">
@@ -525,7 +525,7 @@ export const MaterialChecker: React.FC<MaterialProps> = ({
                       Gunning Fog
                     </div>
                     <div className="text-base font-bold text-teal-600">
-                      {complexityResult.readability.gunning_fog}
+                      {complexityResult.readability?.gunning_fog ?? '—'}
                     </div>
                   </div>
                 </ResultCard>
@@ -575,7 +575,7 @@ export const MaterialChecker: React.FC<MaterialProps> = ({
                       `}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
+              onDrop={handleDropToStudent}
             >
               <input
                 type="file"
