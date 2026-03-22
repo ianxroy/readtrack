@@ -129,17 +129,14 @@ Rendered **above** the existing readability card in the results column. Derived 
 ```typescript
 type G7Verdict = 'ready' | 'support' | 'above';
 
-function deriveG7Verdict(
-  level: ComplexityLevel,
-  fkGradeLevel: number
-): G7Verdict {
+function deriveG7Verdict(level: ComplexityLevel): G7Verdict {
   if (level === ComplexityLevel.EVALUATIVE) return 'above';
   if (level === ComplexityLevel.INFERENTIAL) return 'support';
-  // Literal:
-  if (fkGradeLevel >= 9) return 'support';
-  return 'ready';
+  return 'ready'; // LITERAL
 }
 ```
+
+> **Design rationale:** The verdict is derived solely from the SVM model's DepEd MELCs complexity classification (Literal / Inferential / Evaluative). No FK threshold is used in the verdict — the model is the Philippine-context anchor. FK appears in the panel as a display metric only (Phil-IRI level row).
 
 ### 5b. Phil-IRI level derivation
 
@@ -153,9 +150,7 @@ function derivePhilIriLevel(fkGradeLevel: number): PhilIriReadingLevel {
 }
 ```
 
-> **Note:** `fkGradeLevel` comes from `complexityResult.readability.flesch_kincaid`. This value is the FK Grade Level score (a number like 6.4), not the Reading Ease score. Verify the field name matches the backend response — if the backend returns a reading ease score instead, use the mapping: ease ≥ 70 → independent, 60–69 → instructional, < 60 → frustration.
->
-> **Threshold rationale:** No official DepEd or Phil-IRI publication specifies an FK Grade Level cutoff for Grade 7. The FK 6–8 range for the Instructional zone is derived from two principles: (1) the FK Grade Level score directly corresponds to US grade level (a score of 7.0 = Grade 7 reading difficulty), and (2) Phil-IRI defines Instructional level as text the student can read with teacher guidance — conventionally ±1 grade of the student's actual grade. Combined, FK 6–8 represents the Instructional range for a Grade 7 student. This threshold is consistent with how Philippine academic research papers apply FK as a readability proxy. If DepEd issues an official FK standard for Grade 7, update these thresholds to match.
+> **Note:** `fkGradeLevel` comes from `complexityResult.readability.flesch_kincaid`. This is a **display-only metric** — it does not affect the G7 verdict. FK ≤ 5 → independent, FK 6–8 → instructional, FK ≥ 9 → frustration (general FK grade-level equivalence). Verify the field name matches the backend response.
 
 ### 5c. Vocabulary percentage breakdown
 
