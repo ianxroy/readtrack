@@ -246,10 +246,6 @@ export const MaterialChecker: React.FC<MaterialProps> = ({
   };
 
   const [isDragging, setIsDragging] = useState(false);
-  const [isDropModalOpen, setIsDropModalOpen] = useState(false);
-  const [dragOverTarget, setDragOverTarget] = useState<
-    "student" | "reference" | null
-  >(null);
 
   const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 
@@ -282,7 +278,6 @@ export const MaterialChecker: React.FC<MaterialProps> = ({
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(true);
-    setIsDropModalOpen(true);
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
@@ -296,7 +291,6 @@ export const MaterialChecker: React.FC<MaterialProps> = ({
     e.stopPropagation();
     setIsDragging(false);
     setErrorMessage(null);
-    setIsDropModalOpen(true);
   };
 
   const handleDropToStudent = (e: React.DragEvent) => {
@@ -306,9 +300,7 @@ export const MaterialChecker: React.FC<MaterialProps> = ({
     if (files.length > 0) {
       processFileAsStudent(files[0]);
     }
-    setIsDropModalOpen(false);
     setIsDragging(false);
-    setDragOverTarget(null);
   };
 
   return (
