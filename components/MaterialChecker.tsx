@@ -353,28 +353,6 @@ export const MaterialChecker: React.FC<MaterialProps> = ({
                 className="flex-1 bg-white rounded-xl relative border border-gray-100 shadow-sm flex flex-col min-h-[400px]"
                 style={{ overflow: "visible" }}
               >
-                <div className="sticky top-0 bg-white/95 backdrop-blur-sm z-10 py-2 px-4 border-b border-gray-100 mb-4 flex gap-3 text-[10px] font-semibold text-gray-500 rounded-t-xl uppercase tracking-wider flex-wrap">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>
-                    <span>Spelling</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full bg-purple-500"></div>
-                    <span>Grammar</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full bg-yellow-400"></div>
-                    <span>Caps</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
-                    <span>Punct</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-400"></div>
-                    <span>Style</span>
-                  </div>
-                </div>
 
                 <div
                   className="prose max-w-none px-6 pb-6 flex-1 overflow-y-auto"
@@ -382,9 +360,10 @@ export const MaterialChecker: React.FC<MaterialProps> = ({
                   style={{ maxHeight: "calc(100vh - 250px)" }}
                 >
                   <textarea
-                    className="w-full h-full font-serif text-base leading-loose text-gray-800 resize-none border-none outline-none bg-transparent"
-                    value={currentText}
-                    readOnly
+                    className="w-full h-full min-h-[300px] resize-none bg-transparent text-sm text-gray-800 placeholder-gray-400 focus:outline-none leading-relaxed"
+                    placeholder="Paste reading material here to check if it's suitable for Grade 7 students..."
+                    value={inputText || currentText}
+                    onChange={(e) => setInputText(e.target.value)}
                   />
                 </div>
               </div>
