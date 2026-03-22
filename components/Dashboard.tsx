@@ -44,7 +44,7 @@ const MetricCard: React.FC<MetricCardProps> = ({ label, value, subtitle }) => (
 );
 
 interface DistributionRow {
-  label: string;
+  label: React.ReactNode;
   count: number;
   colorClass: string;
   bgClass: string;
@@ -52,16 +52,21 @@ interface DistributionRow {
 
 const DistributionChart: React.FC<{
   title: string;
+  subtitle?: string;
   rows: DistributionRow[];
   total: number;
-}> = ({ title, rows, total }) => (
+}> = ({ title, subtitle, rows, total }) => (
   <div className="bg-white border border-gray-100 rounded-2xl px-5 py-4 shadow-sm">
-    <div className="text-[10px] uppercase tracking-widest text-gray-400 font-bold mb-3">{title}</div>
+    <div className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">{title}</div>
+    {subtitle && (
+      <div className="text-xs text-gray-500 mt-0.5 mb-3">{subtitle}</div>
+    )}
+    {!subtitle && <div className="mb-3" />}
     <div className="space-y-3">
-      {rows.map((row) => {
+      {rows.map((row, i) => {
         const pct = total > 0 ? Math.round((row.count / total) * 100) : 0;
         return (
-          <div key={row.label}>
+          <div key={i}>
             <div className="flex items-center justify-between text-xs mb-1">
               <span className="text-gray-700 font-semibold">{row.label}</span>
               <span className="text-gray-500 font-bold">{row.count} ({pct}%)</span>
@@ -131,19 +136,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ view: _view }) => {
 
   const proficiencyRows: DistributionRow[] = [
     {
-      label: ProficiencyLevel.NAGSISIMULA,
+      label: <><span className="font-bold text-gray-700">Beginning</span><span className="text-[10px] text-gray-400 font-normal"> · Nagsisimula</span></>,
       count: analytics.proficiencyCounts[ProficiencyLevel.NAGSISIMULA],
       colorClass: "bg-red-500",
       bgClass: "bg-red-50",
     },
     {
-      label: ProficiencyLevel.PAPAUNLAD,
+      label: <><span className="font-bold text-gray-700">Developing</span><span className="text-[10px] text-gray-400 font-normal"> · Papaunlad</span></>,
       count: analytics.proficiencyCounts[ProficiencyLevel.PAPAUNLAD],
       colorClass: "bg-orange-500",
       bgClass: "bg-orange-50",
     },
     {
-      label: ProficiencyLevel.MAHUSAY,
+      label: <><span className="font-bold text-gray-700">Proficient</span><span className="text-[10px] text-gray-400 font-normal"> · Mahusay</span></>,
       count: analytics.proficiencyCounts[ProficiencyLevel.MAHUSAY],
       colorClass: "bg-teal-500",
       bgClass: "bg-teal-50",
@@ -152,19 +157,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ view: _view }) => {
 
   const complexityRows: DistributionRow[] = [
     {
-      label: ComplexityLevel.LITERAL,
+      label: <><span className="font-bold text-gray-700">Literal</span><span className="text-[10px] text-gray-400 font-normal"> · Easy, G7 Readable</span></>,
       count: analytics.complexityCounts[ComplexityLevel.LITERAL],
       colorClass: "bg-green-500",
       bgClass: "bg-green-50",
     },
     {
-      label: ComplexityLevel.INFERENTIAL,
+      label: <><span className="font-bold text-gray-700">Inferential</span><span className="text-[10px] text-gray-400 font-normal"> · Moderate, Borderline</span></>,
       count: analytics.complexityCounts[ComplexityLevel.INFERENTIAL],
       colorClass: "bg-orange-500",
       bgClass: "bg-orange-50",
     },
     {
-      label: ComplexityLevel.EVALUATIVE,
+      label: <><span className="font-bold text-gray-700">Evaluative</span><span className="text-[10px] text-gray-400 font-normal"> · Difficult, Above G7</span></>,
       count: analytics.complexityCounts[ComplexityLevel.EVALUATIVE],
       colorClass: "bg-red-500",
       bgClass: "bg-red-50",
@@ -194,14 +199,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ view: _view }) => {
               <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
                 Dashboard Overview
               </h1>
-              <p className="text-sm text-gray-500 mt-2 max-w-xl">
-                Monitor essay proficiency, material complexity, and teacher scoring trends in one view.
+              <p className="text-sm text-gray-400 mt-1">
+                Grade 7 Reading Complexity &amp; Proficiency Tracker
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3 w-full lg:w-auto lg:min-w-[340px]">
               <MetricCard label="Students" value={analytics.totalStudents} />
-              <MetricCard label="Essays" value={analytics.totalEssays} />
-              <MetricCard label="Materials" value={analytics.totalMaterials} />
+              <MetricCard label="Essays" value={analytics.totalEssays} subtitle="submitted for scoring" />
+              <MetricCard label="Materials" value={analytics.totalMaterials} subtitle="uploaded to library" />
               <MetricCard label="Avg Teacher Rating" value={analytics.avgTeacherRating} subtitle={`${analytics.ratedEssays} rated`} />
             </div>
           </div>
@@ -209,12 +214,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ view: _view }) => {
 
         <section className="grid lg:grid-cols-2 gap-4">
           <DistributionChart
-            title="Essay Proficiency Graph"
+            title="Essay Proficiency"
+            subtitle="How well are your students writing?"
             rows={proficiencyRows}
             total={analytics.totalEssays}
           />
           <DistributionChart
-            title="Material Complexity Graph"
+            title="Material Complexity"
+            subtitle="Are your materials right for Grade 7 students?"
             rows={complexityRows}
             total={analytics.totalMaterials}
           />
