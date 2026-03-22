@@ -795,15 +795,17 @@ def ingest_reference(request: ReferenceIngestRequest):
 class DetectLanguageRequest(BaseModel):
     text: str
 
+
 @app.post("/detect-language")
 async def detect_language_endpoint(request: DetectLanguageRequest):
+    from grammar_service import detect_language
     try:
-        from grammar_service import detect_language
         if not request.text or len(request.text.strip()) < 10:
             return {"language": "fil"}
         lang = detect_language(request.text)
         return {"language": "eng" if lang == "en" else "fil"}
-    except Exception:
+    except Exception as e:
+        logger.error(f"detect_language_endpoint failed: {e}")
         return {"language": "fil"}
 
 
