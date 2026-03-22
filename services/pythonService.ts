@@ -234,6 +234,13 @@ export const getModelPerformanceAPI = async (lang: 'en' | 'tl'): Promise<ModelPe
     return data;
 };
 
+interface DetectLanguageResponse {
+    language: string;
+}
+
+// detectLanguageAPI is intentionally fail-safe: network errors and non-OK responses
+// return 'fil' rather than throwing, so callers need not handle errors.
+// This differs from other functions in this file which propagate errors to callers.
 export const detectLanguageAPI = async (text: string): Promise<'eng' | 'fil'> => {
     try {
         const response = await fetch('http://localhost:8000/detect-language', {
@@ -242,7 +249,7 @@ export const detectLanguageAPI = async (text: string): Promise<'eng' | 'fil'> =>
             body: JSON.stringify({ text }),
         });
         if (!response.ok) return 'fil';
-        const data = await response.json();
+        const data = await response.json() as DetectLanguageResponse;
         return data.language === 'eng' ? 'eng' : 'fil';
     } catch {
         return 'fil';
