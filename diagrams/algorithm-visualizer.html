@@ -943,7 +943,7 @@ function buildSection1() {
       </div>
     </div>
     <div class="section-body">
-      <textarea class="essay-textarea" id="essayInput" placeholder="Paste student essay here…">The sun sets slowly behind the mountains. Birds fly home as darkness comes. Children run to their houses. The air gets cold and quiet. Stars begin to appear in the sky above.</textarea>
+      <textarea class="essay-textarea" id="essayInput" placeholder="Paste student essay here…" oninput="const b=document.getElementById('langBadge');if(b)b.textContent='🌐 Language: '+detectLangLabel(this.value);">The sun sets slowly behind the mountains. Birds fly home as darkness comes. Children run to their houses. The air gets cold and quiet. Stars begin to appear in the sky above.</textarea>
       <div class="input-row">
         <button class="btn-primary" id="analyzeBtn" onclick="runAnalysis()">
           ▶ Analyze Essay
@@ -957,10 +957,22 @@ function buildSection1() {
 }
 
 function detectLangLabel(essayText) {
-  const filipino = ['ang','ng','na','sa','ay','mga','ko','mo','niya','namin','kayo','sila','ito','iyan'];
+  const filipino = new Set([
+    'ang','ng','mga','sa','na','ay','at','si','ni','kay','para','kung','pero',
+    'dahil','kaya','nang','din','rin','nga','ba','mo','ko','niya','namin',
+    'natin','nila','siya','sila','kami','tayo','ito','iyan','iyon','dito',
+    'diyan','doon','hindi','wala','mayroon','may','po','opo','ho','oho',
+    'ako','ka','ikaw','kita','sayo','kaniya','kanila','atin','amin','inyo',
+    'nandito','nandoon','nandiyan','bakit','paano','kailan','nasaan','sino',
+    'ano','alin','gaano','naman','talaga','lang','pala','kasi','kahit',
+    'kapag','habang','bago','pagkatapos','ngayon','kanina','bukas','kahapon',
+    'oo','hindi','huwag','tigil','halika','sige','tara','grabe','sayang',
+  ]);
   const words = (essayText || '').toLowerCase().match(/\b\w+\b/g) || [];
-  const filCount = words.filter(w => filipino.includes(w)).length;
-  return filCount >= 3 ? 'Filipino (TL)' : 'English (EN)';
+  const filCount = words.filter(w => filipino.has(w)).length;
+  // Scale threshold with text length: 1 hit for short texts, up to 3 for long
+  const threshold = words.length <= 6 ? 1 : words.length <= 15 ? 2 : 3;
+  return filCount >= threshold ? 'Filipino (TL)' : 'English (EN)';
 }
 
 async function runAnalysis() {
