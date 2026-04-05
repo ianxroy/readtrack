@@ -122,6 +122,73 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f4f6fb; colo
 .svm-box-code  { font-family: monospace; font-size: 11px; color: #444; line-height: 1.7; margin-bottom: 8px; }
 .svm-verdict   { font-size: 16px; font-weight: 800; }
 .confidence-tag { display: inline-block; background: #e3f2fd; color: #1565c0; border-radius: 10px; padding: 2px 10px; font-size: 11px; margin-left: 8px; font-weight: 600; }
+
+/* ── Shared layout ── */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+.subsection-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #555; margin-bottom: 10px; }
+
+/* ── Section 4: DepEd Scale ── */
+.verdict-band { border-radius: 10px; padding: 13px 15px; margin-bottom: 8px; border: 2px solid transparent; transition: border-color 0.2s; }
+.verdict-band.active { border-color: #1565c0 !important; }
+.verdict-band-label { font-size: 15px; font-weight: 700; }
+.verdict-band-sub   { font-size: 11px; margin-top: 3px; color: #555; }
+.verdict-band-g7    { font-size: 11px; font-weight: 600; margin-top: 5px; }
+.verdict-badge { float: right; display: inline-block; border-radius: 12px; padding: 3px 12px; font-size: 10px; font-weight: 700; color: white; }
+.vb-literal     { background: #e8f5e9; border-color: #c8e6c9; }
+.vb-literal     .verdict-band-label { color: #2e7d32; }
+.vb-literal     .verdict-band-g7    { color: #2e7d32; }
+.vb-literal     .verdict-badge      { background: #2e7d32; }
+.vb-inferential { background: #fff8e1; border-color: #ffecb3; }
+.vb-inferential .verdict-band-label { color: #f57f17; }
+.vb-inferential .verdict-band-g7    { color: #f57f17; }
+.vb-inferential .verdict-badge      { background: #f57f17; }
+.vb-evaluative  { background: #fce4ec; border-color: #f8bbd0; }
+.vb-evaluative  .verdict-band-label { color: #c62828; }
+.vb-evaluative  .verdict-band-g7    { color: #c62828; }
+.vb-evaluative  .verdict-badge      { background: #c62828; }
+
+.prof-bands { display: flex; flex-direction: column; gap: 7px; margin-top: 14px; }
+.prof-band { border-radius: 8px; padding: 9px 13px; border: 2px solid transparent; display: flex; align-items: center; justify-content: space-between; transition: border-color 0.2s; }
+.prof-band.active { border-color: #1565c0 !important; }
+.prof-label { font-weight: 700; font-size: 13px; }
+.prof-desc  { font-size: 11px; color: #555; margin-top: 1px; }
+.pb-mahusay     { background: #e8f5e9; border-color: #c8e6c9; }
+.pb-mahusay     .prof-label { color: #2e7d32; }
+.pb-papaunlad   { background: #fff8e1; border-color: #ffecb3; }
+.pb-papaunlad   .prof-label { color: #f57f17; }
+.pb-nagsisimula { background: #fce4ec; border-color: #f8bbd0; }
+.pb-nagsisimula .prof-label { color: #c62828; }
+.current-tag { display: inline-block; background: #1565c0; color: white; border-radius: 10px; padding: 2px 10px; font-size: 10px; font-weight: 700; }
+
+.slider-section { display: flex; flex-direction: column; gap: 10px; }
+.slider-row { display: grid; grid-template-columns: 150px 1fr 55px; align-items: center; gap: 10px; }
+.slider-label { font-size: 11px; font-weight: 600; color: #444; }
+.slider-val { font-size: 12px; font-weight: 700; color: #1565c0; text-align: right; font-variant-numeric: tabular-nums; }
+.slider-hint { font-size: 10px; color: #888; margin-top: -4px; grid-column: 2; }
+.slider-info-note { font-size: 10px; color: #aaa; font-style: italic; }
+input[type=range] { width: 100%; accent-color: #1565c0; cursor: pointer; }
+
+.live-formula-box { background: #fff3e0; border: 1px solid #ffcc80; border-radius: 8px; padding: 11px 13px; margin-top: 12px; }
+.live-formula-title { font-size: 11px; font-weight: 700; color: #e65100; margin-bottom: 5px; }
+.live-formula-eq    { font-family: monospace; font-size: 12px; margin-bottom: 2px; }
+.live-formula-result { font-size: 15px; font-weight: 800; margin-top: 6px; }
+.threshold-note { font-size: 10px; color: #888; margin-top: 3px; }
+
+/* ── Section 5: Teacher Feedback Loop ── */
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.stat-box  { background: #f0f4ff; border-radius: 8px; padding: 10px 12px; text-align: center; }
+.stat-val  { font-size: 24px; font-weight: 800; color: #1565c0; font-variant-numeric: tabular-nums; }
+.stat-lbl  { font-size: 10px; color: #666; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.4px; }
+.stat-meta { background: #f0f4ff; border-radius: 8px; padding: 11px 13px; font-size: 11px; line-height: 1.8; }
+.stat-meta code { background: #dce8ff; padding: 1px 5px; border-radius: 3px; font-size: 10px; }
+.pipeline { display: flex; flex-direction: column; }
+.pipe-step { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; }
+.pipe-dot  { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: white; margin-top: 1px; }
+.pipe-line { width: 2px; background: #d0d5e8; margin-left: 13px; height: 14px; }
+.pipe-text b    { display: block; font-weight: 600; color: #1a1a2e; font-size: 12px; }
+.pipe-text span { color: #666; font-size: 11px; }
+.retry-btn { background: none; border: 1px solid #1565c0; color: #1565c0; border-radius: 6px; padding: 4px 12px; font-size: 11px; cursor: pointer; margin-top: 8px; }
 </style>
 </head>
 <body>
@@ -384,10 +451,226 @@ function buildSection3() {
     </div>
   </div>`;
 }
-function buildSection4() { return ''; }
-function buildSection5() { return ''; }
+function buildSection4() {
+  const m  = complexityResult?.metrics || {};
+  const level = complexityResult?.level || 'Literal';
+  const proficiency = analysisResult?.proficiency || 'Nagsisimula';
+
+  const initAsl = m.avgSentenceLength != null ? parseFloat(m.avgSentenceLength).toFixed(1) : '9.0';
+  const initDwr = m.difficultWordRatio != null ? parseFloat(m.difficultWordRatio).toFixed(1) : '15.0';
+  const initAdv = m.advancedWordCount  != null ? m.advancedWordCount : 2;
+
+  const essay = document.getElementById('essayInput').value.trim();
+  const words = essay.match(/\b\w+\b/g) || ['x'];
+  const initTtr = (new Set(words.map(w => w.toLowerCase())).size / words.length).toFixed(2);
+
+  const verdictBands = [
+    { cls:'vb-literal',     id:'vb-literal',    label:'Literal',     sub:'Direct, surface-level meaning · Phil-IRI: Instructional', g7:'→ Ready for Grade 7 use',   badge:'G7 Ready'   },
+    { cls:'vb-inferential', id:'vb-inferential', label:'Inferential', sub:'Reading between the lines · Phil-IRI: Frustration',      g7:'→ Use with Teacher Support', badge:'With Support'},
+    { cls:'vb-evaluative',  id:'vb-evaluative',  label:'Evaluative',  sub:'Critical judgment required · Phil-IRI: Independent',     g7:'→ Above Grade 7 Level',      badge:'Above G7'   },
+  ].map(b => `
+    <div class="verdict-band ${b.cls} ${level === b.label ? 'active' : ''}" id="${b.id}">
+      <span class="verdict-badge">${b.badge}</span>
+      <div class="verdict-band-label">${b.label}</div>
+      <div class="verdict-band-sub">${b.sub}</div>
+      <div class="verdict-band-g7">${b.g7}</div>
+    </div>`).join('');
+
+  const profBands = [
+    { cls:'pb-mahusay',     label:'Mahusay',     desc:'Proficient — varied vocab, complex sentences, clear organization' },
+    { cls:'pb-papaunlad',   label:'Papaunlad',   desc:'Developing — emerging structure, growing vocabulary' },
+    { cls:'pb-nagsisimula', label:'Nagsisimula', desc:'Beginning — limited vocabulary, simple sentences' },
+  ].map(b => `
+    <div class="prof-band ${b.cls} ${proficiency === b.label ? 'active' : ''}" id="pb-${b.label}">
+      <div><div class="prof-label">${b.label}</div><div class="prof-desc">${b.desc}</div></div>
+      ${proficiency === b.label ? '<span class="current-tag">CURRENT</span>' : ''}
+    </div>`).join('');
+
+  return `
+  <div class="section-card s4" id="sec4">
+    <div class="section-header">
+      <div class="section-number">4</div>
+      <div>
+        <div class="section-title">DepEd Scale — G7 Suitability Verdict &amp; What-if Sliders</div>
+        <div class="section-subtitle">Phil-IRI levels anchored to DepEd MELCs · Sliders show how feature changes shift the classification</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <div class="two-col">
+        <div>
+          <div class="subsection-label">Complexity Classification Bands</div>
+          ${verdictBands}
+          <div class="subsection-label" style="margin-top:14px">Writing Proficiency Level (SVM)</div>
+          <div class="prof-bands">${profBands}</div>
+        </div>
+        <div>
+          <div class="subsection-label">What-if Feature Sliders</div>
+          <div style="font-size:11px;color:#888;margin-bottom:12px;">Drag ASL, DWR, or Adv CEFR to shift the complexity classification. TTR and Clause Density are informational only.</div>
+          <div class="slider-section">
+            <div>
+              <div class="slider-row">
+                <div class="slider-label">Avg Sentence Length</div>
+                <input type="range" id="sl-asl" min="3" max="40" step="0.5" value="${initAsl}" oninput="updateSliders()">
+                <div class="slider-val" id="sv-asl">${initAsl}</div>
+              </div>
+              <div class="slider-row"><div></div><div class="slider-hint">↑ Longer = more complex syntax</div></div>
+            </div>
+            <div>
+              <div class="slider-row">
+                <div class="slider-label">Difficult Word %</div>
+                <input type="range" id="sl-dwr" min="0" max="60" step="1" value="${initDwr}" oninput="updateSliders()">
+                <div class="slider-val" id="sv-dwr">${initDwr}%</div>
+              </div>
+              <div class="slider-row"><div></div><div class="slider-hint">↑ More 3+ syllable words = harder text</div></div>
+            </div>
+            <div>
+              <div class="slider-row">
+                <div class="slider-label">Advanced CEFR count</div>
+                <input type="range" id="sl-adv" min="0" max="30" step="1" value="${initAdv}" oninput="updateSliders()">
+                <div class="slider-val" id="sv-adv">${initAdv}</div>
+              </div>
+              <div class="slider-row"><div></div><div class="slider-hint">↑ More C1/C2 words pushes toward Evaluative</div></div>
+            </div>
+            <div>
+              <div class="slider-row">
+                <div class="slider-label">TTR <span class="slider-info-note">(info only)</span></div>
+                <input type="range" id="sl-ttr" min="10" max="100" step="1" value="${Math.round(parseFloat(initTtr)*100)}" oninput="updateTtrDisplay()">
+                <div class="slider-val" id="sv-ttr">${initTtr}</div>
+              </div>
+              <div class="slider-row"><div></div><div class="slider-hint">Vocabulary diversity — does not affect CS formula</div></div>
+            </div>
+            <div>
+              <div class="slider-row">
+                <div class="slider-label">Clause Density <span class="slider-info-note">(info only)</span></div>
+                <input type="range" id="sl-cd" min="5" max="50" step="1" value="18" oninput="updateCdDisplay()">
+                <div class="slider-val" id="sv-cd">1.8</div>
+              </div>
+              <div class="slider-row"><div></div><div class="slider-hint">Verbs/sentence — does not affect CS formula</div></div>
+            </div>
+          </div>
+          <div class="live-formula-box">
+            <div class="live-formula-title">LIVE HEURISTIC FORMULA</div>
+            <div class="live-formula-eq" id="lf-eq">CS = (? × 3) + (? × 4) + (? × 3)</div>
+            <div class="live-formula-eq" id="lf-sub">   = ? + ? + ?</div>
+            <div class="live-formula-result" id="lf-result">= ?</div>
+            <div class="threshold-note">Threshold: &lt;40 Literal · &lt;75 Inferential · ≥75 Evaluative</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function updateSliders() {
+  const asl = parseFloat(document.getElementById('sl-asl').value);
+  const dwr = parseFloat(document.getElementById('sl-dwr').value);
+  const adv = parseFloat(document.getElementById('sl-adv').value);
+
+  document.getElementById('sv-asl').textContent = asl.toFixed(1);
+  document.getElementById('sv-dwr').textContent = dwr.toFixed(1) + '%';
+  document.getElementById('sv-adv').textContent = adv;
+
+  const cs = (asl * 3) + (dwr * 4) + (adv * 3);
+  const newLevel = cs < 40 ? 'Literal' : cs < 75 ? 'Inferential' : 'Evaluative';
+
+  document.getElementById('lf-eq').textContent   = `CS = (${asl.toFixed(1)} × 3) + (${dwr.toFixed(1)} × 4) + (${adv} × 3)`;
+  document.getElementById('lf-sub').textContent  = `   = ${(asl*3).toFixed(2)} + ${(dwr*4).toFixed(2)} + ${(adv*3).toFixed(2)}`;
+  document.getElementById('lf-result').textContent = `= ${cs.toFixed(1)} → ${newLevel}`;
+  document.getElementById('lf-result').style.color = newLevel === 'Literal' ? '#2e7d32' : newLevel === 'Inferential' ? '#f57f17' : '#c62828';
+
+  ['Literal','Inferential','Evaluative'].forEach(l => {
+    const el = document.getElementById(`vb-${l.toLowerCase()}`);
+    if (el) el.classList.toggle('active', l === newLevel);
+  });
+}
+
+function updateTtrDisplay() {
+  const v = parseInt(document.getElementById('sl-ttr').value) / 100;
+  document.getElementById('sv-ttr').textContent = v.toFixed(2);
+}
+function updateCdDisplay() {
+  const v = parseInt(document.getElementById('sl-cd').value) / 10;
+  document.getElementById('sv-cd').textContent = v.toFixed(1);
+}
+
+function buildSection5() {
+  const pipeSteps = [
+    { color:'#1565c0', title:'Teacher rates student essay',        detail:'Assigns rubric scores (Content, Organization, Vocab, Grammar, Mechanics) in ReadTrack app' },
+    { color:'#1565c0', title:'Stored in Supabase',                 detail:'teacher_rubric_scores + diagnosis_result saved to student_grading_uploads table' },
+    { color:'#1565c0', title:'POST /train/proficiency triggered',   detail:'Fetches all rated essays · re-extracts 24-dim feature vectors for each' },
+    { color:'#00695c', title:'RobustScaler.fit_transform(X)',       detail:'Normalizes features using median + IQR — resistant to outliers in small datasets' },
+    { color:'#00695c', title:'SVC.fit(X_scaled, y)',               detail:'Trains SVM: kernel="rbf", C=10, gamma="scale", class_weight="balanced", random_state=42' },
+    { color:'#00695c', title:'Save .pkl + hot-reload',             detail:'New model serialized to disk and loaded into memory immediately — no server restart needed' },
+  ];
+
+  const pipeHtml = pipeSteps.map((s, i) => `
+    ${i > 0 ? '<div class="pipe-line"></div>' : ''}
+    <div class="pipe-step">
+      <div class="pipe-dot" style="background:${s.color}">${i+1}</div>
+      <div class="pipe-text"><b>${s.title}</b><span>${s.detail}</span></div>
+    </div>`).join('');
+
+  return `
+  <div class="section-card s5" id="sec5">
+    <div class="section-header">
+      <div class="section-number">5</div>
+      <div>
+        <div class="section-title">Teacher Feedback Loop — Model Retraining</div>
+        <div class="section-subtitle">How teacher ratings of student essays improve the SVM model over time</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <div class="two-col">
+        <div>
+          <div class="subsection-label">Live Model Performance <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#888">(GET /train/status)</span></div>
+          <div class="stat-grid">
+            <div class="stat-box"><div class="stat-val" id="stat-en-rated">—</div><div class="stat-lbl">Rated Essays (EN)</div></div>
+            <div class="stat-box"><div class="stat-val" id="stat-tl-rated">—</div><div class="stat-lbl">Rated Essays (TL)</div></div>
+            <div class="stat-box"><div class="stat-val" id="stat-en-new">—</div><div class="stat-lbl">New Since Retrain (EN)</div></div>
+            <div class="stat-box"><div class="stat-val" id="stat-tl-new">—</div><div class="stat-lbl">New Since Retrain (TL)</div></div>
+          </div>
+          <div class="stat-meta">
+            <div><strong>Last Retrain (EN):</strong> <span id="stat-en-date">—</span></div>
+            <div><strong>Confidence:</strong> <span id="stat-en-conf">—</span></div>
+            <div><strong>Model:</strong> <code>proficiency_model_en.pkl</code> / <code>proficiency_model_tl.pkl</code></div>
+            <div><strong>Scaler:</strong> <code>RobustScaler</code> · <strong>Algorithm:</strong> <code>SVC(rbf, C=10)</code></div>
+            <div><strong>EN Blend:</strong> PH essays (×2 weight) + ASAP2 benchmark dataset</div>
+          </div>
+          <button class="retry-btn" onclick="loadTrainStatus()">↻ Refresh stats</button>
+        </div>
+        <div>
+          <div class="subsection-label">Retraining Pipeline</div>
+          <div class="pipeline">${pipeHtml}</div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function loadTrainStatus() {
+  try {
+    const r = await fetch(`${API}/train/status`);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    const en = data.en || {};
+    const tl = data.tl || {};
+
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val ?? '—'; };
+    set('stat-en-rated', en.rated_essays ?? '—');
+    set('stat-tl-rated', tl.rated_essays ?? '—');
+    set('stat-en-new',   en.new_since_retrain ?? '—');
+    set('stat-tl-new',   tl.new_since_retrain ?? '—');
+    set('stat-en-date',  en.last_retrain ? new Date(en.last_retrain).toLocaleDateString() : 'Not yet retrained');
+    set('stat-en-conf',  en.confidence_level ?? '—');
+  } catch (_) {
+    ['stat-en-rated','stat-tl-rated','stat-en-new','stat-tl-new'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = '—';
+    });
+  }
+}
+
 function buildSection6() { return ''; }
-function loadTrainStatus() {}
 
 function renderResults() {
   ['sec2','sec3','sec4','sec5','sec6'].forEach(id => {
