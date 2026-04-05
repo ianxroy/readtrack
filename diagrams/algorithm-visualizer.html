@@ -316,15 +316,19 @@ function hideGlobalError() {
 
 // Stub builders — replaced section by section below
 function buildSection2() {
-  const m = complexityResult?.metrics || {};
-  const cefr = m.cefrDistribution || {};
-  const wc = m.wordCount || 1;
-  const ri = m.readabilityIndices || {};
+  // /analyze/complexity returns fields at top level (no metrics wrapper); key is "readability"
+  // /analyze/student returns cefrDistribution and vocabularyRichness under metrics
+  const am = analysisResult?.metrics || {};
+  const cefr = am.cefrDistribution || {};
+  const wc = complexityResult?.wordCount || 1;
+  const ri = complexityResult?.readability || am.readability || {};
 
-  const ttr = m.vocabularyRichness != null ? m.vocabularyRichness.toFixed(3) : '—';
-  const asl = m.avgSentenceLength != null ? m.avgSentenceLength.toFixed(1) : '—';
-  const dwr = m.difficultWordRatio != null ? m.difficultWordRatio.toFixed(1) + '%' : '—';
-  const advRatio = m.advancedWordCount != null ? (m.advancedWordCount / wc).toFixed(3) : '—';
+  const rawTtr = am.vocabularyRichness != null ? am.vocabularyRichness / 100 : null;
+  const ttr = rawTtr != null ? rawTtr.toFixed(3) : '—';
+  const asl = complexityResult?.avgSentenceLength != null ? complexityResult.avgSentenceLength.toFixed(1) : '—';
+  const dwr = complexityResult?.difficultWordRatio != null ? complexityResult.difficultWordRatio.toFixed(1) + '%' : '—';
+  const advCount = (cefr.C1 || 0) + (cefr.C2 || 0);
+  const advRatio = wc > 1 ? (advCount / wc).toFixed(3) : '—';
   const fk  = ri.flesch_kincaid != null ? ri.flesch_kincaid.toFixed(1) : '—';
   const fog = ri.gunning_fog    != null ? ri.gunning_fog.toFixed(1)    : '—';
 
@@ -403,16 +407,17 @@ function countSyllables(word) {
 }
 
 function buildSection3() {
-  const m = complexityResult?.metrics || {};
-  const ri = m.readabilityIndices || {};
-  const wc = m.wordCount || 0;
+  const ri = complexityResult?.readability || analysisResult?.metrics?.readability || {};
+  const wc = complexityResult?.wordCount || 0;
+  const am3 = analysisResult?.metrics || {};
+  const cefr3 = am3.cefrDistribution || {};
 
-  const asl = m.avgSentenceLength != null ? parseFloat(m.avgSentenceLength).toFixed(1) : '?';
-  const dwr = m.difficultWordRatio != null ? parseFloat(m.difficultWordRatio).toFixed(2) : '?';
+  const asl = complexityResult?.avgSentenceLength != null ? parseFloat(complexityResult.avgSentenceLength).toFixed(1) : '?';
+  const dwr = complexityResult?.difficultWordRatio != null ? parseFloat(complexityResult.difficultWordRatio).toFixed(2) : '?';
   const fk  = ri.flesch_kincaid != null ? ri.flesch_kincaid.toFixed(2) : '?';
   const fog = ri.gunning_fog    != null ? ri.gunning_fog.toFixed(2)    : '?';
-  const ttr = m.vocabularyRichness != null ? m.vocabularyRichness.toFixed(3) : '?';
-  const advC = m.advancedWordCount != null ? m.advancedWordCount : '?';
+  const ttr = am3.vocabularyRichness != null ? (am3.vocabularyRichness / 100).toFixed(3) : '?';
+  const advC = (cefr3.C1 || 0) + (cefr3.C2 || 0);
 
   const essay = document.getElementById('essayInput').value.trim();
   const words = essay.match(/\b\w+\b/g) || [];
@@ -425,8 +430,8 @@ function buildSection3() {
   const proficiency = analysisResult?.proficiency || '—';
   const score = complexityResult?.score != null ? complexityResult.score.toFixed(1) : '—';
 
-  const dwr_num  = m.difficultWordRatio != null ? parseFloat(m.difficultWordRatio) : 0;
-  const asl_num  = m.avgSentenceLength  != null ? parseFloat(m.avgSentenceLength)  : 0;
+  const dwr_num  = complexityResult?.difficultWordRatio != null ? parseFloat(complexityResult.difficultWordRatio) : 0;
+  const asl_num  = complexityResult?.avgSentenceLength  != null ? parseFloat(complexityResult.avgSentenceLength)  : 0;
   const adv_num  = typeof advC === 'number' ? advC : 0;
   const cs = ((asl_num * 3) + (dwr_num * 4) + (adv_num * 3)).toFixed(1);
   const csThreshold = parseFloat(cs) < 40 ? 'Literal (< 40)' : parseFloat(cs) < 75 ? 'Inferential (< 75)' : 'Evaluative (≥ 75)';
@@ -519,13 +524,13 @@ function buildSection3() {
   </div>`;
 }
 function buildSection4() {
-  const m  = complexityResult?.metrics || {};
   const level = complexityResult?.level || 'Literal';
   const proficiency = analysisResult?.proficiency || 'Nagsisimula';
+  const cefr4 = analysisResult?.metrics?.cefrDistribution || {};
 
-  const initAsl = m.avgSentenceLength != null ? parseFloat(m.avgSentenceLength).toFixed(1) : '9.0';
-  const initDwr = m.difficultWordRatio != null ? parseFloat(m.difficultWordRatio).toFixed(1) : '15.0';
-  const initAdv = m.advancedWordCount  != null ? m.advancedWordCount : 2;
+  const initAsl = complexityResult?.avgSentenceLength != null ? parseFloat(complexityResult.avgSentenceLength).toFixed(1) : '9.0';
+  const initDwr = complexityResult?.difficultWordRatio != null ? parseFloat(complexityResult.difficultWordRatio).toFixed(1) : '15.0';
+  const initAdv = (cefr4.C1 || 0) + (cefr4.C2 || 0) || 2;
 
   const essay = document.getElementById('essayInput').value.trim();
   const words = essay.match(/\b\w+\b/g) || ['x'];
