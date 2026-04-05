@@ -902,6 +902,8 @@ function renderResults() {
     const el = document.getElementById(id);
     if (el) el.remove();
   });
+  rubricScores = { content: 0, organization: 0, language: 0, grammar: 0, mechanics: 0 };
+  rubricLang = 'en';
   const main = document.getElementById('main');
   if (complexityResult || analysisResult) {
     main.insertAdjacentHTML('beforeend', buildSection2());
