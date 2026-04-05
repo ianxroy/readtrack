@@ -69,4 +69,5 @@ baseline.txt
 services.txt
 Procfile
 railway.toml
-render.yaml.worktrees/
+render.yaml
+.worktrees/
