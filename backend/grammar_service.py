@@ -127,24 +127,93 @@ class AutoCorrectResponse(BaseModel):
     changes_count: int
     changes: List[dict] = []
 
-def detect_language(text: str) -> str:
+# Accepted US/UK spelling pairs that should not be flagged as errors.
+US_UK_VARIANT_SETS = {
+    frozenset(("color", "colour")),
+    frozenset(("favorite", "favourite")),
+    frozenset(("honor", "honour")),
+    frozenset(("organize", "organise")),
+    frozenset(("realize", "realise")),
+    frozenset(("analyze", "analyse")),
+    frozenset(("center", "centre")),
+    frozenset(("meter", "metre")),
+    frozenset(("defense", "defence")),
+    frozenset(("license", "licence")),
+    frozenset(("traveler", "traveller")),
+    frozenset(("canceled", "cancelled")),
+}
 
+
+def _normalize_word_token(word: str) -> str:
+    return re.sub(r"[^a-z]", "", (word or "").lower())
+
+
+def _is_us_uk_variant(original_word: str, replacements: List[str]) -> bool:
+    token = _normalize_word_token(original_word)
+    if not token:
+        return False
+
+    candidates = {_normalize_word_token(r) for r in (replacements or [])}
+    candidates.discard("")
+    if not candidates:
+        return False
+
+    for cand in candidates:
+        if frozenset((token, cand)) in US_UK_VARIANT_SETS:
+            return True
+
+    # Productive pattern checks to cover common variants beyond explicit pairs.
+    pattern_pairs = [
+        ("our", "or"),
+        ("or", "our"),
+        ("ise", "ize"),
+        ("ize", "ise"),
+        ("isation", "ization"),
+        ("ization", "isation"),
+        ("yse", "yze"),
+        ("yze", "yse"),
+    ]
+    for src, dst in pattern_pairs:
+        if token.endswith(src) and (token[: -len(src)] + dst) in candidates:
+            return True
+
+    # theatre/theater, centre/center-style endings.
+    if len(token) > 4 and token.endswith("re") and (token[:-2] + "er") in candidates:
+        return True
+    if len(token) > 4 and token.endswith("er") and (token[:-2] + "re") in candidates:
+        return True
+
+    return False
+
+_FILIPINO_FUNCTION_WORDS = frozenset([
+    'ang', 'ng', 'mga', 'sa', 'na', 'ay', 'at', 'si', 'ni', 'kay', 'para',
+    'kung', 'pero', 'dahil', 'kaya', 'nang', 'din', 'rin', 'nga', 'ba',
+    'mo', 'ko', 'niya', 'namin', 'natin', 'nila', 'siya', 'sila', 'kami',
+    'tayo', 'ito', 'iyan', 'iyon', 'dito', 'diyan', 'doon', 'hindi', 'wala',
+    'mayroon', 'may', 'isang', 'mga', 'po', 'opo', 'ho', 'oho',
+])
+
+def detect_language(text: str) -> str:
     if not text or len(text.strip()) < 10:
         return 'en'
 
+    # Filipino heuristic: count function words before trusting langdetect
+    words = re.findall(r'\b\w+\b', text.lower())
+    fil_hits = sum(1 for w in words if w in _FILIPINO_FUNCTION_WORDS)
+    if fil_hits >= 3:
+        return 'tl'
+
     try:
         detected = detect(text)
-
-        if detected == 'tl':
+        if detected in ('tl', 'fil'):
             return 'tl'
         elif detected == 'en':
             return 'en'
         else:
-
-            return 'en'
+            # Second-chance: if any Filipino function word present, prefer tl
+            return 'tl' if fil_hits >= 1 else 'en'
     except LangDetectException:
-
-        return 'en'
+        return 'tl' if fil_hits >= 1 else 'en'
 
 @router.post("/api/grammar/check", response_model=GrammarCheckResponse)
 async def check_grammar(request: GrammarCheckRequest):
@@ -189,6 +258,10 @@ async def check_english_grammar(text: str) -> GrammarCheckResponse:
                     issue_type = "style"
                 else:
                     issue_type = "grammar"
+
+            original_fragment = text[match.offset:match.offset + match.error_length]
+            if issue_type == "spelling" and _is_us_uk_variant(original_fragment, match.replacements or []):
+                continue
 
             context = ""
             if hasattr(match, 'context'):
