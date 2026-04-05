@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ReadTrack — Algorithm Visualizer</title>
+<style>
+/* ── Reset ── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f4f6fb; color: #1a1a2e; font-size: 13px; line-height: 1.5; }
+
+/* ── Page Header ── */
+.page-header {
+  background: linear-gradient(135deg, #1a237e 0%, #1565c0 100%);
+  color: white; padding: 20px 32px;
+  display: flex; flex-direction: column;
+  position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.header-top { display: flex; align-items: center; justify-content: space-between; }
+.page-header h1 { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
+.page-header .tagline { font-size: 11px; opacity: 0.75; margin-top: 2px; }
+.backend-badge {
+  padding: 5px 14px; border-radius: 20px; font-size: 11px; font-weight: 600;
+  border: 1px solid rgba(255,255,255,0.4);
+}
+.backend-badge.connected { background: rgba(76,175,80,0.25); }
+.backend-badge.disconnected { background: rgba(244,67,54,0.25); }
+.jump-links { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.jump-link {
+  font-size: 10px; color: rgba(255,255,255,0.7); text-decoration: none;
+  background: rgba(255,255,255,0.1); border-radius: 10px; padding: 2px 10px;
+  transition: background 0.15s;
+}
+.jump-link:hover { background: rgba(255,255,255,0.25); color: white; }
+
+/* ── Container ── */
+.container { max-width: 1100px; margin: 0 auto; padding: 24px 20px; display: flex; flex-direction: column; gap: 20px; }
+
+/* ── Section Cards ── */
+.section-card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); overflow: hidden; }
+.section-header { padding: 13px 20px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #eef0f5; }
+.section-number { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; color: white; }
+.section-title { font-size: 14px; font-weight: 600; }
+.section-subtitle { font-size: 11px; color: #666; margin-top: 1px; }
+.section-body { padding: 18px 20px; }
+
+/* Section accent colors */
+.s1 .section-number { background: #1565c0; }
+.s1 .section-header { border-left: 4px solid #1565c0; }
+.s2 .section-number { background: #2e7d32; }
+.s2 .section-header { border-left: 4px solid #2e7d32; }
+.s3 .section-number { background: #6a1b9a; }
+.s3 .section-header { border-left: 4px solid #6a1b9a; }
+.s4 .section-number { background: #e65100; }
+.s4 .section-header { border-left: 4px solid #e65100; }
+.s5 .section-number { background: #00695c; }
+.s5 .section-header { border-left: 4px solid #00695c; }
+.s6 .section-number { background: #4527a0; }
+.s6 .section-header { border-left: 4px solid #4527a0; }
+
+/* ── Error Banner ── */
+.error-banner { background: #ffebee; border: 1px solid #ef9a9a; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; display: none; font-size: 12px; color: #c62828; }
+.error-banner.visible { display: block; }
+
+/* ── Loading Spinner ── */
+.spinner { display: inline-block; width: 16px; height: 16px; vertical-align: middle; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 6px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Section 1: Input ── */
+.essay-textarea { width: 100%; border: 1px solid #d0d5e8; border-radius: 8px; padding: 12px; font-size: 13px; font-family: inherit; resize: vertical; min-height: 110px; background: #fafbff; transition: border-color 0.2s; }
+.essay-textarea:focus { outline: none; border-color: #1565c0; box-shadow: 0 0 0 3px rgba(21,101,192,0.1); }
+.input-row { display: flex; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+.btn-primary { background: #1565c0; color: white; border: none; border-radius: 8px; padding: 10px 24px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; transition: background 0.2s; }
+.btn-primary:hover { background: #1976d2; }
+.btn-primary:disabled { background: #90a4ae; cursor: not-allowed; }
+.lang-badge { background: #e3f2fd; color: #1565c0; border-radius: 12px; padding: 4px 12px; font-size: 11px; font-weight: 600; }
+.api-note { font-size: 10px; color: #aaa; font-family: monospace; }
+.section-error { background: #ffebee; color: #c62828; border-radius: 6px; padding: 8px 12px; font-size: 12px; margin-top: 10px; display: none; }
+.section-error.visible { display: block; }
+
+/* ── Footer ── */
+.page-footer { text-align: center; padding: 20px; color: #aaa; font-size: 11px; }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <div class="header-top">
+    <div>
+      <h1>ReadTrack — Algorithm Visualizer</h1>
+      <div class="tagline">Step-by-step: how a student essay is analyzed, scored, and classified</div>
+    </div>
+    <div class="backend-badge disconnected" id="backendBadge">⬤ Checking backend…</div>
+  </div>
+  <div class="jump-links">
+    <a class="jump-link" href="#sec1">① Input</a>
+    <a class="jump-link" href="#sec2">② Features</a>
+    <a class="jump-link" href="#sec3">③ Formulas</a>
+    <a class="jump-link" href="#sec4">④ DepEd Scale</a>
+    <a class="jump-link" href="#sec5">⑤ Teacher Loop</a>
+    <a class="jump-link" href="#sec6">⑥ Rubric Scorer</a>
+  </div>
+</div>
+
+<div class="container" id="main">
+  <div class="error-banner" id="globalError"></div>
+</div>
+
+<div class="page-footer">ReadTrack Algorithm Visualizer · Thesis Defense Reference · 2026</div>
+
+<script>
+const API = 'http://localhost:8000';
+let analysisResult = null;
+let complexityResult = null;
+
+async function checkBackend() {
+  const badge = document.getElementById('backendBadge');
+  try {
+    const r = await fetch(`${API}/health`, { signal: AbortSignal.timeout(3000) });
+    if (r.ok) {
+      badge.textContent = '● Connected to backend';
+      badge.className = 'backend-badge connected';
+      return true;
+    }
+  } catch (_) {}
+  badge.textContent = '✕ Backend offline';
+  badge.className = 'backend-badge disconnected';
+  showGlobalError(`Backend unreachable at ${API}. Start the backend with: cd backend && uvicorn main:app --reload --port 8000`);
+  return false;
+}
+
+function showGlobalError(msg) {
+  const el = document.getElementById('globalError');
+  el.textContent = msg;
+  el.classList.add('visible');
+}
+function hideGlobalError() {
+  document.getElementById('globalError').classList.remove('visible');
+}
+
+// Stub builders — replaced section by section below
+function buildSection2() { return ''; }
+function buildSection3() { return ''; }
+function buildSection4() { return ''; }
+function buildSection5() { return ''; }
+function buildSection6() { return ''; }
+function loadTrainStatus() {}
+
+function renderResults() {
+  ['sec2','sec3','sec4','sec5','sec6'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.remove();
+  });
+  const main = document.getElementById('main');
+  if (complexityResult || analysisResult) {
+    main.insertAdjacentHTML('beforeend', buildSection2());
+    main.insertAdjacentHTML('beforeend', buildSection3());
+    main.insertAdjacentHTML('beforeend', buildSection4());
+    main.insertAdjacentHTML('beforeend', buildSection5());
+    main.insertAdjacentHTML('beforeend', buildSection6());
+    loadTrainStatus();
+    setTimeout(() => { if (document.getElementById('sl-asl')) updateSliders(); }, 0);
+  }
+}
+
+function buildSection1() {
+  return `
+  <div class="section-card s1" id="sec1">
+    <div class="section-header">
+      <div class="section-number">1</div>
+      <div>
+        <div class="section-title">Student Essay Input</div>
+        <div class="section-subtitle">Enter or paste a student essay — plain text, OCR from image, or extracted from PDF</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <textarea class="essay-textarea" id="essayInput" placeholder="Paste student essay here…">The sun sets slowly behind the mountains. Birds fly home as darkness comes. Children run to their houses. The air gets cold and quiet. Stars begin to appear in the sky above.</textarea>
+      <div class="input-row">
+        <button class="btn-primary" id="analyzeBtn" onclick="runAnalysis()">
+          ▶ Analyze Essay
+        </button>
+        <span class="lang-badge" id="langBadge">🌐 Language: —</span>
+        <span class="api-note">POST /analyze/student · POST /analyze/complexity</span>
+      </div>
+      <div class="section-error" id="sec1Error"></div>
+    </div>
+  </div>`;
+}
+
+function detectLangLabel(essayText) {
+  const filipino = ['ang','ng','na','sa','ay','mga','ko','mo','niya','namin','kayo','sila','ito','iyan'];
+  const words = (essayText || '').toLowerCase().match(/\b\w+\b/g) || [];
+  const filCount = words.filter(w => filipino.includes(w)).length;
+  return filCount >= 3 ? 'Filipino (TL)' : 'English (EN)';
+}
+
+async function runAnalysis() {
+  const text = document.getElementById('essayInput').value.trim();
+  if (!text) return;
+
+  const btn = document.getElementById('analyzeBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Analyzing…';
+  document.getElementById('sec1Error').classList.remove('visible');
+  hideGlobalError();
+
+  try {
+    const [studentRes, complexityRes] = await Promise.allSettled([
+      fetch(`${API}/analyze/student`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      }).then(r => r.json()),
+      fetch(`${API}/analyze/complexity`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      }).then(r => r.json())
+    ]);
+
+    const studentOk = studentRes.status === 'fulfilled' && !studentRes.value?.error;
+    const complexityOk = complexityRes.status === 'fulfilled' && !complexityRes.value?.error;
+
+    if (studentOk) {
+      analysisResult = studentRes.value;
+      document.getElementById('langBadge').textContent = `🌐 Language: ${detectLangLabel(text)}`;
+    }
+    if (complexityOk) {
+      complexityResult = complexityRes.value;
+    }
+
+    if (!studentOk && !complexityOk) {
+      const err = document.getElementById('sec1Error');
+      err.textContent = 'Analysis failed — backend returned an error. Is the backend running?';
+      err.classList.add('visible');
+    } else if (!complexityOk) {
+      showGlobalError('Complexity analysis unavailable — backend error. Sections 3–4 may be incomplete.');
+    } else if (!studentOk) {
+      showGlobalError('Proficiency analysis unavailable — backend error. Proficiency verdict will show —.');
+    }
+
+    renderResults();
+  } catch (e) {
+    const err = document.getElementById('sec1Error');
+    err.textContent = `Network error: ${e.message}. Start backend with: uvicorn main:app --reload --port 8000`;
+    err.classList.add('visible');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '▶ Analyze Essay';
+  }
+}
+
+function renderSections() {
+  const main = document.getElementById('main');
+  main.insertAdjacentHTML('beforeend', buildSection1());
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  checkBackend();
+  renderSections();
+});
+</script>
+</body>
+</html>
