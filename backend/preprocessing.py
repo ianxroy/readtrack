@@ -155,6 +155,11 @@ def extract_features(text, language="en"):
 
     clause_density = 0
     structure_score = 0
+    sentence_complexity_score = 0
+    verb_ratio = 0
+    noun_ratio = 0
+    adj_ratio = 0
+    avg_dep_distance = 0
 
     if nlp:
         verb_count = len([token for token in doc if token.pos_ == "VERB"])
@@ -235,6 +240,13 @@ def extract_features(text, language="en"):
             "advancedWordCount": advanced_cefr_count,
             "cefrWordGroups": cefr_word_groups,
             "advancedWords": cefr_word_groups.get("proficient", []),
-            "readabilityIndices": readability
+            "readabilityIndices": readability,
+            "verbRatio": round(verb_ratio, 4),
+            "nounRatio": round(noun_ratio, 4),
+            "adjRatio": round(adj_ratio, 4),
+            "clauseDensity": round(clause_density, 4),
+            "avgDepDistance": round(avg_dep_distance, 4),
+            "punctDensity": round(punct_density, 4),
+            "sentLenStdDev": round(float(sent_len_std), 4),
         }
     }

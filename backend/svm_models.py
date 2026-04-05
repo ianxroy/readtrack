@@ -271,5 +271,12 @@ class TextComplexitySVM(BaseModel):
             "avgSentenceLength": round(avg_len, 2),
             "difficultWordRatio": round(diff_ratio, 2),
             "highlightedSegments": metrics['difficultWords'],
-            "readability": metrics.get('readabilityIndices', {})
+            "readability": metrics.get('readabilityIndices', {}),
+            "verbRatio": metrics.get('verbRatio', 0),
+            "nounRatio": metrics.get('nounRatio', 0),
+            "adjRatio": metrics.get('adjRatio', 0),
+            "clauseDensity": metrics.get('clauseDensity', 0),
+            "avgDepDistance": metrics.get('avgDepDistance', 0),
+            "punctDensity": metrics.get('punctDensity', 0),
+            "sentLenStdDev": metrics.get('sentLenStdDev', 0),
         }
