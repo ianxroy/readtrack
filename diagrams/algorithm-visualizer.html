@@ -81,6 +81,47 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f4f6fb; colo
 
 /* ── Footer ── */
 .page-footer { text-align: center; padding: 20px; color: #aaa; font-size: 11px; }
+
+/* ── Section 2: Feature Grid ── */
+.feature-legend { display: flex; gap: 14px; margin-bottom: 12px; flex-wrap: wrap; }
+.legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 500; }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+.feature-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+@media (max-width: 800px) { .feature-grid { grid-template-columns: repeat(2, 1fr); } }
+
+.feature-chip { border-radius: 8px; padding: 9px 11px; border: 1px solid #e0e4f0; transition: transform 0.15s; }
+.feature-chip:hover { transform: translateY(-1px); }
+.feature-chip .fname { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #555; }
+.feature-chip .fval { font-size: 17px; font-weight: 800; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.feature-chip .fdesc { font-size: 10px; color: #888; margin-top: 1px; }
+.feature-chip.server-only { opacity: 0.55; }
+.feature-chip.server-only .fval { font-size: 12px; font-style: italic; color: #aaa; }
+
+.fc-vocab  { background: #e8f5e9; border-color: #a5d6a7; }
+.fc-vocab  .fval { color: #2e7d32; }
+.fc-syntax { background: #e3f2fd; border-color: #90caf9; }
+.fc-syntax .fval { color: #1565c0; }
+.fc-cefr   { background: #f3e5f5; border-color: #ce93d8; }
+.fc-cefr   .fval { color: #6a1b9a; }
+.fc-read   { background: #fff3e0; border-color: #ffcc80; }
+.fc-read   .fval { color: #e65100; }
+
+/* ── Section 3: Formulas ── */
+.formula-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 700px) { .formula-grid { grid-template-columns: 1fr; } }
+
+.formula-block { background: #fafbff; border: 1px solid #e0e4f0; border-radius: 8px; padding: 13px 15px; }
+.formula-title { font-size: 12px; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.formula-eq  { font-family: 'Courier New', monospace; font-size: 13px; margin-bottom: 4px; }
+.formula-sub { font-family: 'Courier New', monospace; font-size: 11px; color: #555; margin-bottom: 3px; }
+.formula-result { font-size: 14px; font-weight: 800; color: #e65100; margin-top: 6px; }
+
+.svm-box { background: #f3e5f5; border: 1px solid #ce93d8; border-radius: 10px; padding: 14px 16px; margin-top: 12px; }
+.svm-box-title { font-weight: 700; color: #6a1b9a; margin-bottom: 6px; font-size: 13px; }
+.svm-box-code  { font-family: monospace; font-size: 11px; color: #444; line-height: 1.7; margin-bottom: 8px; }
+.svm-verdict   { font-size: 16px; font-weight: 800; }
+.confidence-tag { display: inline-block; background: #e3f2fd; color: #1565c0; border-radius: 10px; padding: 2px 10px; font-size: 11px; margin-left: 8px; font-weight: 600; }
 </style>
 </head>
 <body>
@@ -140,8 +181,209 @@ function hideGlobalError() {
 }
 
 // Stub builders — replaced section by section below
-function buildSection2() { return ''; }
-function buildSection3() { return ''; }
+function buildSection2() {
+  const m = complexityResult?.metrics || {};
+  const cefr = m.cefrDistribution || {};
+  const wc = m.wordCount || 1;
+  const ri = m.readabilityIndices || {};
+
+  const ttr = m.vocabularyRichness != null ? m.vocabularyRichness.toFixed(3) : '—';
+  const asl = m.avgSentenceLength != null ? m.avgSentenceLength.toFixed(1) : '—';
+  const dwr = m.difficultWordRatio != null ? m.difficultWordRatio.toFixed(1) + '%' : '—';
+  const advRatio = m.advancedWordCount != null ? (m.advancedWordCount / wc).toFixed(3) : '—';
+  const fk  = ri.flesch_kincaid != null ? ri.flesch_kincaid.toFixed(1) : '—';
+  const fog = ri.gunning_fog    != null ? ri.gunning_fog.toFixed(1)    : '—';
+
+  const cefrPct = (key) => cefr[key] != null ? ((cefr[key]/wc)*100).toFixed(1)+'%' : '—';
+  const basicPct = (cefr.A1||0) + (cefr.A2||0);
+  const indPct   = (cefr.B1||0) + (cefr.B2||0);
+  const profPct  = (cefr.C1||0) + (cefr.C2||0);
+
+  const chips = [
+    { cat:'fc-vocab',  name:'TTR',              val: ttr,           desc:'Unique / total words' },
+    { cat:'fc-syntax', name:'Avg Sent Length',  val: asl,           desc:'Words per sentence' },
+    { cat:'fc-read',   name:'Difficult Word %', val: dwr,           desc:'≥ 3 syllables' },
+    { cat:'fc-cefr',   name:'Adv CEFR Ratio',   val: advRatio,      desc:'C1/C2 word fraction' },
+    { cat:'fc-cefr',   name:'CEFR A1',           val: cefrPct('A1'), desc:'Basic' },
+    { cat:'fc-cefr',   name:'CEFR A2',           val: cefrPct('A2'), desc:'Elementary' },
+    { cat:'fc-cefr',   name:'CEFR B1',           val: cefrPct('B1'), desc:'Intermediate' },
+    { cat:'fc-cefr',   name:'CEFR B2',           val: cefrPct('B2'), desc:'Upper-Intermediate' },
+    { cat:'fc-cefr',   name:'CEFR C1',           val: cefrPct('C1'), desc:'Advanced' },
+    { cat:'fc-cefr',   name:'CEFR C2',           val: cefrPct('C2'), desc:'Mastery' },
+    { cat:'fc-syntax', name:'Verb Ratio',         val: null, desc:'Verb tokens / total',         serverOnly: true },
+    { cat:'fc-syntax', name:'Noun Ratio',         val: null, desc:'Noun tokens / total',         serverOnly: true },
+    { cat:'fc-syntax', name:'Adj Ratio',          val: null, desc:'Adj tokens / total',          serverOnly: true },
+    { cat:'fc-syntax', name:'Clause Density',     val: null, desc:'Verbs / sentences',           serverOnly: true },
+    { cat:'fc-syntax', name:'Structure Score',    val: null, desc:'(CD×10)+(ASL×2)',             serverOnly: true },
+    { cat:'fc-syntax', name:'Sent Complexity',    val: null, desc:'ASL × 4, cap 100',            serverOnly: true },
+    { cat:'fc-syntax', name:'Avg Dep Distance',   val: null, desc:'Syntax tree depth',           serverOnly: true },
+    { cat:'fc-read',   name:'Flesch-Kincaid',     val: fk,            desc:'Grade level' },
+    { cat:'fc-read',   name:'Gunning Fog',        val: fog,           desc:'Years education needed' },
+    { cat:'fc-syntax', name:'Punct Density',      val: null, desc:'Punctuation / total',         serverOnly: true },
+    { cat:'fc-syntax', name:'Sent Len StdDev',    val: null, desc:'Sentence "burstiness"',       serverOnly: true },
+    { cat:'fc-cefr',   name:'% Basic CEFR',       val: wc > 0 ? ((basicPct/wc)*100).toFixed(1)+'%' : '—', desc:'A1–A2 words' },
+    { cat:'fc-cefr',   name:'% Independent',      val: wc > 0 ? ((indPct/wc)*100).toFixed(1)+'%'   : '—', desc:'B1–B2 words' },
+    { cat:'fc-cefr',   name:'% Proficient',       val: wc > 0 ? ((profPct/wc)*100).toFixed(1)+'%'  : '—', desc:'C1–C2 words' },
+  ];
+
+  const chipHtml = chips.map(c => `
+    <div class="feature-chip ${c.cat}${c.serverOnly ? ' server-only' : ''}"
+         title="${c.serverOnly ? 'Computed server-side by spaCy — value not surfaced by current API' : ''}">
+      <div class="fname">${c.name}</div>
+      <div class="fval">${c.serverOnly ? '— (spaCy)' : c.val}</div>
+      <div class="fdesc">${c.desc}</div>
+    </div>`).join('');
+
+  return `
+  <div class="section-card s2" id="sec2">
+    <div class="section-header">
+      <div class="section-number">2</div>
+      <div>
+        <div class="section-title">Feature Extraction — 24-Dimensional Vector</div>
+        <div class="section-subtitle">Computed by spaCy en_core_web_sm + cefrpy · Each value feeds directly into the SVM classifier</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <div class="feature-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#2e7d32"></div>Vocabulary</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#1565c0"></div>Syntax / Structure</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#6a1b9a"></div>CEFR Levels</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#e65100"></div>Readability</div>
+        <div class="legend-item" style="opacity:0.55"><div class="legend-dot" style="background:#aaa"></div>Server-side only (spaCy)</div>
+      </div>
+      <div class="feature-grid">${chipHtml}</div>
+    </div>
+  </div>`;
+}
+
+function countSyllables(word) {
+  word = word.toLowerCase().replace(/[^a-z]/g, '');
+  if (!word) return 0;
+  const vowels = 'aeiouy';
+  let count = vowels.includes(word[0]) ? 1 : 0;
+  for (let i = 1; i < word.length; i++) {
+    if (vowels.includes(word[i]) && !vowels.includes(word[i-1])) count++;
+  }
+  if (word.endsWith('e')) count--;
+  return Math.max(1, count);
+}
+
+function buildSection3() {
+  const m = complexityResult?.metrics || {};
+  const ri = m.readabilityIndices || {};
+  const wc = m.wordCount || 0;
+
+  const asl = m.avgSentenceLength != null ? parseFloat(m.avgSentenceLength).toFixed(1) : '?';
+  const dwr = m.difficultWordRatio != null ? parseFloat(m.difficultWordRatio).toFixed(2) : '?';
+  const fk  = ri.flesch_kincaid != null ? ri.flesch_kincaid.toFixed(2) : '?';
+  const fog = ri.gunning_fog    != null ? ri.gunning_fog.toFixed(2)    : '?';
+  const ttr = m.vocabularyRichness != null ? m.vocabularyRichness.toFixed(3) : '?';
+  const advC = m.advancedWordCount != null ? m.advancedWordCount : '?';
+
+  const essay = document.getElementById('essayInput').value.trim();
+  const words = essay.match(/\b\w+\b/g) || [];
+  const sentences = essay.split(/[.!?]+/).filter(s => s.trim()).length || 1;
+  const uniqueWords = new Set(words.map(w => w.toLowerCase())).size;
+  const syllableCount = words.reduce((s, w) => s + countSyllables(w), 0);
+  const complexWords = words.filter(w => countSyllables(w) >= 3).length;
+
+  const level = complexityResult?.level || '—';
+  const proficiency = analysisResult?.proficiency || '—';
+  const score = complexityResult?.score != null ? complexityResult.score.toFixed(1) : '—';
+
+  const dwr_num  = m.difficultWordRatio != null ? parseFloat(m.difficultWordRatio) : 0;
+  const asl_num  = m.avgSentenceLength  != null ? parseFloat(m.avgSentenceLength)  : 0;
+  const adv_num  = typeof advC === 'number' ? advC : 0;
+  const cs = ((asl_num * 3) + (dwr_num * 4) + (adv_num * 3)).toFixed(1);
+  const csThreshold = parseFloat(cs) < 40 ? 'Literal (< 40)' : parseFloat(cs) < 75 ? 'Inferential (< 75)' : 'Evaluative (≥ 75)';
+  const dwrNum = dwr.replace('%','');
+
+  return `
+  <div class="section-card s3" id="sec3">
+    <div class="section-header">
+      <div class="section-number">3</div>
+      <div>
+        <div class="section-title">Score Computation — Formulas with Exact Values</div>
+        <div class="section-subtitle">Every formula step-by-step using the actual numbers from this essay</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <div class="formula-grid">
+
+        <div class="formula-block">
+          <div class="formula-title" style="color:#2e7d32">📐 TTR — Type-Token Ratio</div>
+          <div class="formula-eq">TTR = unique_words / total_words</div>
+          <div class="formula-sub">= ${uniqueWords} / ${words.length}</div>
+          <div class="formula-result">= ${ttr}</div>
+        </div>
+
+        <div class="formula-block">
+          <div class="formula-title" style="color:#1565c0">📐 Average Sentence Length</div>
+          <div class="formula-eq">ASL = total_words / total_sentences</div>
+          <div class="formula-sub">= ${words.length} / ${sentences}</div>
+          <div class="formula-result">= ${asl} words/sentence</div>
+        </div>
+
+        <div class="formula-block">
+          <div class="formula-title" style="color:#e65100">📐 Difficult Word Ratio</div>
+          <div class="formula-eq">DWR = (complex_words / total_words) × 100</div>
+          <div class="formula-sub">complex words (≥ 3 syllables) = ${complexWords}</div>
+          <div class="formula-sub">= (${complexWords} / ${words.length}) × 100</div>
+          <div class="formula-result">= ${dwrNum}%</div>
+        </div>
+
+        <div class="formula-block">
+          <div class="formula-title" style="color:#e65100">📐 Flesch-Kincaid Grade Level</div>
+          <div class="formula-eq">FK = (0.39 × ASL) + (11.8 × Syl/W) − 15.59</div>
+          <div class="formula-sub">syllables = ${syllableCount}, words = ${words.length}</div>
+          <div class="formula-sub">= (0.39 × ${asl}) + (11.8 × ${(syllableCount/Math.max(words.length,1)).toFixed(3)}) − 15.59</div>
+          <div class="formula-result">= ${fk} → Grade ${isNaN(parseFloat(fk)) ? '?' : Math.round(parseFloat(fk))} reading level <span style="font-size:10px;color:#888">(from backend)</span></div>
+        </div>
+
+        <div class="formula-block">
+          <div class="formula-title" style="color:#e65100">📐 Gunning Fog Index</div>
+          <div class="formula-eq">Fog = 0.4 × (ASL + 100 × CW/W)</div>
+          <div class="formula-sub">CW (≥ 3 syllables) = ${complexWords}</div>
+          <div class="formula-sub">= 0.4 × (${asl} + 100 × ${complexWords}/${words.length})</div>
+          <div class="formula-sub">= 0.4 × (${asl} + ${(100 * complexWords / Math.max(words.length,1)).toFixed(2)})</div>
+          <div class="formula-result">= ${fog} → ~Grade ${isNaN(parseFloat(fog)) ? '?' : Math.round(parseFloat(fog))} education needed</div>
+        </div>
+
+        <div class="formula-block">
+          <div class="formula-title" style="color:#1565c0">📐 Structure Score (partial)</div>
+          <div class="formula-eq">SS = min(100, (CD × 10) + (ASL × 2))</div>
+          <div class="formula-sub">CD (clause density) = computed server-side by spaCy</div>
+          <div class="formula-sub">ASL component = ${(asl_num * 2).toFixed(1)}</div>
+          <div class="formula-result">Full SS requires spaCy verb count (server-side)</div>
+        </div>
+
+        <div class="formula-block" style="grid-column: span 2">
+          <div class="formula-title" style="color:#6a1b9a">📐 Heuristic Complexity Score (CS)</div>
+          <div class="formula-eq">CS = (ASL × 3) + (DWR × 4) + (AdvCEFR_count × 3)</div>
+          <div class="formula-sub">= (${asl} × 3) + (${dwrNum} × 4) + (${advC} × 3)</div>
+          <div class="formula-sub">= ${(asl_num*3).toFixed(2)} + ${(dwr_num*4).toFixed(2)} + ${(adv_num*3).toFixed(2)}</div>
+          <div class="formula-result">= ${cs} → <strong>${csThreshold}</strong></div>
+          <div style="font-size:10px;color:#888;margin-top:4px;">Threshold: &lt;40 Literal · &lt;75 Inferential · ≥75 Evaluative</div>
+        </div>
+
+      </div>
+
+      <div class="svm-box">
+        <div class="svm-box-title">🤖 SVM Model Prediction</div>
+        <div class="svm-box-code">
+          feature_vector[24] → StandardScaler.transform() → SVC(kernel="rbf", C=10, gamma="scale")<br>
+          predict() → label index → labels = ["Literal", "Inferential", "Evaluative"]
+        </div>
+        <div class="svm-verdict">
+          Complexity: <span style="color:#e65100">${level}</span>
+          <span class="confidence-tag">score: ${score}</span>
+          &nbsp;&nbsp;|&nbsp;&nbsp;
+          Proficiency: <span style="color:#6a1b9a">${proficiency}</span>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
 function buildSection4() { return ''; }
 function buildSection5() { return ''; }
 function buildSection6() { return ''; }
