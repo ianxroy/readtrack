@@ -189,6 +189,62 @@ input[type=range] { width: 100%; accent-color: #1565c0; cursor: pointer; }
 .pipe-text b    { display: block; font-weight: 600; color: #1a1a2e; font-size: 12px; }
 .pipe-text span { color: #666; font-size: 11px; }
 .retry-btn { background: none; border: 1px solid #1565c0; color: #1565c0; border-radius: 6px; padding: 4px 12px; font-size: 11px; cursor: pointer; margin-top: 8px; }
+
+/* ── Section 6: Rubric Scorer ── */
+.rubric-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 16px; }
+@media (max-width: 800px) { .rubric-grid { grid-template-columns: repeat(2, 1fr); } }
+.rubric-dimension { background: #fafbff; border: 1px solid #e0e4f0; border-radius: 8px; padding: 11px 12px; }
+.rubric-dim-name  { font-size: 12px; font-weight: 700; color: #333; margin-bottom: 8px; }
+.score-buttons    { display: flex; gap: 5px; }
+.score-btn {
+  flex: 1; padding: 7px 0; border: 1px solid #d0d5e8; border-radius: 6px;
+  background: white; cursor: pointer; font-weight: 700; font-size: 13px;
+  color: #555; transition: all 0.15s; position: relative;
+}
+.score-btn:hover   { border-color: #1565c0; color: #1565c0; background: #f0f4ff; }
+.score-btn.selected { background: #1565c0; color: white; border-color: #1565c0; }
+.score-btn-tooltip {
+  position: absolute; bottom: 110%; left: 50%; transform: translateX(-50%);
+  background: #1a1a2e; color: white; font-size: 10px; font-weight: 400;
+  padding: 5px 8px; border-radius: 5px; white-space: nowrap; pointer-events: none;
+  opacity: 0; transition: opacity 0.15s; z-index: 10; min-width: 120px; text-align: center;
+}
+.score-btn:hover .score-btn-tooltip { opacity: 1; }
+
+.rubric-total-row {
+  display: flex; align-items: center; gap: 14px; margin-bottom: 14px;
+  background: #f0f4ff; border-radius: 8px; padding: 12px 16px; flex-wrap: wrap;
+}
+.total-score { font-size: 28px; font-weight: 800; color: #1565c0; font-variant-numeric: tabular-nums; }
+.total-label { font-size: 11px; color: #666; }
+.deped-verdict { margin-left: auto; font-size: 15px; font-weight: 700; padding: 6px 18px; border-radius: 20px; }
+.dv-nagsisimula { background: #fce4ec; color: #c62828; }
+.dv-papaunlad   { background: #fff8e1; color: #f57f17; }
+.dv-mahusay     { background: #e8f5e9; color: #2e7d32; }
+
+.comparison-box {
+  border: 1px solid #e0e4f0; border-radius: 8px; padding: 12px 16px;
+  margin-bottom: 14px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+}
+.cmp-item { text-align: center; }
+.cmp-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; color: #888; }
+.cmp-value { font-size: 14px; font-weight: 700; margin-top: 2px; }
+.cmp-match    { background: #e8f5e9; border-color: #a5d6a7; }
+.cmp-mismatch { background: #fff8e1; border-color: #ffe082; }
+.cmp-status { font-size: 11px; font-style: italic; color: #555; margin-left: auto; }
+
+.lang-selector { display: flex; gap: 8px; margin-bottom: 14px; align-items: center; }
+.lang-btn { padding: 5px 16px; border: 1px solid #d0d5e8; border-radius: 20px; background: white; cursor: pointer; font-size: 12px; font-weight: 600; color: #555; }
+.lang-btn.active { background: #1565c0; color: white; border-color: #1565c0; }
+
+.btn-retrain { background: #00695c; color: white; border: none; border-radius: 8px; padding: 11px 28px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s; }
+.btn-retrain:hover    { background: #00796b; }
+.btn-retrain:disabled { background: #90a4ae; cursor: not-allowed; }
+.retrain-result { margin-top: 12px; background: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 8px; padding: 12px 16px; display: none; font-size: 12px; }
+.retrain-result.visible { display: block; }
+.retrain-result strong { font-size: 14px; color: #2e7d32; }
+.retrain-error { margin-top: 12px; background: #ffebee; border: 1px solid #ef9a9a; border-radius: 8px; padding: 10px 14px; display: none; font-size: 12px; color: #c62828; }
+.retrain-error.visible { display: block; }
 </style>
 </head>
 <body>
@@ -670,7 +726,171 @@ async function loadTrainStatus() {
   }
 }
 
-function buildSection6() { return ''; }
+const RUBRIC_TOOLTIPS = {
+  content:      ['Does not develop ideas','Partial ideas, little support','Clear ideas, some support','Fully developed, strong support'],
+  organization: ['No structure visible','Weak intro/body/conclusion','Clear structure, some transitions','Strong structure, smooth flow'],
+  language:     ['Very limited, inappropriate','Simple, some errors','Adequate, mostly appropriate','Varied, precise, register-appropriate'],
+  grammar:      ['Many errors impede understanding','Frequent errors, mostly clear','Some errors, meaning clear','Few/no errors'],
+  mechanics:    ['Pervasive errors','Many errors','Some errors','Correct punctuation & spelling'],
+};
+
+const RUBRIC_DIMS = [
+  { key:'content',      label:'Content' },
+  { key:'organization', label:'Organization' },
+  { key:'language',     label:'Language / Vocab' },
+  { key:'grammar',      label:'Grammar' },
+  { key:'mechanics',    label:'Mechanics' },
+];
+
+let rubricScores = { content: 0, organization: 0, language: 0, grammar: 0, mechanics: 0 };
+let rubricLang = 'en';
+
+function buildSection6() {
+  const dimHtml = RUBRIC_DIMS.map(d => {
+    const btns = [1,2,3,4].map(n => `
+      <button class="score-btn" data-dim="${d.key}" data-score="${n}"
+        onclick="setRubricScore('${d.key}', ${n})">
+        ${n}
+        <div class="score-btn-tooltip">${n} — ${RUBRIC_TOOLTIPS[d.key][n-1]}</div>
+      </button>`).join('');
+    return `
+      <div class="rubric-dimension">
+        <div class="rubric-dim-name">${d.label}</div>
+        <div class="score-buttons" id="rb-${d.key}">${btns}</div>
+      </div>`;
+  }).join('');
+
+  return `
+  <div class="section-card s6" id="sec6">
+    <div class="section-header">
+      <div class="section-number">6</div>
+      <div>
+        <div class="section-title">Teacher DepEd Rubric Scorer</div>
+        <div class="section-subtitle">Score the student essay on 5 dimensions · Submit to retrain the SVM model with this rating</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <div class="lang-selector">
+        <span style="font-size:12px;font-weight:600;color:#444">Essay Language:</span>
+        <button class="lang-btn active" id="lbtn-en" onclick="setRubricLang('en')">English (EN)</button>
+        <button class="lang-btn" id="lbtn-tl" onclick="setRubricLang('tl')">Filipino (TL)</button>
+      </div>
+      <div class="rubric-grid">${dimHtml}</div>
+      <div class="rubric-total-row">
+        <div>
+          <div class="total-score"><span id="rubric-total">0</span> / 20</div>
+          <div class="total-label">Total rubric score</div>
+        </div>
+        <div>
+          <div class="total-label">DepEd Scale</div>
+          <div style="font-size:12px;color:#888;margin-top:2px;">5–8 Nagsisimula · 9–14 Papaunlad · 15–20 Mahusay</div>
+        </div>
+        <div class="deped-verdict dv-nagsisimula" id="rubric-verdict">Nagsisimula</div>
+      </div>
+      <div class="comparison-box" id="cmpBox">
+        <div class="cmp-item">
+          <div class="cmp-label">SVM Says</div>
+          <div class="cmp-value" style="color:#6a1b9a" id="cmp-svm">${analysisResult?.proficiency || '—'}</div>
+        </div>
+        <div style="font-size:20px;color:#ccc">↔</div>
+        <div class="cmp-item">
+          <div class="cmp-label">Teacher Rubric Says</div>
+          <div class="cmp-value" id="cmp-teacher">—</div>
+        </div>
+        <div class="cmp-status" id="cmp-status">Score the essay above to compare</div>
+      </div>
+      <button class="btn-retrain" id="retrainBtn" onclick="submitAndRetrain()">
+        ↻ Submit Score &amp; Retrain Model
+      </button>
+      <div class="retrain-result" id="retrainResult"></div>
+      <div class="retrain-error"  id="retrainError"></div>
+    </div>
+  </div>`;
+}
+
+function setRubricLang(lang) {
+  rubricLang = lang;
+  document.getElementById('lbtn-en').classList.toggle('active', lang === 'en');
+  document.getElementById('lbtn-tl').classList.toggle('active', lang === 'tl');
+}
+
+function setRubricScore(dim, score) {
+  rubricScores[dim] = score;
+  document.querySelectorAll(`[data-dim="${dim}"]`).forEach(btn => {
+    btn.classList.toggle('selected', parseInt(btn.dataset.score) === score);
+  });
+  updateRubricTotal();
+}
+
+function updateRubricTotal() {
+  const total = Object.values(rubricScores).reduce((a, b) => a + b, 0);
+  const verdict = total <= 8 ? 'Nagsisimula' : total <= 14 ? 'Papaunlad' : 'Mahusay';
+  const cls     = verdict === 'Nagsisimula' ? 'dv-nagsisimula' : verdict === 'Papaunlad' ? 'dv-papaunlad' : 'dv-mahusay';
+
+  document.getElementById('rubric-total').textContent = total;
+  const vEl = document.getElementById('rubric-verdict');
+  vEl.textContent = verdict;
+  vEl.className = `deped-verdict ${cls}`;
+
+  const svmLabel = analysisResult?.proficiency || '—';
+  const match = svmLabel === verdict && total > 0;
+  const cmpTeacher = document.getElementById('cmp-teacher');
+  if (cmpTeacher) {
+    cmpTeacher.textContent = total > 0 ? verdict : '—';
+    cmpTeacher.style.color = verdict === 'Mahusay' ? '#2e7d32' : verdict === 'Papaunlad' ? '#f57f17' : '#c62828';
+  }
+  const cmpBox = document.getElementById('cmpBox');
+  if (cmpBox) cmpBox.className = `comparison-box ${total > 0 ? (match ? 'cmp-match' : 'cmp-mismatch') : ''}`;
+  const cmpStatus = document.getElementById('cmp-status');
+  if (cmpStatus) cmpStatus.textContent = total === 0
+    ? 'Score the essay above to compare'
+    : match
+      ? '✓ SVM and teacher agree on this essay'
+      : '⚠ Mismatch — this essay will help improve the model when submitted';
+}
+
+async function submitAndRetrain() {
+  const scoredCount = Object.values(rubricScores).filter(v => v > 0).length;
+  if (scoredCount < 5) {
+    const errEl = document.getElementById('retrainError');
+    errEl.textContent = `Please score all 5 dimensions before submitting (${scoredCount}/5 scored).`;
+    errEl.classList.add('visible');
+    return;
+  }
+
+  const btn = document.getElementById('retrainBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner" style="border-top-color:#00695c;border-color:rgba(0,105,92,0.3)"></span>Retraining…';
+  document.getElementById('retrainResult').classList.remove('visible');
+  document.getElementById('retrainError').classList.remove('visible');
+
+  try {
+    const r = await fetch(`${API}/train/proficiency`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ language: rubricLang })
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    if (data.error) throw new Error(data.error);
+
+    const resultEl = document.getElementById('retrainResult');
+    resultEl.innerHTML = `
+      <strong>Model retrained successfully</strong><br>
+      New accuracy: <strong>${data.accuracy || '—'}</strong> ·
+      Trained on <strong>${data.samples_used ?? '—'}</strong> rated essays
+      ${data.asap2_samples > 0 ? ` + ${data.asap2_samples} ASAP2 benchmark samples (EN only)` : ''}
+    `;
+    resultEl.classList.add('visible');
+    await loadTrainStatus();
+  } catch (e) {
+    const errEl = document.getElementById('retrainError');
+    errEl.textContent = `Retraining failed: ${e.message}. Make sure there are at least 5 rated essays in Supabase.`;
+    errEl.classList.add('visible');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '↻ Submit Score &amp; Retrain Model';
+  }
+}
 
 function renderResults() {
   ['sec2','sec3','sec4','sec5','sec6'].forEach(id => {
