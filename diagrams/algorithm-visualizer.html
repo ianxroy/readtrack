@@ -728,10 +728,10 @@ async function loadTrainStatus() {
 
 const RUBRIC_TOOLTIPS = {
   content:      ['Does not develop ideas','Partial ideas, little support','Clear ideas, some support','Fully developed, strong support'],
-  organization: ['No structure visible','Weak intro/body/conclusion','Clear structure, some transitions','Strong structure, smooth flow'],
+  organization: ['No structure','Weak intro/body/conclusion','Clear structure, some transitions','Strong structure, smooth flow'],
   language:     ['Very limited, inappropriate','Simple, some errors','Adequate, mostly appropriate','Varied, precise, register-appropriate'],
-  grammar:      ['Many errors impede understanding','Frequent errors, mostly clear','Some errors, meaning clear','Few/no errors'],
-  mechanics:    ['Pervasive errors','Many errors','Some errors','Correct punctuation & spelling'],
+  grammar:      ['Many errors impede understanding','Frequent errors, meaning mostly clear','Some errors, meaning clear','Few/no errors'],
+  mechanics:    ['Pervasive errors','Many errors','Some errors','Correct punctuation, capitalization, spelling'],
 };
 
 const RUBRIC_DIMS = [
@@ -785,7 +785,7 @@ function buildSection6() {
           <div class="total-label">DepEd Scale</div>
           <div style="font-size:12px;color:#888;margin-top:2px;">5–8 Nagsisimula · 9–14 Papaunlad · 15–20 Mahusay</div>
         </div>
-        <div class="deped-verdict dv-nagsisimula" id="rubric-verdict">Nagsisimula</div>
+        <div class="deped-verdict" id="rubric-verdict">—</div>
       </div>
       <div class="comparison-box" id="cmpBox">
         <div class="cmp-item">
@@ -824,29 +824,34 @@ function setRubricScore(dim, score) {
 
 function updateRubricTotal() {
   const total = Object.values(rubricScores).reduce((a, b) => a + b, 0);
-  const verdict = total <= 8 ? 'Nagsisimula' : total <= 14 ? 'Papaunlad' : 'Mahusay';
-  const cls     = verdict === 'Nagsisimula' ? 'dv-nagsisimula' : verdict === 'Papaunlad' ? 'dv-papaunlad' : 'dv-mahusay';
+  const hasVerdict = total >= 5;
+  const verdict = hasVerdict ? (total <= 8 ? 'Nagsisimula' : total <= 14 ? 'Papaunlad' : 'Mahusay') : '';
+  const cls     = verdict === 'Nagsisimula' ? 'dv-nagsisimula' : verdict === 'Papaunlad' ? 'dv-papaunlad' : verdict === 'Mahusay' ? 'dv-mahusay' : '';
 
   document.getElementById('rubric-total').textContent = total;
   const vEl = document.getElementById('rubric-verdict');
-  vEl.textContent = verdict;
-  vEl.className = `deped-verdict ${cls}`;
+  vEl.textContent = hasVerdict ? verdict : '—';
+  vEl.className = `deped-verdict${cls ? ' ' + cls : ''}`;
 
   const svmLabel = analysisResult?.proficiency || '—';
-  const match = svmLabel === verdict && total > 0;
+  const match = hasVerdict && svmLabel === verdict;
   const cmpTeacher = document.getElementById('cmp-teacher');
   if (cmpTeacher) {
-    cmpTeacher.textContent = total > 0 ? verdict : '—';
-    cmpTeacher.style.color = verdict === 'Mahusay' ? '#2e7d32' : verdict === 'Papaunlad' ? '#f57f17' : '#c62828';
+    cmpTeacher.textContent = hasVerdict ? verdict : '—';
+    cmpTeacher.style.color = verdict === 'Mahusay' ? '#2e7d32' : verdict === 'Papaunlad' ? '#f57f17' : verdict === 'Nagsisimula' ? '#c62828' : '';
+  }
+  const cmpSvm = document.getElementById('cmp-svm');
+  if (cmpSvm) {
+    cmpSvm.style.color = (hasVerdict && !match) ? '#f57c00' : '#6a1b9a';
   }
   const cmpBox = document.getElementById('cmpBox');
-  if (cmpBox) cmpBox.className = `comparison-box ${total > 0 ? (match ? 'cmp-match' : 'cmp-mismatch') : ''}`;
+  if (cmpBox) cmpBox.className = `comparison-box ${hasVerdict ? (match ? 'cmp-match' : 'cmp-mismatch') : ''}`;
   const cmpStatus = document.getElementById('cmp-status');
-  if (cmpStatus) cmpStatus.textContent = total === 0
+  if (cmpStatus) cmpStatus.textContent = !hasVerdict
     ? 'Score the essay above to compare'
     : match
       ? '✓ SVM and teacher agree on this essay'
-      : '⚠ Mismatch — this essay will help improve the model when submitted';
+      : 'Teacher rating differs from SVM — this essay will help improve the model.';
 }
 
 async function submitAndRetrain() {
