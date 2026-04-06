@@ -133,6 +133,7 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f4f6fb; colo
 .feature-chip .fname { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #555; }
 .feature-chip .fval { font-size: 17px; font-weight: 800; margin-top: 2px; font-variant-numeric: tabular-nums; }
 .feature-chip .fdesc { font-size: 10px; color: #888; margin-top: 1px; }
+.cefr-hidden-note { font-size: 11px; color: #7b1fa2; background: #f3e5f5; border-radius: 6px; padding: 6px 12px; margin-bottom: 10px; }
 .feature-chip .cefr-words { font-size: 9px; color: #7b1fa2; margin-top: 4px; line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; cursor: help; }
 .feature-chip.server-only { opacity: 0.55; }
 .feature-chip.server-only .fval { font-size: 12px; font-style: italic; color: #aaa; }
@@ -328,6 +329,13 @@ input[type=range] { width: 100%; accent-color: #1565c0; cursor: pointer; }
 const API = 'http://localhost:8000';
 let analysisResult = null;
 let complexityResult = null;
+let detectedLang = 'en'; // 'en' or 'tl' — set after each analysis
+
+const PROF_LABELS = {
+  en: { Mahusay: 'Proficient', Papaunlad: 'Developing', Nagsisimula: 'Beginning' },
+  tl: { Mahusay: 'Mahusay',   Papaunlad: 'Papaunlad',  Nagsisimula: 'Nagsisimula' },
+};
+function profLabel(key) { return PROF_LABELS[detectedLang]?.[key] ?? key; }
 
 async function checkBackend() {
   const badge = document.getElementById('backendBadge');
@@ -411,7 +419,8 @@ function buildSection2() {
     { cat:'fc-cefr',   name:'% Proficient',  val: groupVal(profCount),  desc:'C1–C2 words', words: [...(byLevel.C1||[]), ...(byLevel.C2||[])].slice(0,20).join(', ') || '—' },
   ];
 
-  const chipHtml = chips.map(c => `
+  const visibleChips = detectedLang === 'tl' ? chips.filter(c => c.cat !== 'fc-cefr') : chips;
+  const chipHtml = visibleChips.map(c => `
     <div class="feature-chip ${c.cat}${c.serverOnly ? ' server-only' : ''}">
       <div class="fname">${c.name}</div>
       <div class="fval">${c.serverOnly ? '— (spaCy)' : c.val}</div>
@@ -436,6 +445,7 @@ function buildSection2() {
         <div class="legend-item"><div class="legend-dot" style="background:#e65100"></div>Readability</div>
         <div class="legend-item" style="opacity:0.55"><div class="legend-dot" style="background:#aaa"></div>Server-side only (spaCy)</div>
       </div>
+      ${detectedLang === 'tl' ? '<div class="cefr-hidden-note">ℹ CEFR features hidden — cefrpy is English-only. Filipino essays use 0 for all CEFR dimensions.</div>' : ''}
       <div class="feature-grid">${chipHtml}</div>
     </div>
   </div>`;
@@ -564,7 +574,7 @@ function buildSection3() {
           Complexity: <span style="color:#e65100">${level}</span>
           <span class="confidence-tag">score: ${score}</span>
           &nbsp;&nbsp;|&nbsp;&nbsp;
-          Proficiency: <span style="color:#6a1b9a">${proficiency}</span>
+          Proficiency: <span style="color:#6a1b9a">${profLabel(proficiency)}</span>
         </div>
       </div>
     </div>
@@ -596,13 +606,13 @@ function buildSection4() {
     </div>`).join('');
 
   const profBands = [
-    { cls:'pb-mahusay',     label:'Mahusay',     desc:'Proficient — varied vocab, complex sentences, clear organization' },
-    { cls:'pb-papaunlad',   label:'Papaunlad',   desc:'Developing — emerging structure, growing vocabulary' },
-    { cls:'pb-nagsisimula', label:'Nagsisimula', desc:'Beginning — limited vocabulary, simple sentences' },
+    { cls:'pb-mahusay',     key:'Mahusay',     desc:'Proficient — varied vocab, complex sentences, clear organization' },
+    { cls:'pb-papaunlad',   key:'Papaunlad',   desc:'Developing — emerging structure, growing vocabulary' },
+    { cls:'pb-nagsisimula', key:'Nagsisimula', desc:'Beginning — limited vocabulary, simple sentences' },
   ].map(b => `
-    <div class="prof-band ${b.cls} ${proficiency === b.label ? 'active' : ''}" id="pb-${b.label}">
-      <div><div class="prof-label">${b.label}</div><div class="prof-desc">${b.desc}</div></div>
-      ${proficiency === b.label ? '<span class="current-tag">CURRENT</span>' : ''}
+    <div class="prof-band ${b.cls} ${proficiency === b.key ? 'active' : ''}" id="pb-${b.key}">
+      <div><div class="prof-label">${profLabel(b.key)}</div><div class="prof-desc">${b.desc}</div></div>
+      ${proficiency === b.key ? '<span class="current-tag">CURRENT</span>' : ''}
     </div>`).join('');
 
   return `
@@ -835,8 +845,8 @@ function buildSection6() {
     <div class="section-body">
       <div class="lang-selector">
         <span style="font-size:12px;font-weight:600;color:#444">Essay Language:</span>
-        <button class="lang-btn active" id="lbtn-en" onclick="setRubricLang('en')">English (EN)</button>
-        <button class="lang-btn" id="lbtn-tl" onclick="setRubricLang('tl')">Filipino (TL)</button>
+        <button class="lang-btn ${detectedLang === 'en' ? 'active' : ''}" id="lbtn-en" onclick="setRubricLang('en')">English (EN)</button>
+        <button class="lang-btn ${detectedLang === 'tl' ? 'active' : ''}" id="lbtn-tl" onclick="setRubricLang('tl')">Filipino (TL)</button>
       </div>
       <div class="rubric-grid">${dimHtml}</div>
       <div class="rubric-total-row">
@@ -853,7 +863,7 @@ function buildSection6() {
       <div class="comparison-box" id="cmpBox">
         <div class="cmp-item">
           <div class="cmp-label">SVM Says</div>
-          <div class="cmp-value" style="color:#6a1b9a" id="cmp-svm">${analysisResult?.proficiency || '—'}</div>
+          <div class="cmp-value" style="color:#6a1b9a" id="cmp-svm">${profLabel(analysisResult?.proficiency || '') || '—'}</div>
         </div>
         <div style="font-size:20px;color:#ccc">↔</div>
         <div class="cmp-item">
@@ -893,14 +903,14 @@ function updateRubricTotal() {
 
   document.getElementById('rubric-total').textContent = total;
   const vEl = document.getElementById('rubric-verdict');
-  vEl.textContent = hasVerdict ? verdict : '—';
+  vEl.textContent = hasVerdict ? profLabel(verdict) : '—';
   vEl.className = `deped-verdict${cls ? ' ' + cls : ''}`;
 
   const svmLabel = analysisResult?.proficiency || '—';
   const match = hasVerdict && svmLabel === verdict;
   const cmpTeacher = document.getElementById('cmp-teacher');
   if (cmpTeacher) {
-    cmpTeacher.textContent = hasVerdict ? verdict : '—';
+    cmpTeacher.textContent = hasVerdict ? profLabel(verdict) : '—';
     cmpTeacher.style.color = verdict === 'Mahusay' ? '#2e7d32' : verdict === 'Papaunlad' ? '#f57f17' : verdict === 'Nagsisimula' ? '#c62828' : '';
   }
   const cmpSvm = document.getElementById('cmp-svm');
@@ -1376,7 +1386,7 @@ function renderResults() {
     if (el) el.remove();
   });
   rubricScores = { content: 0, organization: 0, language: 0, grammar: 0, mechanics: 0 };
-  rubricLang = 'en';
+  rubricLang = detectedLang;
   const main = document.getElementById('main');
   if (complexityResult || analysisResult) {
     main.insertAdjacentHTML('beforeend', buildSection2());
@@ -1459,6 +1469,7 @@ async function runAnalysis() {
 
     if (studentOk) {
       analysisResult = studentRes.value;
+      detectedLang = detectLangLabel(text) === 'Filipino (TL)' ? 'tl' : 'en';
       document.getElementById('langBadge').textContent = `🌐 Language: ${detectLangLabel(text)}`;
     }
     if (complexityOk) {
