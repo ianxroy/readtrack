@@ -217,6 +217,7 @@ class StudentProficiencySVM(BaseModel):
                 "grammarAccuracy": round(grammar_score, 2), # Now dynamic
                 "structureCohesion": round(metrics.get('structureCohesion', 0), 2),
                 "cefrDistribution": metrics.get('cefrDistribution', {}),
+                "cefrWordsByLevel": metrics.get('cefrWordGroups', {}).get('byLevel', {}),
                 "advancedWords": metrics.get('advancedWords', []),
                 "readability": metrics.get('readabilityIndices', {})
             },

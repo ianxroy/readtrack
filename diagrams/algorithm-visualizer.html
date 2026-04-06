@@ -95,6 +95,7 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f4f6fb; colo
 .feature-chip .fname { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #555; }
 .feature-chip .fval { font-size: 17px; font-weight: 800; margin-top: 2px; font-variant-numeric: tabular-nums; }
 .feature-chip .fdesc { font-size: 10px; color: #888; margin-top: 1px; }
+.feature-chip .cefr-words { font-size: 9px; color: #7b1fa2; margin-top: 4px; line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; cursor: help; }
 .feature-chip.server-only { opacity: 0.55; }
 .feature-chip.server-only .fval { font-size: 12px; font-style: italic; color: #aaa; }
 
@@ -332,22 +333,29 @@ function buildSection2() {
   const fk  = ri.flesch_kincaid != null ? ri.flesch_kincaid.toFixed(1) : '—';
   const fog = ri.gunning_fog    != null ? ri.gunning_fog.toFixed(1)    : '—';
 
-  const cefrPct = (key) => cefr[key] != null ? ((cefr[key]/wc)*100).toFixed(1)+'%' : '—';
-  const basicPct = (cefr.A1||0) + (cefr.A2||0);
-  const indPct   = (cefr.B1||0) + (cefr.B2||0);
-  const profPct  = (cefr.C1||0) + (cefr.C2||0);
+  const byLevel = am.cefrWordsByLevel || {};
+  const cefrVal = (key) => {
+    const count = cefr[key] || 0;
+    const pct = wc > 0 ? ((count/wc)*100).toFixed(1) : '0.0';
+    return count > 0 ? `${pct}% (${count})` : '—';
+  };
+  const cefrWords = (key) => (byLevel[key] || []).slice(0, 20).join(', ') || '—';
+  const basicCount = (cefr.A1||0) + (cefr.A2||0);
+  const indCount   = (cefr.B1||0) + (cefr.B2||0);
+  const profCount  = (cefr.C1||0) + (cefr.C2||0);
+  const groupVal = (count) => count > 0 ? `${wc > 0 ? ((count/wc)*100).toFixed(1) : '0.0'}% (${count})` : '—';
 
   const chips = [
     { cat:'fc-vocab',  name:'TTR',              val: ttr,           desc:'Unique / total words' },
     { cat:'fc-syntax', name:'Avg Sent Length',  val: asl,           desc:'Words per sentence' },
     { cat:'fc-read',   name:'Difficult Word %', val: dwr,           desc:'≥ 3 syllables' },
     { cat:'fc-cefr',   name:'Adv CEFR Ratio',   val: advRatio,      desc:'C1/C2 word fraction' },
-    { cat:'fc-cefr',   name:'CEFR A1',           val: cefrPct('A1'), desc:'Basic' },
-    { cat:'fc-cefr',   name:'CEFR A2',           val: cefrPct('A2'), desc:'Elementary' },
-    { cat:'fc-cefr',   name:'CEFR B1',           val: cefrPct('B1'), desc:'Intermediate' },
-    { cat:'fc-cefr',   name:'CEFR B2',           val: cefrPct('B2'), desc:'Upper-Intermediate' },
-    { cat:'fc-cefr',   name:'CEFR C1',           val: cefrPct('C1'), desc:'Advanced' },
-    { cat:'fc-cefr',   name:'CEFR C2',           val: cefrPct('C2'), desc:'Mastery' },
+    { cat:'fc-cefr',   name:'CEFR A1', val: cefrVal('A1'), desc:'Basic', words: cefrWords('A1') },
+    { cat:'fc-cefr',   name:'CEFR A2', val: cefrVal('A2'), desc:'Elementary', words: cefrWords('A2') },
+    { cat:'fc-cefr',   name:'CEFR B1', val: cefrVal('B1'), desc:'Intermediate', words: cefrWords('B1') },
+    { cat:'fc-cefr',   name:'CEFR B2', val: cefrVal('B2'), desc:'Upper-Intermediate', words: cefrWords('B2') },
+    { cat:'fc-cefr',   name:'CEFR C1', val: cefrVal('C1'), desc:'Advanced',           words: cefrWords('C1') },
+    { cat:'fc-cefr',   name:'CEFR C2', val: cefrVal('C2'), desc:'Mastery',            words: cefrWords('C2') },
     { cat:'fc-syntax', name:'Verb Ratio',         val: complexityResult?.verbRatio != null ? complexityResult.verbRatio.toFixed(3) : '—', desc:'Verb tokens / total' },
     { cat:'fc-syntax', name:'Noun Ratio',         val: complexityResult?.nounRatio != null ? complexityResult.nounRatio.toFixed(3) : '—', desc:'Noun tokens / total' },
     { cat:'fc-syntax', name:'Adj Ratio',          val: complexityResult?.adjRatio  != null ? complexityResult.adjRatio.toFixed(3)  : '—', desc:'Adj tokens / total' },
@@ -359,17 +367,17 @@ function buildSection2() {
     { cat:'fc-read',   name:'Gunning Fog',        val: fog,           desc:'Years education needed' },
     { cat:'fc-syntax', name:'Punct Density',      val: complexityResult?.punctDensity   != null ? complexityResult.punctDensity.toFixed(3)   : '—', desc:'Punctuation / total' },
     { cat:'fc-syntax', name:'Sent Len StdDev',    val: complexityResult?.sentLenStdDev  != null ? complexityResult.sentLenStdDev.toFixed(3)  : '—', desc:'Sentence "burstiness"' },
-    { cat:'fc-cefr',   name:'% Basic CEFR',       val: wc > 0 ? ((basicPct/wc)*100).toFixed(1)+'%' : '—', desc:'A1–A2 words' },
-    { cat:'fc-cefr',   name:'% Independent',      val: wc > 0 ? ((indPct/wc)*100).toFixed(1)+'%'   : '—', desc:'B1–B2 words' },
-    { cat:'fc-cefr',   name:'% Proficient',       val: wc > 0 ? ((profPct/wc)*100).toFixed(1)+'%'  : '—', desc:'C1–C2 words' },
+    { cat:'fc-cefr',   name:'% Basic CEFR',  val: groupVal(basicCount), desc:'A1–A2 words', words: [...(byLevel.A1||[]), ...(byLevel.A2||[])].slice(0,20).join(', ') || '—' },
+    { cat:'fc-cefr',   name:'% Independent', val: groupVal(indCount),   desc:'B1–B2 words', words: [...(byLevel.B1||[]), ...(byLevel.B2||[])].slice(0,20).join(', ') || '—' },
+    { cat:'fc-cefr',   name:'% Proficient',  val: groupVal(profCount),  desc:'C1–C2 words', words: [...(byLevel.C1||[]), ...(byLevel.C2||[])].slice(0,20).join(', ') || '—' },
   ];
 
   const chipHtml = chips.map(c => `
-    <div class="feature-chip ${c.cat}${c.serverOnly ? ' server-only' : ''}"
-         title="${c.serverOnly ? 'Computed server-side by spaCy — value not surfaced by current API' : ''}">
+    <div class="feature-chip ${c.cat}${c.serverOnly ? ' server-only' : ''}">
       <div class="fname">${c.name}</div>
       <div class="fval">${c.serverOnly ? '— (spaCy)' : c.val}</div>
       <div class="fdesc">${c.desc}</div>
+      ${c.words && c.words !== '—' ? `<div class="cefr-words" title="${c.words}">${c.words}</div>` : ''}
     </div>`).join('');
 
   return `

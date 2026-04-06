@@ -55,6 +55,7 @@ def get_cefr_word_groups(doc):
         "independent": set(),
         "proficient": set()
     }
+    by_level = {"A1": set(), "A2": set(), "B1": set(), "B2": set(), "C1": set(), "C2": set()}
 
     cefr_tokens = analyzer.analize_doc(doc)
     for token_data in cefr_tokens:
@@ -63,17 +64,21 @@ def get_cefr_word_groups(doc):
             continue
         cefr_rank = round(level)
         if 1 <= cefr_rank <= 6:
+            level_str = CEFRLevel(cefr_rank).name
+            by_level[level_str].add(word.lower())
             if cefr_rank <= 2:
                 groups["basic"].add(word.lower())
             elif cefr_rank <= 4:
                 groups["independent"].add(word.lower())
             else:
                 groups["proficient"].add(word.lower())
+    groups["byLevel"] = {k: sorted(v) for k, v in by_level.items()}
 
     return {
         "basic": sorted(groups["basic"]),
         "independent": sorted(groups["independent"]),
-        "proficient": sorted(groups["proficient"])
+        "proficient": sorted(groups["proficient"]),
+        "byLevel": {k: sorted(v) for k, v in by_level.items()}
     }
 
 def get_difficult_words(tokens):
