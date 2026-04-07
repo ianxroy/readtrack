@@ -160,9 +160,28 @@ def get_data_path():
     base_dir = os.path.dirname(__file__)
     commonlit_path = os.path.join(base_dir, "commonlit_data.csv")
     commonlit_path_alt = os.path.join(base_dir, "train_word_frequencies (1).csv")
-    
+
     if os.path.exists(commonlit_path):
         return commonlit_path
     elif os.path.exists(commonlit_path_alt):
         return commonlit_path_alt
     return None
+
+def load_teacher_samples(path: str):
+    """Load teacher-verified samples from JSONL. Returns (X, y) numpy arrays."""
+    X, y = [], []
+    label_map = {"Literal": 0, "Inferential": 1, "Evaluative": 2}
+    if not os.path.exists(path):
+        return np.array(X), np.array(y, dtype=int)
+    with open(path, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                sample = json.loads(line)
+                X.append(sample['vector'])
+                y.append(label_map[sample['label']])
+            except Exception:
+                continue
+    return np.array(X), np.array(y, dtype=int)
