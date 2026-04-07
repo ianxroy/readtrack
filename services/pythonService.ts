@@ -255,3 +255,15 @@ export const detectLanguageAPI = async (text: string): Promise<'eng' | 'fil'> =>
         return 'fil';
     }
 };
+
+export const addTrainingSampleAPI = async (text: string, level: string): Promise<void> => {
+  const response = await fetch('http://localhost:8000/training/add-sample', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, level }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.detail || `Training request failed (${response.status})`);
+  }
+};
