@@ -47,3 +47,21 @@ def test_load_teacher_samples_corrupt_lines_skipped():
         assert y.tolist() == [1]  # Inferential=1
     finally:
         os.unlink(path)
+
+from train_utils import load_commonlit_features
+
+def test_load_commonlit_features_returns_arrays():
+    """Loads X and y from the real complexity_features.csv."""
+    base_dir = os.path.join(os.path.dirname(__file__), '..')
+    X, y = load_commonlit_features(base_dir)
+    assert X is not None, "CSV file missing"
+    assert X.ndim == 2
+    assert X.shape[1] == 24   # exactly 24 features
+    assert y.ndim == 1
+    assert set(y).issubset({0, 1, 2})   # only valid label ids
+
+def test_load_commonlit_features_missing_returns_none():
+    """Returns (None, None) when the CSV is absent."""
+    X, y = load_commonlit_features("/tmp/nonexistent_dir_xyz")
+    assert X is None
+    assert y is None

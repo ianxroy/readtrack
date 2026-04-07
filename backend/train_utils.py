@@ -185,3 +185,30 @@ def load_teacher_samples(path: str):
             except Exception:
                 continue
     return np.array(X), np.array(y, dtype=int)
+
+def load_commonlit_features(base_dir: str = None):
+    """
+    Load pre-extracted CommonLit feature vectors from complexity_features.csv.
+    Returns (X, y) numpy arrays, or (None, None) if the file is missing.
+
+    CSV schema:
+      Feature cols (24): ttr, avg_sentence_length, diff_ratio, clause_density,
+        advanced_ratio, flesch_kincaid, gunning_fog, verb_ratio, noun_ratio,
+        adj_ratio, avg_dep_distance, word_count, sentence_count, sent_len_std,
+        punct_density, stopword_ratio, avg_word_length, syllables_per_word,
+        cefr_a1_ratio, cefr_a2_ratio, cefr_b1_ratio, cefr_b2_ratio,
+        cefr_c1_ratio, cefr_c2_ratio
+      Label col: label_id  (0=Literal, 1=Inferential, 2=Evaluative)
+      Ignored:   label_name
+    """
+    if base_dir is None:
+        base_dir = os.path.dirname(__file__)
+    path = os.path.join(base_dir, 'data', 'complexity_features.csv')
+    if not os.path.exists(path):
+        print(f"Warning: complexity_features.csv not found at {path}")
+        return None, None
+    df = pd.read_csv(path)
+    feature_cols = [c for c in df.columns if c not in ('label_id', 'label_name')]
+    X = df[feature_cols].values.astype(float)
+    y = df['label_id'].values.astype(int)
+    return X, y
