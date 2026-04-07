@@ -102,6 +102,7 @@ app.include_router(tagalog_router, tags=["Tagalog NLP"])
 app.include_router(grammar_router, tags=["Grammar & Spell Check"])
 
 models_dir = os.path.join(os.path.dirname(__file__), 'models')
+_teacher_samples_path = os.path.join(os.path.dirname(__file__), 'data', 'teacher_samples.jsonl')
 _retrain_lock = threading.Lock()
 complexity_model = TextComplexitySVM()
 student_model_en = StudentProficiencySVM()
@@ -186,6 +187,10 @@ class RubricResponse(BaseModel):
 
 class RetrainRequest(BaseModel):
     language: str  # en | tl
+
+class TrainingSampleRequest(BaseModel):
+    text: str
+    level: str  # "Literal" | "Inferential" | "Evaluative"
 
 
 def _confidence_level(count: int) -> str:
@@ -785,6 +790,40 @@ def retrain_model(request: RetrainRequest):
         import traceback
         traceback.print_exc()
         return {"error": str(e)}
+
+@app.post("/training/add-sample")
+async def add_training_sample(request: TrainingSampleRequest):
+    valid_levels = {"Literal", "Inferential", "Evaluative"}
+    if request.level not in valid_levels:
+        raise HTTPException(status_code=400, detail="Invalid level. Must be Literal, Inferential, or Evaluative.")
+    if not request.text or len(request.text.strip()) < 20:
+        raise HTTPException(status_code=400, detail="Text too short to be a useful training sample (minimum 20 characters).")
+
+    features = extract_features(request.text)
+    raw = features['vector']
+    # Real extract_features returns a 2D numpy array (shape 1×24); tests may
+    # supply a flat list of 24 numbers.  Normalise to a plain Python list.
+    if hasattr(raw, 'tolist'):
+        # numpy array — could be 1-D or 2-D
+        flat = raw.tolist()
+        vector = flat[0] if flat and isinstance(flat[0], list) else flat
+    elif raw and isinstance(raw[0], (list, np.ndarray)):
+        # nested list/array — take first row
+        inner = raw[0]
+        vector = inner.tolist() if hasattr(inner, 'tolist') else list(inner)
+    else:
+        # already a flat list of numbers
+        vector = list(raw)
+
+    with open(_teacher_samples_path, 'a') as f:
+        f.write(json.dumps({"vector": vector, "label": request.level}) + "\n")
+
+    try:
+        await asyncio.to_thread(retrain_complexity_model, _teacher_samples_path)
+    except RuntimeError as e:
+        return {"status": "sample_saved", "message": str(e)}
+
+    return {"status": "ok", "message": "Sample saved and model retrained."}
 
 @app.post("/ocr/extract")
 def extract_text_from_image_endpoint(request: OCRRequest):

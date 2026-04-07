@@ -129,26 +129,20 @@ def _mock_heavy_deps():
     except Exception:
         pass  # keep the stub
 
-    # fastapi
-    import functools
-    class _Router:
-        def get(self, *a, **kw): return lambda f: f
-        def post(self, *a, **kw): return lambda f: f
-    class _FakeApp:
-        def add_middleware(self, *a, **kw): pass
-        def include_router(self, *a, **kw): pass
-        def get(self, *a, **kw): return lambda f: f
-        def post(self, *a, **kw): return lambda f: f
-        def put(self, *a, **kw): return lambda f: f
-        def delete(self, *a, **kw): return lambda f: f
-    fa = _stub('fastapi', FastAPI=lambda **kw: _FakeApp(),
-               HTTPException=Exception)
-    _stub('fastapi.middleware.cors', CORSMiddleware=object)
+    # fastapi — use real fastapi so include_router works
+    from fastapi import FastAPI as _FastAPI, HTTPException as _HTTPException
+    from fastapi import APIRouter as _APIRouter
+    from fastapi.middleware.cors import CORSMiddleware as _CORS
+    if 'fastapi' not in sys.modules:
+        _stub('fastapi', FastAPI=_FastAPI, HTTPException=_HTTPException,
+              APIRouter=_APIRouter)
+    if 'fastapi.middleware.cors' not in sys.modules:
+        _stub('fastapi.middleware.cors', CORSMiddleware=_CORS)
 
-    # pydantic
-    class _BaseModel:
-        def __init_subclass__(cls, **kw): pass
-    _stub('pydantic', BaseModel=_BaseModel)
+    # pydantic — use real pydantic
+    from pydantic import BaseModel as _BaseModel
+    if 'pydantic' not in sys.modules:
+        _stub('pydantic', BaseModel=_BaseModel)
 
     # pypdf
     _stub('pypdf', PdfReader=object)
@@ -161,8 +155,8 @@ def _mock_heavy_deps():
 
     # ocr / tagalog_service / grammar_service
     _stub('ocr', extract_text_from_image=lambda *a, **kw: '')
-    tl = _stub('tagalog_service', router=_Router())
-    gr = _stub('grammar_service', router=_Router())
+    tl = _stub('tagalog_service', router=_APIRouter())
+    gr = _stub('grammar_service', router=_APIRouter())
 
 
 def test_retrain_complexity_model_runs(tmp_path):
@@ -192,3 +186,44 @@ def test_retrain_complexity_model_runs(tmp_path):
     with open(comp_path, 'rb') as f:
         data = pickle.load(f)
     assert 'model' in data and 'scaler' in data
+
+from fastapi.testclient import TestClient
+
+def test_add_sample_endpoint_valid(tmp_path, monkeypatch):
+    """Valid request saves sample and returns ok status."""
+    import main as m
+    samples_path = str(tmp_path / "teacher_samples.jsonl")
+    monkeypatch.setattr(m, "_teacher_samples_path", samples_path)
+
+    client = TestClient(m.app)
+    resp = client.post("/training/add-sample", json={
+        "text": "The sun rises in the east. Birds sing every morning. Children play outside.",
+        "level": "Literal"
+    })
+    assert resp.status_code == 200
+    assert resp.json()["status"] in ("ok", "sample_saved")
+    assert os.path.exists(samples_path)
+    with open(samples_path) as f:
+        line = json.loads(f.readline())
+    assert line["label"] == "Literal"
+    assert len(line["vector"]) == 24
+
+def test_add_sample_endpoint_invalid_level():
+    """Unknown level returns 400."""
+    import main as m
+    client = TestClient(m.app)
+    resp = client.post("/training/add-sample", json={
+        "text": "Some text here to classify.",
+        "level": "NotALevel"
+    })
+    assert resp.status_code == 400
+
+def test_add_sample_endpoint_text_too_short():
+    """Text under 20 chars returns 400."""
+    import main as m
+    client = TestClient(m.app)
+    resp = client.post("/training/add-sample", json={
+        "text": "Short.",
+        "level": "Literal"
+    })
+    assert resp.status_code == 400
