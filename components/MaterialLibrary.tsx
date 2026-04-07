@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import {
   IoCloudUploadOutline,
   IoDocumentTextOutline,
@@ -11,12 +11,12 @@ import {
   IoFunnelOutline,
   IoChevronDownOutline,
   IoImageOutline,
-  IoGridOutline,
 } from 'react-icons/io5';
 import { LibraryMaterial, TextComplexityResult, ComplexityLevel } from '../types';
-import { classifyTextComplexityAPI, extractTextFromImageAPI, detectLanguageAPI } from '../services/pythonService';
+import { classifyTextComplexityAPI, extractTextFromImageAPI, detectLanguageAPI, addTrainingSampleAPI } from '../services/pythonService';
 import { saveMaterialUpload, loadMaterialUploads, deleteMaterialUpload } from '../services/supabaseService';
 import { useEffect } from 'react';
+import { IoDocumentOutline } from 'react-icons/io5';
 
 
 
@@ -141,214 +141,353 @@ interface DetailModalProps {
   onUpdate: (updated: LibraryMaterial) => void;
 }
 
+const SAFE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+const DOCX_TYPES = new Set([
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/msword',
+]);
+
+function base64ToBlobUrl(base64: string, mimeType: string): string {
+  const bytes = atob(base64);
+  const arr = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+  return URL.createObjectURL(new Blob([arr], { type: mimeType }));
+}
+
 const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, onUpdate }) => {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editedName, setEditedName] = useState(material.name);
   const [editedText, setEditedText] = useState(material.text);
-  const [viewMode, setViewMode] = useState<'text' | 'sideBySide'>(
-    material.originalFile ? 'sideBySide' : 'text'
-  );
-  
+  const [isSavingText, setIsSavingText] = useState(false);
+  const [textMessage, setTextMessage] = useState<string | null>(null);
+  const [textError, setTextError] = useState(false);
+  const [activeTab, setActiveTab] = useState<'original' | 'analysis'>('original');
+  const [verifyLevel, setVerifyLevel] = useState<string>(material.complexityResult.level);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
+  const [verifyError, setVerifyError] = useState(false);
+  const [verifyDone, setVerifyDone] = useState(false);
+
   const meta = levelMeta[material.complexityResult.level] ?? levelMeta[ComplexityLevel.LITERAL];
   const cr = material.complexityResult;
   const { summary: reasoningSummary, tags: reasoningTags } = parseReasoning(
     cr.reasoning, material.complexityResult.level
   );
 
-  const handleSave = () => {
-    onUpdate({
-      ...material,
-      name: editedName,
-      text: editedText
-    });
-    setIsEditing(false);
+  const safeImageMime = material.originalFile?.mimeType && SAFE_IMAGE_TYPES.has(material.originalFile.mimeType)
+    ? material.originalFile.mimeType
+    : null;
+
+  // Create a blob URL for PDF so browsers don't block data: URIs in iframes
+  const pdfBlobUrl = useMemo(() => {
+    if (material.originalFile?.mimeType === 'application/pdf' && material.originalFile.base64) {
+      return base64ToBlobUrl(material.originalFile.base64, 'application/pdf');
+    }
+    return null;
+  }, [material.originalFile]);
+
+  useEffect(() => {
+    return () => { if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl); };
+  }, [pdfBlobUrl]);
+
+  const handleSaveText = async () => {
+    const next = editedText.trim();
+    if (!next) {
+      setTextError(true);
+      setTextMessage('Text cannot be empty.');
+      return;
+    }
+    setIsSavingText(true);
+    setTextMessage(null);
+    try {
+      onUpdate({ ...material, text: next });
+      setTextError(false);
+      setTextMessage('Text saved.');
+    } catch {
+      setTextError(true);
+      setTextMessage('Could not save. Try again.');
+    } finally {
+      setIsSavingText(false);
+    }
+  };
+
+  const handleVerifyAndTrain = async () => {
+    setIsVerifying(true);
+    setVerifyMessage(null);
+    setVerifyError(false);
+    try {
+      await addTrainingSampleAPI(material.text, verifyLevel);
+      setVerifyDone(true);
+      setVerifyMessage('Saved as training sample. Model updated.');
+    } catch (e: any) {
+      setVerifyError(true);
+      setVerifyMessage(e.message || 'Could not save sample. Try again.');
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-3xl max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-md p-4 animate-in fade-in duration-300">
+      <div className="bg-white rounded-[32px] shadow-2xl border border-white/20 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-start justify-between p-5 border-b border-gray-100">
+        <div className="flex items-start justify-between p-8 border-b border-gray-50">
           <div className="flex-1 min-w-0 pr-4">
-            <div className="flex items-center gap-2 mb-1">
-              <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border ${meta.badge}`}>
+            <div className="flex items-center gap-3 mb-2">
+              <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${meta.badge}`}>
                 {meta.label}
               </span>
               {material.language && (
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${
                   material.language === 'eng'
                     ? 'bg-blue-50 text-blue-600 border-blue-100'
                     : 'bg-purple-50 text-purple-600 border-purple-100'
                 }`}>
-                  {material.language === 'eng' ? '🇬🇧 English' : '🇵🇭 Filipino'}
+                  {material.language === 'eng' ? 'English' : 'Filipino'}
                 </span>
               )}
-              <span className="text-[10px] text-gray-400">{meta.desc}</span>
             </div>
-            {isEditing ? (
-              <input
-                type="text"
-                className="w-full text-base font-bold text-gray-800 border-b border-teal-500 outline-none"
-                value={editedName}
-                onChange={e => setEditedName(e.target.value)}
-                autoFocus
-              />
-            ) : (
-              <h2 className="text-base font-bold text-gray-800 truncate">{material.name}</h2>
-            )}
-            <p className="text-[11px] text-gray-400 mt-0.5">
-              Added {new Date(material.uploadedAt).toLocaleDateString()} &middot; {cr.wordCount || 0} words
+            <h2 className="text-2xl font-black text-gray-900 tracking-tight truncate">{material.name}</h2>
+            <p className="text-sm text-gray-400 font-medium mt-1">
+              Added {new Date(material.uploadedAt).toLocaleString()} &middot; {cr.wordCount || 0} words
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {isEditing ? (
-              <button
-                onClick={handleSave}
-                className="px-3 py-1.5 bg-teal-600 text-white rounded-lg text-xs font-bold hover:bg-teal-700 transition-colors"
-              >
-                Save
-              </button>
-            ) : (
-              <button
-                onClick={() => setIsEditing(true)}
-                className="p-2 rounded-xl text-gray-400 hover:text-teal-500 hover:bg-teal-50 transition-colors"
-              >
-                <IoBookOutline />
-              </button>
-            )}
+          <div className="flex items-center gap-3 shrink-0">
             <button
               onClick={() => { onDelete(material.id); onClose(); }}
-              className="p-2 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+              className="p-3 rounded-2xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all"
             >
-              <IoTrashOutline />
+              <IoTrashOutline className="text-xl" />
             </button>
-            <button onClick={onClose} className="p-2 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors">
-              <IoCloseOutline />
+            <button
+              onClick={onClose}
+              className="p-3 rounded-2xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
+            >
+              <IoCloseOutline className="text-2xl" />
             </button>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
-          {/* Complexity summary row */}
-          <div className={`mx-5 mt-4 rounded-xl border p-4 ${meta.bg} ${meta.border}`}>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
-              {[
-                { label: 'Complexity Score', value: cr.score ?? 'N/A' },
-                { label: 'Readability Score', value: cr.readabilityScore ?? 'N/A' },
-                { label: 'Est. Reading Time', value: `${cr.estimatedReadingTime ?? '?'} min` },
-                { label: 'Avg Sentence Len', value: `${cr.avgSentenceLength ?? '?'} words` },
-              ].map(({ label, value }) => (
-                <div key={label}>
-                  <div className={`text-[10px] font-bold uppercase tracking-wide mb-0.5 ${meta.text} opacity-70`}>{label}</div>
-                  <div className={`text-lg font-bold ${meta.text}`}>{value}</div>
-                </div>
-              ))}
-            </div>
-          </div>
+        {/* Tab Bar */}
+        <div className="flex border-b border-gray-200 px-4">
+          {(['original', 'analysis'] as const).map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${
+                activeTab === tab
+                  ? 'border-indigo-500 text-indigo-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {tab === 'original' ? 'Original Submission' : 'Analysis'}
+            </button>
+          ))}
+        </div>
 
-          {/* Readability indices */}
-          {cr.readability && (
-            <div className="mx-5 mt-3 grid grid-cols-2 gap-3">
-              {cr.readability.flesch_kincaid !== undefined && (
-                <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-center">
-                  <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-0.5">Flesch-Kincaid Grade</div>
-                  <div className="text-xl font-bold text-teal-600">{cr.readability.flesch_kincaid}</div>
+        <div className="flex-1 overflow-y-auto p-8 space-y-6">
+          {/* Original Submission Tab */}
+          {activeTab === 'original' && (
+            <div>
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4 flex items-center gap-2">
+                <IoBookOutline /> Original File
+              </h4>
+              {material.originalFile ? (
+                <div className="flex gap-4">
+                  {/* Left: original file */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">Original File</p>
+                    {safeImageMime ? (
+                      <img
+                        src={`data:${safeImageMime};base64,${material.originalFile!.base64}`}
+                        alt="Original uploaded material"
+                        className="w-full rounded-lg border border-gray-200"
+                      />
+                    ) : pdfBlobUrl ? (
+                      <iframe
+                        src={pdfBlobUrl}
+                        className="w-full min-h-[400px] rounded-lg border border-gray-200"
+                        title="Original PDF"
+                      />
+                    ) : DOCX_TYPES.has(material.originalFile!.mimeType) ? (
+                      <div className="flex flex-col items-center justify-center gap-3 p-8 bg-blue-50 rounded-lg border border-blue-100 min-h-[200px]">
+                        <IoDocumentOutline className="text-5xl text-blue-400" />
+                        <div className="text-center">
+                          <p className="text-sm font-bold text-blue-700">{material.originalFile!.name}</p>
+                          <p className="text-[11px] text-blue-500 mt-1">Word Document — no browser preview available</p>
+                          <p className="text-[10px] text-blue-400 mt-0.5">Extracted text is shown on the right</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-gray-400 italic p-4 bg-gray-50 rounded-lg border border-gray-200">
+                        No preview available for this file type.
+                      </div>
+                    )}
+                  </div>
+                  {/* Right: extracted text */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">Extracted Text</p>
+                    <textarea
+                      className="w-full min-h-[280px] bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs text-gray-700 leading-relaxed outline-none focus:ring-1 focus:ring-teal-500"
+                      value={editedText}
+                      onChange={e => setEditedText(e.target.value)}
+                    />
+                    <div className="mt-2 flex items-center justify-between gap-3">
+                      <button
+                        onClick={handleSaveText}
+                        disabled={isSavingText || editedText.trim() === material.text.trim()}
+                        className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${
+                          isSavingText || editedText.trim() === material.text.trim()
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : 'bg-teal-600 text-white hover:bg-teal-700'
+                        }`}
+                      >
+                        {isSavingText ? 'Saving…' : 'Save Text'}
+                      </button>
+                      {textMessage && (
+                        <p className={`text-[10px] font-medium ${textError ? 'text-red-500' : 'text-green-600'}`}>
+                          {textMessage}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              )}
-              {cr.readability.gunning_fog !== undefined && (
-                <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-center">
-                  <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-0.5">Gunning Fog Index</div>
-                  <div className="text-xl font-bold text-teal-600">{cr.readability.gunning_fog}</div>
+              ) : (
+                <div>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">Extracted Text</p>
+                  <textarea
+                    className="w-full min-h-[320px] bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs text-gray-700 leading-relaxed outline-none focus:ring-1 focus:ring-teal-500"
+                    value={editedText}
+                    onChange={e => setEditedText(e.target.value)}
+                  />
+                  <div className="mt-2 flex items-center justify-between gap-3">
+                    <button
+                      onClick={handleSaveText}
+                      disabled={isSavingText || editedText.trim() === material.text.trim()}
+                      className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${
+                        isSavingText || editedText.trim() === material.text.trim()
+                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : 'bg-teal-600 text-white hover:bg-teal-700'
+                      }`}
+                    >
+                      {isSavingText ? 'Saving…' : 'Save Text'}
+                    </button>
+                    {textMessage && (
+                      <p className={`text-[10px] font-medium ${textError ? 'text-red-500' : 'text-green-600'}`}>
+                        {textMessage}
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
           )}
 
-          {/* Reasoning */}
-          <div className={`mx-5 mt-3 rounded-xl border p-4 ${meta.bg} ${meta.border}`}>
-            <div className={`text-[10px] font-bold uppercase tracking-widest mb-1.5 ${meta.text}`}>
-              Why is this {meta.label}?
-            </div>
-            <p className={`text-xs leading-relaxed mb-2 ${meta.text}`}>{reasoningSummary}</p>
-            {reasoningTags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {reasoningTags.map(tag => (
-                  <span
-                    key={tag}
-                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/60 ${meta.text}`}
-                  >
-                    ✓ {tag}
-                  </span>
-                ))}
+          {/* Analysis Tab */}
+          {activeTab === 'analysis' && (
+            <div className="space-y-6">
+              {/* Complexity summary */}
+              <div className={`rounded-xl border p-4 ${meta.bg} ${meta.border}`}>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+                  {[
+                    { label: 'Complexity Score', value: cr.score ?? 'N/A' },
+                    { label: 'Readability Score', value: cr.readabilityScore ?? 'N/A' },
+                    { label: 'Est. Reading Time', value: `${cr.estimatedReadingTime ?? '?'} min` },
+                    { label: 'Avg Sentence Len', value: `${cr.avgSentenceLength ?? '?'} words` },
+                  ].map(({ label, value }) => (
+                    <div key={label}>
+                      <div className={`text-[10px] font-bold uppercase tracking-wide mb-0.5 ${meta.text} opacity-70`}>{label}</div>
+                      <div className={`text-lg font-bold ${meta.text}`}>{value}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            )}
-          </div>
 
-          {/* Material text */}
-          <div className="mx-5 mt-3 mb-5">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Material Text</div>
-              {material.originalFile && material.originalFile.mimeType.startsWith('image/') && !isEditing && (
-                <button
-                  onClick={() => setViewMode(viewMode === 'sideBySide' ? 'text' : 'sideBySide')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all ${
-                    viewMode === 'sideBySide'
-                      ? 'bg-teal-100 text-teal-700 border border-teal-200'
-                      : 'bg-gray-100 text-gray-500 border border-gray-200 hover:bg-teal-50 hover:text-teal-600'
-                  }`}
-                >
-                  {viewMode === 'sideBySide' ? <IoDocumentTextOutline /> : <IoGridOutline />}
-                  {viewMode === 'sideBySide' ? 'Text Only' : 'Compare Original'}
-                </button>
-              )}
-            </div>
-            {isEditing ? (
-              <textarea
-                className="w-full bg-gray-50 border border-gray-100 rounded-xl p-4 text-xs text-gray-700 leading-relaxed font-mono min-h-[200px] outline-none focus:ring-1 focus:ring-teal-500"
-                value={editedText}
-                onChange={e => setEditedText(e.target.value)}
-              />
-            ) : viewMode === 'sideBySide' && material.originalFile ? (
-              <div className="flex gap-3 max-h-64">
-                {/* Original file preview */}
-                <div className="flex-1 bg-gray-50 border border-gray-100 rounded-xl p-3 overflow-auto">
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 flex items-center gap-1.5">
-                    <IoImageOutline /> Uploaded Material
-                  </div>
-                  {material.originalFile.mimeType.startsWith('image/') ? (
-                    <img
-                      src={`data:${material.originalFile.mimeType};base64,${material.originalFile.base64}`}
-                      alt="Original uploaded file"
-                      className="w-full h-auto rounded-lg object-contain"
-                    />
-                  ) : material.originalFile.mimeType === 'application/pdf' ? (
-                    <iframe
-                      src={`data:application/pdf;base64,${material.originalFile.base64}`}
-                      className="w-full h-full min-h-[200px] rounded-lg"
-                      title="Original PDF"
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center h-24 text-gray-400 text-xs">
-                      Text file — no visual preview
+              {/* Readability indices */}
+              {cr.readability && (
+                <div className="grid grid-cols-2 gap-3">
+                  {cr.readability.flesch_kincaid !== undefined && (
+                    <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-center">
+                      <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-0.5">Flesch-Kincaid Grade</div>
+                      <div className="text-xl font-bold text-teal-600">{cr.readability.flesch_kincaid}</div>
+                    </div>
+                  )}
+                  {cr.readability.gunning_fog !== undefined && (
+                    <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-center">
+                      <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-0.5">Gunning Fog Index</div>
+                      <div className="text-xl font-bold text-teal-600">{cr.readability.gunning_fog}</div>
                     </div>
                   )}
                 </div>
-                {/* Extracted text */}
-                <div className="flex-1 bg-gray-50 border border-gray-100 rounded-xl p-3 overflow-auto">
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 flex items-center gap-1.5">
-                    <IoDocumentTextOutline /> Extracted Text
+              )}
+
+              {/* Reasoning */}
+              <div className={`rounded-xl border p-4 ${meta.bg} ${meta.border}`}>
+                <div className={`text-[10px] font-bold uppercase tracking-widest mb-1.5 ${meta.text}`}>
+                  Why is this {meta.label}?
+                </div>
+                <p className={`text-xs leading-relaxed mb-2 ${meta.text}`}>{reasoningSummary}</p>
+                {reasoningTags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {reasoningTags.map(tag => (
+                      <span
+                        key={tag}
+                        className={`text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/60 ${meta.text}`}
+                      >
+                        ✓ {tag}
+                      </span>
+                    ))}
                   </div>
-                  <div className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap font-mono">
-                    {material.text}
-                  </div>
+                )}
+              </div>
+
+              {/* Verify for Training */}
+              <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-4 space-y-3">
+                <div className="text-[10px] font-black uppercase tracking-widest text-indigo-500">
+                  Verify Complexity Level
+                </div>
+                <p className="text-[11px] text-indigo-700 leading-relaxed">
+                  Help improve the model by confirming this material's correct complexity level.
+                </p>
+
+                {/* Level selector */}
+                <div className="flex gap-2">
+                  {(['Literal', 'Inferential', 'Evaluative'] as const).map(lvl => (
+                    <button
+                      key={lvl}
+                      disabled={isVerifying || verifyDone}
+                      onClick={() => setVerifyLevel(lvl)}
+                      className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-colors ${
+                        verifyLevel === lvl
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : 'bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-100'
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      {lvl}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Action row */}
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleVerifyAndTrain}
+                    disabled={isVerifying || verifyDone}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                      isVerifying || verifyDone
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                    }`}
+                  >
+                    {isVerifying ? 'Training model…' : verifyDone ? '✓ Verified' : 'Verify & Train'}
+                  </button>
+                  {verifyMessage && (
+                    <p className={`text-[10px] font-medium ${verifyError ? 'text-red-500' : 'text-indigo-600'}`}>
+                      {verifyMessage}
+                    </p>
+                  )}
                 </div>
               </div>
-            ) : (
-              <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 text-xs text-gray-700 leading-relaxed whitespace-pre-wrap max-h-64 overflow-y-auto font-mono">
-                {material.text}
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
