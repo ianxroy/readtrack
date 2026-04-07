@@ -86,58 +86,108 @@ def load_teacher_samples(path: str):
 
 ## Backend — `main.py`
 
-### New endpoint
+### Thread safety
 
-```python
-class TrainingSampleRequest(BaseModel):
-    text: str
-    level: str  # "Literal" | "Inferential" | "Evaluative"
+Retraining is CPU-bound and can block for several seconds. Two mitigations are required:
 
-@app.post("/training/add-sample")
-def add_training_sample(request: TrainingSampleRequest):
-    valid_levels = {"Literal", "Inferential", "Evaluative"}
-    if request.level not in valid_levels:
-        raise HTTPException(status_code=400, detail=f"Invalid level. Must be one of {valid_levels}")
-    
-    features = extract_features(request.text)
-    vector = features['vector'][0].tolist()
-    
-    samples_path = os.path.join(base_dir, 'data', 'teacher_samples.jsonl')
-    with open(samples_path, 'a') as f:
-        f.write(json.dumps({"vector": vector, "label": request.level}) + "\n")
-    
-    retrain_complexity_model(samples_path)
-    return {"status": "ok", "message": f"Sample saved and model retrained."}
-```
+1. **Lock to prevent concurrent retrains:** A `threading.Lock` (`_retrain_lock`) is acquired before retraining. If a retrain is already running, the endpoint returns immediately with a `423 Locked` response rather than queuing a second retrain.
+2. **Lock on global replacement:** The `complexity_model = new_model` assignment is wrapped in the same lock to prevent a prediction request reading a partially-replaced object mid-assignment.
+3. **Run in thread pool:** The endpoint is `async` and calls `await asyncio.to_thread(retrain_complexity_model, samples_path)` so FastAPI's event loop is not blocked during the CPU-bound work.
 
 ### Retrain function
 
 ```python
+import threading, asyncio
+
+_retrain_lock = threading.Lock()
+
 def retrain_complexity_model(samples_path: str):
     global complexity_model
-    from train_utils import load_commonlit_features, load_teacher_samples
-    
-    X_orig, y_orig = load_commonlit_features()   # from complexity_features.csv
-    X_teach, y_teach = load_teacher_samples(samples_path)
-    
-    if len(X_teach) > 0:
-        X = np.concatenate([X_orig, X_teach])
-        y = np.concatenate([y_orig, y_teach])
-    else:
-        X, y = X_orig, y_orig
-    
-    new_model = TextComplexitySVM()
-    new_model.train(X, y)
-    
-    comp_path = os.path.join(models_dir, 'complexity_model.pkl')
-    with open(comp_path, 'wb') as f:
-        pickle.dump({'model': new_model.model, 'scaler': new_model.scaler}, f)
-    
-    complexity_model = new_model
-    print(f"Model retrained: {len(X_orig)} original + {len(X_teach)} teacher samples")
+
+    if not _retrain_lock.acquire(blocking=False):
+        raise RuntimeError("Retrain already in progress")
+
+    try:
+        from train_utils import load_commonlit_features, load_teacher_samples
+
+        X_orig, y_orig = load_commonlit_features()  # from complexity_features.csv
+        if X_orig is None:
+            # CSV missing — proceed with teacher samples only if we have enough
+            X_orig, y_orig = np.array([]), np.array([], dtype=int)
+
+        X_teach, y_teach = load_teacher_samples(samples_path)
+
+        if len(X_orig) == 0 and len(X_teach) == 0:
+            raise RuntimeError("No training data available")
+
+        X = np.concatenate([X_orig, X_teach]) if len(X_teach) > 0 else X_orig
+        y = np.concatenate([y_orig, y_teach]) if len(y_teach) > 0 else y_orig
+
+        new_model = TextComplexitySVM()
+        new_model.train(X, y)
+
+        comp_path = os.path.join(models_dir, 'complexity_model.pkl')
+        with open(comp_path, 'wb') as f:
+            pickle.dump({'model': new_model.model, 'scaler': new_model.scaler}, f)
+
+        # Thread-safe global replacement — lock already held
+        complexity_model = new_model
+        print(f"Model retrained: {len(X_orig)} original + {len(X_teach)} teacher samples")
+    finally:
+        _retrain_lock.release()
 ```
 
-Note: `load_commonlit_features()` is a new helper in `train_utils.py` that reads `complexity_features.csv` directly (X, y) without the full pipeline used during initial training.
+The endpoint becomes:
+```python
+@app.post("/training/add-sample")
+async def add_training_sample(request: TrainingSampleRequest):
+    valid_levels = {"Literal", "Inferential", "Evaluative"}
+    if request.level not in valid_levels:
+        raise HTTPException(status_code=400, detail=f"Invalid level.")
+    if not request.text or len(request.text.strip()) < 20:
+        raise HTTPException(status_code=400, detail="Text too short to be a useful training sample.")
+
+    features = extract_features(request.text)
+    vector = features['vector'][0].tolist()
+
+    samples_path = os.path.join(base_dir, 'data', 'teacher_samples.jsonl')
+    with open(samples_path, 'a') as f:
+        f.write(json.dumps({"vector": vector, "label": request.level}) + "\n")
+
+    try:
+        await asyncio.to_thread(retrain_complexity_model, samples_path)
+    except RuntimeError as e:
+        # Sample is saved; retrain failed or was skipped (concurrent lock)
+        return {"status": "sample_saved", "message": str(e)}
+
+    return {"status": "ok", "message": "Sample saved and model retrained."}
+```
+
+### `load_commonlit_features()` in `train_utils.py`
+
+CSV schema (`backend/data/complexity_features.csv`):
+- **Feature columns (24):** `ttr, avg_sentence_length, diff_ratio, clause_density, advanced_ratio, flesch_kincaid, gunning_fog, verb_ratio, noun_ratio, adj_ratio, avg_dep_distance, word_count, sentence_count, sent_len_std, punct_density, stopword_ratio, avg_word_length, syllables_per_word, cefr_a1_ratio, cefr_a2_ratio, cefr_b1_ratio, cefr_b2_ratio, cefr_c1_ratio, cefr_c2_ratio`
+- **Label column:** `label_id` (int: 0=Literal, 1=Inferential, 2=Evaluative)
+- **Ignored column:** `label_name` (string, human-readable)
+
+```python
+def load_commonlit_features(base_dir: str = None):
+    """Load pre-extracted CommonLit feature vectors. Returns (X, y) or (None, None) if file missing."""
+    import pandas as pd, numpy as np
+    if base_dir is None:
+        base_dir = os.path.dirname(__file__)
+    path = os.path.join(base_dir, 'data', 'complexity_features.csv')
+    if not os.path.exists(path):
+        print(f"Warning: complexity_features.csv not found at {path}")
+        return None, None
+    df = pd.read_csv(path)
+    feature_cols = [c for c in df.columns if c not in ('label_id', 'label_name')]
+    X = df[feature_cols].values.astype(float)
+    y = df['label_id'].values.astype(int)
+    return X, y
+```
+
+The feature column order in the CSV matches the order produced by `extract_features()['vector']`, so teacher sample vectors and CommonLit vectors are directly concatenable.
 
 ## File Changes Summary
 
@@ -152,6 +202,8 @@ Note: `load_commonlit_features()` is a new helper in `train_utils.py` that reads
 ## Constraints
 
 - `teacher_samples.jsonl` is append-only; no deduplication in v1
-- Retraining is synchronous — the endpoint blocks until complete (~1–3s for small sample counts)
-- If retraining fails, the sample is still saved to JSONL so it contributes on the next retrain
-- The original CommonLit data is never modified
+- Retraining runs in a thread pool (`asyncio.to_thread`) — the FastAPI event loop is not blocked
+- Concurrent retrain calls are rejected with a `RuntimeError`; the sample is still saved so it takes effect on the next successful retrain
+- If `complexity_features.csv` is missing, retraining proceeds on teacher samples only (logged as a warning)
+- `verifyDone` state lives in `DetailModal` — closing and reopening the modal resets it, allowing resubmission of the same material. Acceptable in v1 (duplicates are low-risk; JSONL deduplication can be added later)
+- The original CommonLit data and `complexity_features.csv` are never modified
