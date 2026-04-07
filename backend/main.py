@@ -3,6 +3,9 @@ import os
 import torch
 import base64
 import json
+import threading
+import asyncio
+import pickle
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -98,9 +101,53 @@ app.add_middleware(
 app.include_router(tagalog_router, tags=["Tagalog NLP"])
 app.include_router(grammar_router, tags=["Grammar & Spell Check"])
 
+models_dir = os.path.join(os.path.dirname(__file__), 'models')
+_retrain_lock = threading.Lock()
 complexity_model = TextComplexitySVM()
 student_model_en = StudentProficiencySVM()
 student_model_tl = StudentProficiencySVM()
+
+def retrain_complexity_model(samples_path: str):
+    """Retrain TextComplexitySVM using CommonLit CSV + teacher samples. Thread-safe."""
+    global complexity_model
+
+    if not _retrain_lock.acquire(blocking=False):
+        raise RuntimeError("Retrain already in progress — sample saved, will apply next retrain.")
+
+    try:
+        from train_utils import load_commonlit_features, load_teacher_samples
+
+        X_orig, y_orig = load_commonlit_features(base_dir=os.path.dirname(__file__))
+        if X_orig is None:
+            print("Warning: complexity_features.csv missing — retraining on teacher samples only.")
+            X_orig, y_orig = np.empty((0, 24)), np.array([], dtype=int)
+
+        X_teach, y_teach = load_teacher_samples(samples_path)
+
+        if len(X_orig) == 0 and len(X_teach) == 0:
+            raise RuntimeError("No training data available for retrain.")
+
+        if len(X_teach) > 0 and len(X_orig) > 0:
+            X = np.concatenate([X_orig, X_teach])
+            y = np.concatenate([y_orig, y_teach])
+        elif len(X_teach) > 0:
+            X, y = X_teach, y_teach
+        else:
+            X, y = X_orig, y_orig
+
+        new_model = TextComplexitySVM()
+        new_model.train(X, y)
+
+        comp_path = os.path.join(models_dir, 'complexity_model.pkl')
+        with open(comp_path, 'wb') as f:
+            pickle.dump({'model': new_model.model, 'scaler': new_model.scaler}, f)
+
+        # Thread-safe global replacement — lock already held
+        complexity_model = new_model
+        print(f"[retrain] Done: {len(X_orig)} CommonLit + {len(X_teach)} teacher samples.")
+    finally:
+        _retrain_lock.release()
+
 
 class TextRequest(BaseModel):
     text: str
@@ -746,7 +793,13 @@ def extract_text_from_image_endpoint(request: OCRRequest):
         if request.mimeType == "application/pdf":
             print(f"Processing PDF for text extraction. Length: {len(request.image)}")
             ocr_text = extract_text_from_pdf(request.image)
-            print(f"Extracted {len(ocr_text)} characters from PDF")
+            print(f"Extracted {len(ocr_text)} characters from PDF via pypdf")
+            # Scanned PDF — fall back to Gemini OCR
+            if not ocr_text.strip():
+                print("DEBUG: pypdf returned no text (scanned PDF), falling back to Gemini OCR")
+                ocr_result = extract_text_from_image(request.image, GEMINI_API_KEY, mime_type="application/pdf")
+                ocr_text = ocr_result.get("text", "")
+                return {"text": ocr_text, "warning": ocr_result.get("warning")}
             return {"text": ocr_text, "warning": None}
 
         print(f"Processing image for OCR. Mime: {request.mimeType}")
@@ -818,6 +871,10 @@ def analyze_complexity_text(request: TextRequest):
             mime = (request.mimeType or "").lower()
             if mime == "application/pdf":
                 ocr_text = extract_text_from_pdf(request.image)
+                # Scanned PDF — pypdf finds no text layer; fall back to Gemini OCR
+                if not ocr_text.strip():
+                    print("DEBUG: pypdf returned no text (scanned PDF), falling back to Gemini OCR")
+                    ocr_text = extract_text_from_image(request.image, GEMINI_API_KEY, mime_type="application/pdf").get("text", "")
             else:
                 ocr_text = extract_text_from_image(request.image, GEMINI_API_KEY, mime_type=mime).get("text", "")
             if ocr_text:
