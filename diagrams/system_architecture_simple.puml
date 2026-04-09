@@ -1,64 +1,70 @@
 @startuml ReadTrack System Architecture (Simplified)
 top to bottom direction
-title ReadTrack - System Architecture (Simplified)
+title ReadTrack — System Architecture (Simplified)
+
 skinparam linetype ortho
 skinparam nodesep 50
-skinparam ranksep 40
+skinparam ranksep 45
 
 skinparam component {
-  BackgroundColor #F0F8FF
-  BorderColor #4682B4
+  BackgroundColor #EBF5FB
+  BorderColor #2E86C1
+  FontSize 12
 }
 skinparam node {
-  BackgroundColor #F0FFF0
-  BorderColor #2E8B57
+  BackgroundColor #EAFAF1
+  BorderColor #1E8449
+  FontSize 13
+  FontStyle bold
 }
 skinparam database {
-  BackgroundColor #FFF8DC
-  BorderColor #DAA520
+  BackgroundColor #FEF9E7
+  BorderColor #D4AC0D
+  FontSize 12
 }
 skinparam cloud {
-  BackgroundColor #F5F5F5
-  BorderColor #778899
+  BackgroundColor #F4F6F6
+  BorderColor #717D7E
+  FontSize 12
 }
 
-actor "Teacher / Student" as user
+actor "Teacher" as teacher
 
-node "Frontend\n(React + TypeScript + Vite)" as frontend {
-  [Pages & Components] as pages
-  [Frontend Services] as services
-  [State & Storage] as state
+node "Frontend\n(React 19 · TypeScript · Vite 6)" as frontend {
+  [Dashboard · StudentGrading\nMaterialLibrary · MaterialChecker\nGrammarChecker · Analyzer] as pages
+  [pythonService · grammarService\ngeminiService · supabaseService] as services
 }
 
-node "Backend\n(FastAPI + Python 3.9)" as backend {
-  [API Endpoints] as api
-  [NLP Processing] as nlp
-  [ML Models (SVM)] as ml
-  [Text Extraction] as extraction
-  [Training Scripts] as training
+node "Backend\n(FastAPI · Python)" as backend {
+  [API Endpoints\n(/analyze · /ocr · /grammar · /train)] as api
+
+  [Layer 1 — Deterministic NLP\nspaCy · calamanCy · LanguageTool\nSymSpellPy · SVM Models] as layer1
+
+  [Layer 2 — AI Enhancement\nGemini OCR · Gemini Grammar AI\nGemini Rubric Feedback] as layer2
+
+  [Training Pipeline\n(GridSearchCV · pkl artifacts)] as training
 }
 
-cloud "Google Gemini API" as gemini
+cloud "Google Gemini 2.5 Flash\n(OCR · Grammar AI · Rubric Feedback\nLanguage Detection)" as gemini
 
-database "Supabase\n(Auth + PostgreSQL)" as supabase
+database "Supabase\n(PostgreSQL + Auth + RLS)" as supabase
 
-database "Training Data\n(ASAP2 Dataset)" as asapdata
+database "Training Data\n(Labeled corpora)" as traindata
 
-user -down-> pages
+teacher -down--> pages
 pages -down-> services
-services -down-> state
 
-services -down-> api : HTTP REST
-services -down-> gemini : HTTPS
-services -down-> supabase : HTTPS
+services -down-> api         : HTTP REST
+services -down-> gemini      : HTTPS (Chat)
+services -down-> supabase    : HTTPS (Auth + DB)
 
-api -down-> nlp
-api -down-> ml
-api -down-> extraction
+api -down-> layer1
+api -down-> layer2
 
-extraction -down-> gemini : Gemini Vision
+layer2 -down-> gemini        : Gemini Vision + AI
+api -down-> supabase         : Persist results
 
-training -down-> asapdata
-training -down-> ml : generates
+training -down-> traindata
+training -right-> layer1     : generates model artifacts
 
 @enduml

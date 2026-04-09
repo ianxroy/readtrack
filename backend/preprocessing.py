@@ -8,7 +8,7 @@ analyzer = CEFRSpaCyAnalyzer()
 
 try:
     # Disable components not used in extract_features to speed up processing
-    nlp = spacy.load("en_core_web_sm", disable=["ner", "lemmatizer", "attribute_ruler"])
+    nlp = spacy.load("en_core_web_sm", disable=["ner", "lemmatizer"])
 except OSError:
     print("Spacy model 'en_core_web_sm' not found.")
     print("Please run: python -m spacy download en_core_web_sm")

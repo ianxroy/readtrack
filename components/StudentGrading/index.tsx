@@ -20,8 +20,9 @@ import { EssayViewerModal } from './EssayViewerModal';
 import { ModelPerformancePage } from './ModelPerformancePage';
 
 import { ProficiencyLevel, CachedAnalysis, StudentDiagnosisResult, DepEdRubricScore } from '../../types';
+import { IoRefreshOutline } from 'react-icons/io5';
 import { analyzeStudentWorkAPI, classifyTextComplexityAPI, evaluateDepEdRubricAPI, getTrainStatusAPI, triggerRetrainAPI, TrainStatusResponse } from '../../services/pythonService';
-import { saveStudentGradingUpload, saveTeacherRubricScores, lookupEssayIdByText, deleteStudentUpload, deleteStudentAllUploads } from '../../services/supabaseService';
+import { saveStudentGradingUpload, saveTeacherRubricScores, lookupEssayIdByText, deleteStudentUpload, deleteStudentAllUploads, updateStudentEssayText } from '../../services/supabaseService';
 
 interface StudentGradingProps {
   onMenuClick?: () => void;
@@ -167,9 +168,19 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
 
   const handleDeleteStudent = (studentId: string) => {
     if (!window.confirm('Sigurado ka bang gusto mong i-delete ang estudyanteng ito at lahat ng kanyang mga essay?')) return;
+    const studentToDelete = students.find(s => s.id === studentId);
+    const essayIdsToDelete = (studentToDelete?.essays ?? []).map(e => e.id);
+
     updateStudents(students.filter(s => s.id !== studentId));
     if (selectedStudentId === studentId) { setSelectedStudentId(null); setSelectedEssayId(null); }
-    deleteStudentAllUploads(studentId).catch(console.error);
+
+    // Delete remote uploads by their actual upload IDs; this works for both local and Supabase-backed students.
+    if (essayIdsToDelete.length > 0) {
+      Promise.all(essayIdsToDelete.map(id => deleteStudentUpload(id).catch(console.error))).catch(console.error);
+    }
+
+    // Keep legacy cleanup path as a best-effort fallback.
+    deleteStudentAllUploads(studentId).catch(() => {});
   };
 
   const handleDeleteEssay = (essayId: string) => {
@@ -416,6 +427,23 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
     getTrainStatusAPI().then(setTrainStatus).catch(() => {});
   };
 
+  const handleSaveEssayText = async (essayId: string, essayText: string) => {
+    const trimmed = essayText.trim();
+    if (!trimmed) {
+      throw new Error('Essay text cannot be empty.');
+    }
+
+    updateStudents(students.map(s => ({
+      ...s,
+      essays: s.essays.map(e => e.id === essayId ? { ...e, text: trimmed } : e),
+    })));
+
+    const { error } = await updateStudentEssayText(essayId, trimmed);
+    if (error) {
+      throw new Error(error);
+    }
+  };
+
   // ── Fetch train status on mount ───────────────────────
   useEffect(() => {
     getTrainStatusAPI()
@@ -426,9 +454,27 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
   // ── selectedAnalysis recovery ──────────────────────────
   useEffect(() => {
     if (!selectedAnalysis) return;
+    const hit = students
+      .map(student => {
+        const essay = student.essays.find(e => e.id === selectedAnalysis.id);
+        return essay ? { student, essay } : null;
+      })
+      .find(Boolean);
+
+    if (hit) {
+      const subjectId = hit.essay.subjectId;
+      setSelectedSectionId(hit.student.sectionId);
+      setSelectedStudentId(hit.student.id);
+      setSelectedSubjectId(subjectId);
+      setSelectedEssayId(hit.essay.id);
+      setShowUpload(false);
+      return;
+    }
+
+    // Fallback for entries without a resolvable essay ID.
     setUploadPrefilledText(selectedAnalysis.studentText);
     setShowUpload(true);
-  }, [selectedAnalysis]);
+  }, [selectedAnalysis, students]);
 
   // ── Render guards ─────────────────────────────────────
   if (needsSetup) return <SetupScreen onComplete={handleSetupComplete} />;
@@ -490,29 +536,80 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
           onRenameSection={handleRenameSection}
           onDeleteSection={handleDeleteSection}
           onManageSubjects={() => setShowSubjectManager(true)}
-          trainStatus={trainStatus}
-          isRetraining={isRetraining}
-          onRetrain={handleRetrain}
-          onShowPerformance={() => setShowPerformance(true)}
         />
 
-        <StudentGrid
-          students={students}
-          sections={sections}
-          selectedSection={selectedSection}
-          selectedSubject={selectedSubject}
-          selectedStudentId={selectedStudentId}
-          proficiencyFilter={proficiencyFilter}
-          sortKey={sortKey}
-          searchQuery={searchQuery}
-          onSelectStudent={handleSelectStudent}
-          onAddStudent={() => setShowAddStudent(true)}
-          onMoveStudent={handleMoveStudent}
-          onDeleteStudent={handleDeleteStudent}
-          onProficiencyFilter={setProficiencyFilter}
-          onSortChange={setSortKey}
-          onSearchChange={setSearchQuery}
-        />
+        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+          {/* Model Confidence Widget */}
+          {trainStatus && (
+            <div className="flex items-center gap-4 px-4 py-2 bg-white border-b border-gray-100 flex-shrink-0 flex-wrap">
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Katumpakan ng Modelo</span>
+                <button
+                  onClick={() => setShowPerformance(true)}
+                  className="text-[9px] text-teal-600 hover:text-teal-800 font-semibold underline"
+                >
+                  Tingnan →
+                </button>
+              </div>
+              {(['english', 'filipino'] as const).map(lang => {
+                const stat = trainStatus[lang];
+                const flag = lang === 'english' ? '🇺🇸' : '🇵🇭';
+                const dot = stat.confidence_level === 'Kumpiyansa' || stat.confidence_level === 'Kalibrado'
+                  ? 'bg-green-400' : stat.confidence_level === 'Papaunlad' ? 'bg-yellow-400' : 'bg-red-400';
+                const tiers = [
+                  { max: 5,   label: 'magsimulang mag-suggest' },
+                  { max: 30,  label: 'Kalibrado' },
+                  { max: 100, label: 'Kumpiyansa' },
+                ];
+                const tier = tiers.find(t => stat.rated_essays < t.max);
+                const pct = tier ? Math.round((stat.rated_essays / tier.max) * 100) : 100;
+                return (
+                  <div key={lang} className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dot}`} />
+                    <span className="text-[10px] text-gray-600 font-medium">{flag} {stat.confidence_level}</span>
+                    <span className="text-[9px] text-gray-400">{stat.rated_essays} rated</span>
+                    {tier && (
+                      <div className="flex items-center gap-1">
+                        <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-teal-400 rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-[8px] text-gray-400">{pct}%</span>
+                      </div>
+                    )}
+                    {stat.new_since_retrain >= 5 && (
+                      <button
+                        onClick={() => handleRetrain(lang === 'english' ? 'en' : 'tl')}
+                        disabled={isRetraining}
+                        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold disabled:opacity-50 transition-colors ${lang === 'english' ? 'bg-blue-50 text-blue-700 hover:bg-blue-100' : 'bg-pink-50 text-pink-700 hover:bg-pink-100'}`}
+                      >
+                        <IoRefreshOutline className={isRetraining ? 'animate-spin' : ''} />
+                        I-retrain ({stat.new_since_retrain} bago)
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <StudentGrid
+            students={students}
+            sections={sections}
+            selectedSection={selectedSection}
+            selectedSubject={selectedSubject}
+            selectedStudentId={selectedStudentId}
+            proficiencyFilter={proficiencyFilter}
+            sortKey={sortKey}
+            searchQuery={searchQuery}
+            onSelectStudent={handleSelectStudent}
+            onAddStudent={() => setShowAddStudent(true)}
+            onMoveStudent={handleMoveStudent}
+            onDeleteStudent={handleDeleteStudent}
+            onProficiencyFilter={setProficiencyFilter}
+            onSortChange={setSortKey}
+            onSearchChange={setSearchQuery}
+          />
+        </div>
 
         <EssayPanel
           student={selectedStudent}
@@ -563,6 +660,7 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
           essay={selectedEssay}
           subject={selectedSubject}
           onSaveEvaluation={handleSaveEvaluation}
+          onSaveEssayText={handleSaveEssayText}
           onClose={() => setSelectedEssayId(null)}
         />
       )}

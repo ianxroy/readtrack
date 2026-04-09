@@ -11,6 +11,12 @@ const proficiencyMeta: Record<string, { badge: string; dot: string }> = {
   [ProficiencyLevel.NAGSISIMULA]: { badge: 'bg-red-100 text-red-700',      dot: 'bg-red-500' },
 };
 
+function proficiencyFromOverall(overall: number): ProficiencyLevel {
+  if (overall >= 3.5) return ProficiencyLevel.MAHUSAY;
+  if (overall >= 2.5) return ProficiencyLevel.PAPAUNLAD;
+  return ProficiencyLevel.NAGSISIMULA;
+}
+
 interface StudentGridProps {
   students: Student[];
   sections: Section[];
@@ -40,18 +46,33 @@ export const StudentGrid: React.FC<StudentGridProps> = ({
   React.useEffect(() => {
     if (!menuStudentId) return;
     const handler = () => setMenuStudentId(null);
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    // Use click so menu item onClick handlers can fire before outside-close logic.
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
   }, [menuStudentId]);
+
+  const getEssayProficiency = (essay: Student['essays'][number]): ProficiencyLevel | null => {
+    if (essay.teacherRubricScores?.overall != null) {
+      return proficiencyFromOverall(essay.teacherRubricScores.overall);
+    }
+    return (essay.diagnosisResult?.proficiency as ProficiencyLevel | undefined) ?? null;
+  };
 
   // Students in current section who have at least one essay in selected subject (or all students if no subject filter)
   const filtered = students
     .filter(s => selectedSection ? s.sectionId === selectedSection.id : true)
     .filter(s => {
+      // Hide students with no essays for the selected subject
+      const essayCount = selectedSubject
+        ? s.essays.filter(e => e.subjectId === selectedSubject.id).length
+        : s.essays.length;
+      return essayCount > 0;
+    })
+    .filter(s => {
       if (proficiencyFilter === 'all') return true;
       return s.essays.some(e =>
         (!selectedSubject || e.subjectId === selectedSubject.id) &&
-        e.diagnosisResult?.proficiency === proficiencyFilter
+        getEssayProficiency(e) === proficiencyFilter
       );
     })
     .filter(s => {
@@ -90,7 +111,7 @@ export const StudentGrid: React.FC<StudentGridProps> = ({
     const essays = selectedSubject
       ? student.essays.filter(e => e.subjectId === selectedSubject.id)
       : student.essays;
-    return essays[0]?.diagnosisResult?.proficiency ?? null;
+    return essays[0] ? getEssayProficiency(essays[0]) : null;
   };
 
   const langPill = selectedSubject
@@ -158,7 +179,7 @@ export const StudentGrid: React.FC<StudentGridProps> = ({
             <p className="text-xs text-gray-300 mt-1">Add a student to get started</p>
           </div>
         )}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           {sorted.map(student => {
             const prof = latestProficiency(student);
             const meta = prof ? proficiencyMeta[prof] : null;

@@ -10,10 +10,10 @@ interface GrammarHighlightedTextProps {
 type Segment = { text: string; issue?: GrammarIssue };
 
 const HIGHLIGHT: Record<string, { bg: string; text: string }> = {
-  [IssueCategory.GRAMMAR]:    { bg: 'bg-red-100',    text: 'text-red-800' },
-  [IssueCategory.STYLE]:      { bg: 'bg-amber-100',  text: 'text-amber-800' },
-  [IssueCategory.VOCABULARY]: { bg: 'bg-blue-100',   text: 'text-blue-800' },
-  [IssueCategory.CLARITY]:    { bg: 'bg-violet-100', text: 'text-violet-800' },
+  [IssueCategory.GRAMMAR]:    { bg: 'bg-red-200 ring-1 ring-red-300',       text: 'text-red-900' },
+  [IssueCategory.STYLE]:      { bg: 'bg-amber-200 ring-1 ring-amber-300',   text: 'text-amber-900' },
+  [IssueCategory.VOCABULARY]: { bg: 'bg-sky-200 ring-1 ring-sky-300',        text: 'text-sky-900' },
+  [IssueCategory.CLARITY]:    { bg: 'bg-violet-200 ring-1 ring-violet-300', text: 'text-violet-900' },
 };
 const BADGE: Record<string, { bg: string; text: string }> = {
   [IssueCategory.GRAMMAR]:    { bg: 'bg-red-900',    text: 'text-red-300' },
@@ -21,8 +21,17 @@ const BADGE: Record<string, { bg: string; text: string }> = {
   [IssueCategory.VOCABULARY]: { bg: 'bg-blue-900',   text: 'text-blue-300' },
   [IssueCategory.CLARITY]:    { bg: 'bg-violet-900', text: 'text-violet-300' },
 };
-const FALLBACK_HIGHLIGHT = { bg: 'bg-slate-100', text: 'text-slate-600' };
+const FALLBACK_HIGHLIGHT = { bg: 'bg-slate-200 ring-1 ring-slate-300', text: 'text-slate-800' };
 const FALLBACK_BADGE     = { bg: 'bg-slate-700', text: 'text-slate-300' };
+
+function normalizeCategory(category: string | IssueCategory): IssueCategory | null {
+  const raw = String(category ?? '').trim().toLowerCase();
+  if (raw === 'grammar') return IssueCategory.GRAMMAR;
+  if (raw === 'style') return IssueCategory.STYLE;
+  if (raw === 'vocabulary' || raw === 'vocab' || raw === 'word choice') return IssueCategory.VOCABULARY;
+  if (raw === 'clarity') return IssueCategory.CLARITY;
+  return null;
+}
 
 function charOverlap(a: string, b: string): number {
   const freq: Record<string, number> = {};
@@ -167,16 +176,17 @@ export const GrammarHighlightedText: React.FC<GrammarHighlightedTextProps> = ({ 
     <div
       ref={containerRef}
       data-grammar-container
-      className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap relative"
+      className="w-full text-xs text-gray-700 leading-relaxed whitespace-pre-wrap relative"
       onClick={handleContainerClick}
     >
       {segments.map((seg, i) => {
         if (!seg.issue) return <React.Fragment key={i}>{seg.text}</React.Fragment>;
-        const h = HIGHLIGHT[seg.issue.category] ?? FALLBACK_HIGHLIGHT;
+        const category = normalizeCategory(seg.issue.category);
+        const h = category ? HIGHLIGHT[category] : FALLBACK_HIGHLIGHT;
         return (
           <span
             key={i}
-            className={`rounded px-0.5 cursor-pointer ${h.bg} ${h.text}`}
+            className={`rounded px-1 py-[1px] font-semibold cursor-pointer transition-colors ${h.bg} ${h.text}`}
             onMouseEnter={(e) => handleEnter(e, seg.issue!)}
             onMouseLeave={() => setTooltipIssue(null)}
           >
@@ -186,7 +196,8 @@ export const GrammarHighlightedText: React.FC<GrammarHighlightedTextProps> = ({ 
       })}
 
       {tooltipIssue && (() => {
-        const b = BADGE[tooltipIssue.category] ?? FALLBACK_BADGE;
+        const category = normalizeCategory(tooltipIssue.category);
+        const b = category ? BADGE[category] : FALLBACK_BADGE;
         const style: React.CSSProperties = {
           position: 'fixed',
           left: tooltipPos.left,
@@ -203,7 +214,7 @@ export const GrammarHighlightedText: React.FC<GrammarHighlightedTextProps> = ({ 
             className="bg-[#1e293b] rounded-xl px-3 py-2.5 shadow-2xl pointer-events-none"
           >
             <span className={`inline-block text-[9px] font-black uppercase tracking-wider rounded-full px-2 py-0.5 mb-2 ${b.bg} ${b.text}`}>
-              {tooltipIssue.category}
+              {category ?? tooltipIssue.category}
             </span>
             <div className="text-[11px] text-slate-100 mb-1">
               <span className="line-through text-slate-400">{tooltipIssue.original}</span>

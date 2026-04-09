@@ -1,153 +1,158 @@
 @startuml ReadTrack System Architecture
 top to bottom direction
-title ReadTrack - System Architecture Diagram
+title ReadTrack — System Architecture Diagram
+
 skinparam linetype ortho
-skinparam nodesep 60
+skinparam nodesep 55
 skinparam ranksep 50
 
 skinparam component {
-  BackgroundColor #F0F8FF
-  BorderColor #4682B4
+  BackgroundColor #EBF5FB
+  BorderColor #2E86C1
+  FontSize 12
 }
 skinparam package {
   BackgroundColor #FAFAFA
-  BorderColor #708090
+  BorderColor #85929E
+  FontSize 12
+  FontStyle bold
 }
 skinparam database {
-  BackgroundColor #FFF8DC
-  BorderColor #DAA520
+  BackgroundColor #FEF9E7
+  BorderColor #D4AC0D
+  FontSize 12
 }
 skinparam cloud {
-  BackgroundColor #F5F5F5
-  BorderColor #778899
+  BackgroundColor #F4F6F6
+  BorderColor #717D7E
+  FontSize 12
 }
 skinparam node {
-  BackgroundColor #F0FFF0
-  BorderColor #2E8B57
+  BackgroundColor #EAFAF1
+  BorderColor #1E8449
+  FontSize 12
+  FontStyle bold
 }
 
 ' =============================================
 ' LAYER 1: User
 ' =============================================
-actor "Teacher / Student" as user
+actor "Teacher" as teacher
 
 ' =============================================
-' LAYER 2: Frontend
+' LAYER 2: Frontend — React 19 + TypeScript
 ' =============================================
-node "Frontend (React + TypeScript + Vite)" as frontend {
+node "Frontend  (React 19 · TypeScript · Vite 6)" as frontend {
 
-  package "Pages / Components" as pages {
+  package "Pages & Components" as pages {
     [App.tsx\n(Router & Layout)] as app
-    [StudentGrading.tsx] as grading
-    [MaterialLibrary.tsx] as matlib
+    [Dashboard.tsx\n(Grade 7 Analytics)] as dashboard
+    [StudentGrading/\n(Essay Grading)] as grading
+    [MaterialLibrary.tsx\n(Upload · Language Filter · Browse)] as matlib
+    [MaterialChecker.tsx\n(G7 Suitability Panel)] as matchecker
     [GrammarChecker.tsx] as grammarui
-    [Dashboard.tsx] as dashboard
-    [ModelEvaluation.tsx] as evalui
-    [ChatInterface.tsx] as chatui
     [Analyzer.tsx] as analyzer
   }
 
   package "Frontend Services" as services {
-    [pythonService.ts\n(Backend API)] as pyservice
+    [pythonService.ts\n(Backend API · detectLanguageAPI)] as pyservice
     [grammarService.ts\n(Grammar API)] as gramservice
-    [geminiService.ts\n(Gemini API)] as gemservice
-    [supabaseService.ts\n(Auth & Data)] as supaservice
+    [supabaseService.ts\n(Auth & Database)] as supaservice
   }
 
   package "State & Storage" as state {
-    [localStorage\n(Essays, History,\nMaterials, References)] as localstorage
-    [React State] as reactstate
+    [React State\n(Per-component)] as reactstate
+    [localStorage\n(Analysis history · Cached materials)] as localstorage
   }
 }
 
 ' =============================================
-' LAYER 3: Backend
+' LAYER 3: Backend — FastAPI + Python
 ' =============================================
-node "Backend (FastAPI + Python 3.9)" as backend {
+node "Backend  (FastAPI · Python · Uvicorn)" as backend {
 
   package "API Endpoints" as endpoints {
-    [main.py\n/analyze/student\n/analyze/complexity\n/ocr/extract\n/reference/ingest] as mainapi
-    [grammar_service.py\n/api/grammar/check\n/api/spelling/check\n/api/definition] as grammarapi
-    [tagalog_service.py\n/api/tagalog/analyze\n/api/tagalog/pos-tags] as tagalogapi
+    [main.py\n/analyze/student\n/analyze/complexity\n/analyze/rubric\n/ocr/extract\n/reference/ingest] as mainapi
+    [grammar_service.py\n/api/grammar/check\n/api/spelling/check] as grammarapi
+    [tagalog_service.py\n/api/tagalog/analyze] as tagalogapi
   }
 
   package "NLP Processing" as nlp {
-    [preprocessing.py\n(Feature Extraction)\n50+ linguistic features] as preprocess
-    [spaCy\n(en_core_web_lg)] as spacy
-    [calamanCy\n(Tagalog NLP)] as calamancy
-    [LanguageTool\n(Grammar Check)] as langtool
-    [langdetect] as langdetect
+    [preprocessing.py\n(24-dim feature extraction)] as preprocess
+    [spaCy  en_core_web_sm\n(English tokenisation, POS)] as spacy
+    [calamanCy  tl_calamancy_md\n(Filipino POS, NER, dependency)] as calamancy
+    [LanguageTool\n(Grammar rules engine)] as langtool
+    [SymSpellPy\n(Dictionary spell check)] as symspell
+    [langdetect\n(Language identification)] as langdetect
   }
 
-  package "ML Models (SVM)" as ml {
-    [svm_models.py\nProficiency & Complexity] as svmmodels
-    [proficiency_model.pkl\n(85.1% accuracy)] as profmodel
-    [complexity_model.pkl] as compmodel
-    [scaler .pkl files] as scalers
+  package "Machine Learning (SVM)" as ml {
+    [svm_models.py\n(Proficiency & Complexity)] as svmmodels
+    [proficiency_model.pkl\n→ Nagsisimula / Papaunlad / Mahusay] as profmodel
+    [complexity_model.pkl\n→ Literal / Inferential / Evaluative] as compmodel
+    [scaler.pkl files\n(RobustScaler)] as scalers
   }
 
   package "Text Extraction" as extraction {
     [ocr.py\n(Gemini Vision OCR)] as ocr
-    [PyPDF2\n(PDF Extraction)] as pypdf
+    [pypdf\n(PDF text extraction)] as pypdf
   }
 
-  package "Training Scripts" as training {
+  package "Training Pipeline" as training {
     [train_proficiency.py] as trainprof
     [train_complexity.py] as traincomp
-    [train_utils.py] as trainutils
+    [train_utils.py\n(GridSearchCV)] as trainutils
   }
 }
 
 ' =============================================
-' LAYER 4: External Services & Data
+' LAYER 4: External Services
 ' =============================================
-cloud "Google Gemini API\n(gemini-2.0-flash)" as gemini
+cloud "Google Gemini 2.5 Flash\n(OCR · Rubric Feedback · Grammar AI\n Language Detection)" as gemini
 
 database "Supabase" as supabase {
-  [Authentication] as auth
-  [PostgreSQL] as postgres
+  [Auth (JWT + RLS)] as auth
+  [PostgreSQL\n(teacher_evaluations\nmaterial_uploads\nstudent_grading_uploads)] as postgres
 }
 
-database "Training Data\nASAP2 (15,926 essays)" as asapdata
+database "Training Data\n(Labeled essay & material corpora)" as traindata
 
 ' =============================================
-' CONNECTIONS: User -> Frontend
+' CONNECTIONS: User → Frontend
 ' =============================================
-user -down-> app
+teacher -down--> app
 
 ' =============================================
-' CONNECTIONS: App -> Pages (internal)
+' CONNECTIONS: App → Pages
 ' =============================================
+app -down-> dashboard
 app -down-> grading
 app -down-> matlib
+app -down-> matchecker
 app -down-> grammarui
-app -down-> dashboard
-app -down-> evalui
-app -down-> chatui
+
 
 ' =============================================
-' CONNECTIONS: Pages -> Services
+' CONNECTIONS: Pages → Services
 ' =============================================
 grading -down-> pyservice
 grading -down-> analyzer
 matlib -down-> pyservice
+matchecker -down-> pyservice
 grammarui -down-> gramservice
-evalui -down-> pyservice
-chatui -down-> gemservice
 analyzer -down-> pyservice
-dashboard -down-> localstorage
+dashboard -down-> supaservice
 
 ' =============================================
-' CONNECTIONS: Frontend -> Backend (HTTP REST)
+' CONNECTIONS: Frontend Services → Backend
 ' =============================================
 pyservice -down-> mainapi : HTTP REST
 gramservice -down-> grammarapi : HTTP REST
 pyservice -down-> tagalogapi : HTTP REST
 
 ' =============================================
-' CONNECTIONS: Frontend -> External
+' CONNECTIONS: Frontend Services → External
 ' =============================================
-gemservice -down-> gemini : HTTPS
 supaservice -down-> auth : HTTPS
 
 ' =============================================
@@ -167,18 +172,21 @@ preprocess -down-> spacy
 preprocess -down-> calamancy
 
 grammarapi -down-> langtool
+grammarapi -down-> symspell
 tagalogapi -down-> calamancy
 
 ' =============================================
-' CONNECTIONS: Backend -> External
+' CONNECTIONS: Backend → External
 ' =============================================
 ocr -down-> gemini : Gemini Vision
+grammarapi -down-> gemini : AI corrections
+mainapi -down-> postgres : results + training data
 
 ' =============================================
 ' CONNECTIONS: Training
 ' =============================================
-trainprof -down-> asapdata
-traincomp -down-> asapdata
+trainprof -down-> traindata
+traincomp -down-> traindata
 trainprof -right-> trainutils
 traincomp -right-> trainutils
 trainprof -left-> profmodel : generates

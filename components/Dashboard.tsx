@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { ComplexityLevel, ProficiencyLevel } from "../types";
 import { loadDashboardStats } from "../services/supabaseService";
+import { loadStudents } from "./StudentGrading/storage";
 
 
 interface MetricCardProps {
@@ -84,27 +85,41 @@ export const Dashboard: React.FC<DashboardProps> = ({ view: _view }) => {
 
   useEffect(() => {
     let cancelled = false;
+
+    // Count students and essays from localStorage (primary store for StudentGrading)
+    const localStudents = loadStudents();
+    const allEssays = localStudents.flatMap((s) => s.essays);
+    const totalStudents = localStudents.filter((s) => s.essays.length > 0).length;
+    const totalEssays = allEssays.length;
+    const proficiencyCounts = {
+      [ProficiencyLevel.NAGSISIMULA]: 0,
+      [ProficiencyLevel.PAPAUNLAD]: 0,
+      [ProficiencyLevel.MAHUSAY]: 0,
+    };
+    for (const essay of allEssays) {
+      const level = essay.diagnosisResult?.proficiency as ProficiencyLevel | undefined;
+      if (level && level in proficiencyCounts) {
+        proficiencyCounts[level]++;
+      }
+    }
+
     loadDashboardStats().then((stats) => {
-      if (!cancelled && !stats.error) {
+      if (!cancelled) {
         setAnalytics({
-          totalStudents: stats.totalStudents,
-          totalEssays: stats.totalEssays,
-          totalMaterials: stats.totalMaterials,
-          ratedEssays: stats.ratedEssays,
-          avgTeacherRating: stats.avgTeacherRating,
-          proficiencyCounts: {
-            [ProficiencyLevel.NAGSISIMULA]: stats.proficiencyCounts.Nagsisimula || 0,
-            [ProficiencyLevel.PAPAUNLAD]: stats.proficiencyCounts.Papaunlad || 0,
-            [ProficiencyLevel.MAHUSAY]: stats.proficiencyCounts.Mahusay || 0,
-          },
+          totalStudents,
+          totalEssays,
+          totalMaterials: stats.error ? 0 : stats.totalMaterials,
+          ratedEssays: stats.error ? 0 : stats.ratedEssays,
+          avgTeacherRating: stats.error ? "N/A" : stats.avgTeacherRating,
+          proficiencyCounts,
           complexityCounts: {
-            [ComplexityLevel.LITERAL]: stats.complexityCounts.Literal || 0,
-            [ComplexityLevel.INFERENTIAL]: stats.complexityCounts.Inferential || 0,
-            [ComplexityLevel.EVALUATIVE]: stats.complexityCounts.Evaluative || 0,
+            [ComplexityLevel.LITERAL]: stats.error ? 0 : (stats.complexityCounts.Literal || 0),
+            [ComplexityLevel.INFERENTIAL]: stats.error ? 0 : (stats.complexityCounts.Inferential || 0),
+            [ComplexityLevel.EVALUATIVE]: stats.error ? 0 : (stats.complexityCounts.Evaluative || 0),
           },
         });
+        setDashboardLoading(false);
       }
-      if (!cancelled) setDashboardLoading(false);
     });
     return () => { cancelled = true; };
   }, []);

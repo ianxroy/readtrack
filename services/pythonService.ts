@@ -46,7 +46,10 @@ export const classifyTextComplexityAPI = async (text: string, base64Image?: stri
     return data;
 };
 
-export const extractTextFromImageAPI = async (base64Image: string, mimeType?: string): Promise<{text: string; warning?: string}> => {
+export const extractTextFromImageAPI = async (
+    base64Image: string,
+    mimeType?: string
+): Promise<{text: string; warning?: string; error?: string}> => {
     const response = await fetch('http://localhost:8000/ocr/extract', {
         method: 'POST',
         headers: {
@@ -62,10 +65,7 @@ export const extractTextFromImageAPI = async (base64Image: string, mimeType?: st
     }
 
     const data = await response.json();
-    if (data?.error) {
-        throw new Error(data.error);
-    }
-    return { text: data.text || '', warning: data.warning };
+    return { text: data.text || '', warning: data.warning, error: data.error };
 };
 
 export const ingestReferenceAPI = async (payload: {
@@ -188,6 +188,32 @@ export const triggerRetrainAPI = async (language: 'en' | 'tl'): Promise<RetrainR
     return data;
 };
 
+export const addTrainingSampleAPI = async (
+    text: string,
+    level: 'Literal' | 'Inferential' | 'Evaluative'
+): Promise<{ status: string; message: string }> => {
+    const response = await fetch('http://localhost:8000/training/add-sample', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'accept': 'application/json',
+        },
+        body: JSON.stringify({ text, level }),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (data?.error) throw new Error(data.error);
+    return {
+        status: data.status || 'ok',
+        message: data.message || 'Sample saved and model retrained.',
+    };
+};
+
 export interface PerClassMetrics {
     precision: number;
     recall: number;
@@ -256,14 +282,3 @@ export const detectLanguageAPI = async (text: string): Promise<'eng' | 'fil'> =>
     }
 };
 
-export const addTrainingSampleAPI = async (text: string, level: string): Promise<void> => {
-  const response = await fetch('http://localhost:8000/training/add-sample', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, level }),
-  });
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err.detail || `Training request failed (${response.status})`);
-  }
-};

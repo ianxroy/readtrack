@@ -5,7 +5,7 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
-from train_utils import load_asap_data, load_commonlit_data, get_data_path
+from train_utils import load_asap_data
 
 # Feature names matching the order in preprocessing.py extract_features
 FEATURE_NAMES = [
@@ -41,12 +41,6 @@ PROFICIENCY_LABELS = {
     2: "Frustration"
 }
 
-COMPLEXITY_LABELS = {
-    0: "Literal",
-    1: "Inferential",
-    2: "Evaluative"
-}
-
 def extract_proficiency_features():
     """Extract features from ASAP2 student proficiency dataset"""
     base_dir = os.path.dirname(__file__)
@@ -73,40 +67,6 @@ def extract_proficiency_features():
     
     # Print statistics
     print("\n=== Proficiency Dataset Statistics ===")
-    print(f"Total samples: {len(df)}")
-    print("\nLabel distribution:")
-    print(df['label_name'].value_counts())
-    print("\nFeature summary (first 5 features):")
-    print(df[FEATURE_NAMES[:5]].describe())
-    
-    return df
-
-def extract_complexity_features():
-    """Extract features from CommonLit text complexity dataset"""
-    base_dir = os.path.dirname(__file__)
-    
-    data_path = get_data_path()
-    if not data_path:
-        print("Error: No CommonLit training data found.")
-        return None
-    
-    print(f"Loading CommonLit dataset for complexity features from {data_path}...")
-    X, y = load_commonlit_data(data_path, model_type="complexity")
-    
-    print(f"Loaded {len(X)} samples with {X.shape[1]} features")
-    
-    # Create DataFrame
-    df = pd.DataFrame(X, columns=FEATURE_NAMES)
-    df['label_id'] = y
-    df['label_name'] = df['label_id'].map(COMPLEXITY_LABELS)
-    
-    # Save to CSV
-    output_path = os.path.join(base_dir, 'complexity_features.csv')
-    df.to_csv(output_path, index=False)
-    print(f"✓ Complexity features saved to: {output_path}")
-    
-    # Print statistics
-    print("\n=== Complexity Dataset Statistics ===")
     print(f"Total samples: {len(df)}")
     print("\nLabel distribution:")
     print(df['label_name'].value_counts())
@@ -167,27 +127,19 @@ def main():
     print("="*60)
     print("Feature Extraction for ReadTrack ML Models")
     print("="*60)
-    
-    # Extract proficiency features
-    print("\n[1/3] Extracting Student Proficiency Features...")
-    prof_df = extract_proficiency_features()
-    
-    # Extract complexity features
-    print("\n[2/3] Extracting Text Complexity Features...")
-    comp_df = extract_complexity_features()
-    
-    # Create feature descriptions
-    print("\n[3/3] Creating Feature Descriptions...")
-    desc_df = create_feature_descriptions()
-    
+
+    print("\n[1/2] Extracting Student Proficiency Features...")
+    extract_proficiency_features()
+
+    print("\n[2/2] Creating Feature Descriptions...")
+    create_feature_descriptions()
+
     print("\n" + "="*60)
-    print("Feature extraction complete!")
-    print("="*60)
-    print("\nGenerated files:")
-    print("  1. proficiency_features.csv - Student proficiency dataset with all features")
-    print("  2. complexity_features.csv - Text complexity dataset with all features")
-    print("  3. feature_descriptions.csv - Feature names and descriptions")
-    print("\nYou can now analyze these CSV files in Excel, Python, or any data analysis tool.")
+    print("Done. Generated files:")
+    print("  proficiency_features.csv  — student proficiency dataset with all features")
+    print("  feature_descriptions.csv  — feature names and descriptions")
+    print("\nFor complexity features, run:")
+    print("  python scripts/build_complexity_features.py")
 
 if __name__ == "__main__":
     main()

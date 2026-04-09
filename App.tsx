@@ -5,6 +5,7 @@ import { Dashboard } from "./components/Dashboard";
 import GrammarChecker from "./components/GrammarChecker";
 import { StudentGrading } from "./components/StudentGrading";
 import { MaterialLibrary } from "./components/MaterialLibrary";
+import { MaterialChecker } from "./components/MaterialChecker";
 import { About } from "./components/About";
 import Login from "./components/Login";
 import { AuthProvider, useAuth } from "./context/AuthContext";
@@ -65,7 +66,8 @@ const AppRoutes: React.FC = () => {
   };
 
   const handleSelectHistory = (analysis: CachedAnalysis) => {
-    setSelectedAnalysis(analysis);
+    // Clone to ensure selecting the same history item twice still triggers downstream effects.
+    setSelectedAnalysis({ ...analysis });
     navigate("/student");
     setIsMobileMenuOpen(false);
   };
@@ -105,6 +107,7 @@ const AppRoutes: React.FC = () => {
                     <Route path="/student" element={<></>} />
                     <Route path="/material" element={<></>} />
                     <Route path="/grammar" element={<></>} />
+                    <Route path="/checker" element={<></>} />
                     <Route path="/about" element={<></>} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
@@ -124,6 +127,9 @@ const AppRoutes: React.FC = () => {
                   </div>
                   <div className={`h-full ${location.pathname === '/grammar' ? 'block' : 'hidden'}`}>
                     <GrammarChecker />
+                  </div>
+                  <div className={`h-full ${location.pathname === '/checker' ? 'block' : 'hidden'}`}>
+                    <MaterialChecker onMenuClick={() => setIsMobileMenuOpen(true)} />
                   </div>
                   <div className={`h-full ${location.pathname === '/about' ? 'block' : 'hidden'}`}>
                     <About onMenuClick={() => setIsMobileMenuOpen(true)} />

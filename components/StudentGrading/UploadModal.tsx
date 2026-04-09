@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { IoCloseOutline, IoCloudUploadOutline } from 'react-icons/io5';
 import { Student, Subject, Section } from './types';
 import { extractTextFromImageAPI } from '../../services/pythonService';
+import mammoth from 'mammoth';
 
 interface UploadModalProps {
   students: Student[];
@@ -31,6 +32,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   const [text, setText] = useState('');
   const [originalFile, setOriginalFile] = useState<{ base64: string; mimeType: string; name: string } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isExtracting, setIsExtracting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -39,29 +41,59 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   useEffect(() => { setSubjectId(prefilledSubjectId ?? ''); }, [prefilledSubjectId]);
   useEffect(() => { if (prefilledText) setText(prefilledText); }, [prefilledText]);
 
-  const canSubmit = !!studentId && !!subjectId && (!!text.trim() || !!originalFile) && !isUploading;
+  const canSubmit = !!studentId && !!subjectId && (!!text.trim() || !!originalFile) && !isUploading && !isExtracting;
+
+  const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
   const handleFile = async (file: File) => {
     if (file.size > 10 * 1024 * 1024) { setError('File exceeds 10MB limit.'); return; }
     setError(null);
+
     if (file.type === 'text/plain') {
       const reader = new FileReader();
       reader.onload = e => setText(e.target?.result as string);
       reader.readAsText(file);
+    } else if (file.type === DOCX_MIME || file.name.toLowerCase().endsWith('.docx')) {
+      // Extract text from .docx client-side using mammoth
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await mammoth.extractRawText({ arrayBuffer });
+        const extracted = result.value.trim();
+        if (extracted) {
+          setText(extracted);
+          setTitle(prev => prev || file.name.replace(/\.docx$/i, ''));
+        } else {
+          setError('Could not extract text from this .docx file. Please paste the text manually.');
+        }
+      } catch {
+        setError('Failed to read .docx file. Please paste the text manually.');
+      }
     } else {
       const reader = new FileReader();
       reader.onloadend = async () => {
         const base64 = (reader.result as string).split(',')[1];
         setOriginalFile({ base64, mimeType: file.type, name: file.name });
+        setIsExtracting(true);
         try {
           const extracted = await extractTextFromImageAPI(base64, file.type);
-          if (extracted?.text) setText(extracted.text);
-          if (extracted?.warning) {
-            setError(extracted.warning);
-          } else if (!extracted?.text?.trim()) {
+          if ((extracted as any)?.error === 'api_key_invalid') {
+            setError('Gemini API key is expired or invalid. Please update the key in .env.local and restart the backend.');
+          } else if ((extracted as any)?.error === 'no_api_key') {
+            setError('No Gemini API key configured. Add GEMINI_API_KEY to .env.local and restart the backend.');
+          } else if ((extracted as any)?.error === 'ocr_timeout') {
+            setError('OCR timed out. The file may be too large or the server is slow. Please paste the text manually.');
+          } else if ((extracted as any)?.error === 'ocr_unavailable') {
+            setError('OCR service is unavailable because google-generativeai is not installed on the backend.');
+          } else if ((extracted as any)?.error === 'invalid_base64') {
+            setError('Uploaded file data was invalid. Please re-upload the file.');
+          } else if (extracted?.text) {
+            setText(extracted.text);
+            if (extracted?.warning) setError(extracted.warning);
+          } else {
             setError('Could not extract text from this file. Please paste the text manually.');
           }
         } catch { /* OCR failure is non-fatal */ }
+        finally { setIsExtracting(false); }
       };
       reader.readAsDataURL(file);
     }
@@ -123,12 +155,24 @@ export const UploadModal: React.FC<UploadModalProps> = ({
             onDrop={handleDrop}
             onClick={() => fileRef.current?.click()}
           >
-            <input ref={fileRef} type="file" className="hidden" accept=".txt,.pdf,image/*" onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
-            <IoCloudUploadOutline className={`text-3xl ${isDragging ? 'text-teal-500' : 'text-gray-300'}`} />
-            <div className="text-center">
-              <div className="text-xs font-bold text-gray-700">{originalFile ? originalFile.name : 'Click or drag a file'}</div>
-              <div className="text-[10px] text-gray-400">PDF, Image, or TXT · Max 10MB</div>
-            </div>
+            <input ref={fileRef} type="file" className="hidden" accept=".txt,.pdf,.docx,image/*" onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
+            {isExtracting ? (
+              <>
+                <div className="w-6 h-6 rounded-full border-2 border-teal-400 border-t-transparent animate-spin" />
+                <div className="text-center">
+                  <div className="text-xs font-bold text-teal-600">Extracting text…</div>
+                  <div className="text-[10px] text-gray-400">OCR via Gemini · up to 25s</div>
+                </div>
+              </>
+            ) : (
+              <>
+                <IoCloudUploadOutline className={`text-3xl ${isDragging ? 'text-teal-500' : 'text-gray-300'}`} />
+                <div className="text-center">
+                  <div className="text-xs font-bold text-gray-700">{originalFile ? originalFile.name : 'Click or drag a file'}</div>
+                  <div className="text-[10px] text-gray-400">PDF, Image, TXT, or DOCX · Max 10MB</div>
+                </div>
+              </>
+            )}
           </div>
 
           {error && <div className="bg-red-50 text-red-600 text-xs font-bold px-3 py-2 rounded-xl border border-red-100">{error}</div>}

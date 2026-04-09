@@ -3,6 +3,7 @@ import pickle
 import json
 import os
 from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC
 
 
 def _map_grammar_issue(issue: dict, text: str):
@@ -44,6 +45,7 @@ class BaseModel:
         self.model = None
         self.scaler = StandardScaler()
         self.labels = []
+        self.feature_idx = None  # if set, only these column indices are used
 
     def load(self, path):
 
@@ -52,13 +54,15 @@ class BaseModel:
                 data = pickle.load(f)
                 self.model = data['model']
                 self.scaler = data['scaler']
+                self.feature_idx = data.get('feature_idx', None)
             return True
         except FileNotFoundError:
             print(f"Warning: Model file {path} not found. Using heuristics.")
             return False
 
     def train(self, X, y):
-
+        if self.model is None:
+            self.model = SVC(kernel='rbf', C=1.0, gamma='scale', probability=True)
         X_scaled = self.scaler.fit_transform(X)
         self.model.fit(X_scaled, y)
         print("Model training complete.")
@@ -67,7 +71,8 @@ class BaseModel:
 
         if self.model and hasattr(self.model, 'predict'):
             try:
-                vector_scaled = self.scaler.transform(vector)
+                v = vector[:, self.feature_idx] if self.feature_idx is not None else vector
+                vector_scaled = self.scaler.transform(v)
                 idx = self.model.predict(vector_scaled)[0]
             except Exception as exc:
                 print(f"Warning: ML inference skipped, falling back to heuristics ({exc})")

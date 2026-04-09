@@ -1,38 +1,55 @@
 @startuml ReadTrack Use Case Diagram (Simplified)
 left to right direction
+title ReadTrack — Use Case Diagram (Simplified)
+
 skinparam actorStyle awesome
 skinparam packageStyle rectangle
 skinparam linetype ortho
 skinparam usecase {
   BackgroundColor #F0F8FF
-  BorderColor #4682B4
-  ArrowColor #4682B4
+  BorderColor #4A90D9
+  ArrowColor #4A90D9
+  FontSize 13
 }
 skinparam package {
   BackgroundColor #FAFAFA
+  BorderColor #B0BEC5
+  FontStyle bold
 }
 
 actor "Teacher" as teacher
 
 rectangle "ReadTrack System" {
-  usecase "Authentication" as UC_AUTH
-  usecase "Text Analysis\n& Diagnosis" as UC_ANALYZE
-  usecase "OCR & File\nProcessing" as UC_OCR
-  usecase "Grammar &\nLanguage" as UC_GRAMMAR
-  usecase "Material\nLibrary" as UC_MATERIAL
-  usecase "Dashboard\n& History" as UC_DASHBOARD
-  usecase "Model\nEvaluation" as UC_EVAL
+
+  usecase "Authentication\n(Login / Logout)" as UC_AUTH
+
+  usecase "Student Grading\n(Upload → SVM → AI Feedback)" as UC_GRADING
+
+  usecase "Material Library\n(Upload · Detect Language · Filter)" as UC_LIBRARY
+
+  usecase "Material Checker — G7\n(Complexity → DepEd MELCs Verdict)" as UC_G7
+
+  usecase "Grammar & Spelling\n(LanguageTool · SymSpell · Gemini AI)" as UC_GRAMMAR
+
+  usecase "Text Ingestion\n(OCR · PDF Extraction)" as UC_INGEST
+
+  usecase "Dashboard & Analytics\n(Grade 7 Complexity & Proficiency)" as UC_DASHBOARD
+
+  usecase "Model Management\n(Performance · Retraining)" as UC_MODELS
+
 }
 
 teacher -- UC_AUTH
-teacher -- UC_ANALYZE
-teacher -- UC_OCR
+teacher -- UC_GRADING
+teacher -- UC_LIBRARY
+teacher -- UC_G7
 teacher -- UC_GRAMMAR
-teacher -- UC_MATERIAL
 teacher -- UC_DASHBOARD
-teacher -- UC_EVAL
+teacher -- UC_MODELS
 
-UC_OCR ..> UC_ANALYZE : <<extend>>
-UC_GRAMMAR ..> UC_ANALYZE : <<include>>
+UC_INGEST ..> UC_GRADING   : <<extend>>
+UC_INGEST ..> UC_LIBRARY   : <<extend>>
+UC_INGEST ..> UC_G7        : <<extend>>
+UC_GRAMMAR ..> UC_GRADING  : <<extend>>
 
 @enduml

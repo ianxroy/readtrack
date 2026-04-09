@@ -2,10 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   IoChevronDownOutline, IoChevronForwardOutline,
   IoEllipsisHorizontal, IoAddOutline, IoCheckmarkOutline, IoCloseOutline,
-  IoRefreshOutline,
 } from 'react-icons/io5';
 import { Section, Subject, Student } from './types';
-import { TrainStatusResponse } from '../../services/pythonService';
 
 interface SidebarProps {
   sections: Section[];
@@ -18,10 +16,6 @@ interface SidebarProps {
   onRenameSection: (id: string, name: string) => void;
   onDeleteSection: (id: string) => void;
   onManageSubjects: () => void;
-  trainStatus?: TrainStatusResponse | null;
-  isRetraining?: boolean;
-  onRetrain?: (lang: 'en' | 'tl') => void;
-  onShowPerformance?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -29,7 +23,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   selectedSectionId, selectedSubjectId,
   onSelectSubject, onCreateSection, onRenameSection, onDeleteSection,
   onManageSubjects,
-  trainStatus, isRetraining, onRetrain, onShowPerformance,
 }) => {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(selectedSectionId ? [selectedSectionId] : [])
@@ -84,18 +77,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const studentCountInSection = (sectionId: string) =>
     students.filter(s => s.sectionId === sectionId).length;
 
-  const nextTierLabel = (count: number): { label: string; current: number; max: number } | null => {
-    if (count < 5)   return { label: 'magsimulang mag-suggest',  current: count, max: 5 };
-    if (count < 30)  return { label: 'Kalibrado',                current: count, max: 30 };
-    if (count < 100) return { label: 'Kumpiyansa',               current: count, max: 100 };
-    return null; // already at max tier
-  };
-
-  const confidenceDot = (level: string) => {
-    if (level === 'Kumpiyansa' || level === 'Kalibrado') return 'bg-green-400';
-    if (level === 'Papaunlad') return 'bg-yellow-400';
-    return 'bg-red-400';
-  };
 
   const langPill = (lang: Subject['language']) => (
     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
@@ -269,106 +250,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
       </div>
 
-      {/* Model confidence + retrain */}
-      {trainStatus && (
-        <div className="p-2 border-t border-gray-100 space-y-1.5">
-          <div className="flex items-center justify-between px-1">
-            <div className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">
-              Katumpakan ng Modelo
-            </div>
-            {onShowPerformance && (
-              <button
-                onClick={onShowPerformance}
-                className="text-[9px] text-teal-600 hover:text-teal-800 font-semibold underline"
-              >
-                Tingnan →
-              </button>
-            )}
-          </div>
-
-          {/* English */}
-          <div className="flex items-center justify-between px-1">
-            <div className="flex items-center gap-1.5">
-              <span className={`w-2 h-2 rounded-full ${confidenceDot(trainStatus.english.confidence_level)}`} />
-              <span className="text-[10px] text-gray-600">🇺🇸 {trainStatus.english.confidence_level}</span>
-            </div>
-            <span className="text-[9px] text-gray-400">{trainStatus.english.rated_essays} rated</span>
-          </div>
-          {(() => {
-            const info = nextTierLabel(trainStatus.english.rated_essays);
-            if (!info) return null;
-            const pct = Math.round((info.current / info.max) * 100);
-            return (
-              <div className="px-1 pb-0.5">
-                <div className="flex justify-between text-[8px] text-gray-400 mb-0.5">
-                  <span>{info.current}/{info.max} para sa {info.label}</span>
-                  <span>{pct}%</span>
-                </div>
-                <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-teal-400 rounded-full transition-all"
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Filipino */}
-          <div className="flex items-center justify-between px-1">
-            <div className="flex items-center gap-1.5">
-              <span className={`w-2 h-2 rounded-full ${confidenceDot(trainStatus.filipino.confidence_level)}`} />
-              <span className="text-[10px] text-gray-600">🇵🇭 {trainStatus.filipino.confidence_level}</span>
-            </div>
-            <span className="text-[9px] text-gray-400">{trainStatus.filipino.rated_essays} rated</span>
-          </div>
-          {(() => {
-            const info = nextTierLabel(trainStatus.filipino.rated_essays);
-            if (!info) return null;
-            const pct = Math.round((info.current / info.max) * 100);
-            return (
-              <div className="px-1 pb-0.5">
-                <div className="flex justify-between text-[8px] text-gray-400 mb-0.5">
-                  <span>{info.current}/{info.max} para sa {info.label}</span>
-                  <span>{pct}%</span>
-                </div>
-                <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-teal-400 rounded-full transition-all"
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Retrain buttons */}
-          {onRetrain && (
-            <>
-              {trainStatus.english.new_since_retrain >= 5 && (
-                <button
-                  onClick={() => onRetrain('en')}
-                  disabled={isRetraining}
-                  className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50 transition-colors"
-                >
-                  <IoRefreshOutline className={isRetraining ? 'animate-spin' : ''} />
-                  I-retrain English ({trainStatus.english.new_since_retrain} bago)
-                </button>
-              )}
-              {trainStatus.filipino.new_since_retrain >= 5 && (
-                <button
-                  onClick={() => onRetrain('tl')}
-                  disabled={isRetraining}
-                  className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] font-bold bg-pink-50 text-pink-700 hover:bg-pink-100 disabled:opacity-50 transition-colors"
-                >
-                  <IoRefreshOutline className={isRetraining ? 'animate-spin' : ''} />
-                  I-retrain Filipino ({trainStatus.filipino.new_since_retrain} bago)
-                </button>
-              )}
-            </>
-          )}
-        </div>
-      )}
     </div>
   );
 };

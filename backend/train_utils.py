@@ -112,61 +112,6 @@ def load_asap_data(path, sample_size=None):
             
     return X_final, y_final
 
-def load_commonlit_data(path, model_type="proficiency", sample_size=None):
-    df = pd.read_csv(path)
-    X, y = [], []
-    
-    # Shuffle data to get a representative sample
-    df = df.sample(frac=1).reset_index(drop=True)
-    
-    # Use all data if sample_size not specified
-    if sample_size is None:
-        sample_size = len(df)
-    else:
-        sample_size = min(len(df), sample_size)
-    
-    print(f"Loading {sample_size} samples for {model_type}...")
-    
-    for idx, row in df.iloc[:sample_size].iterrows():
-        try:
-            features = extract_features(row['excerpt'])
-            X.append(features['vector'][0])
-            
-            target = row['target']
-            if model_type == "proficiency":
-                # Phil-IRI Proficiency Mapping
-                if target > -0.5:
-                    y.append(0) # Independent
-                elif target > -1.8:
-                    y.append(1) # Instructional
-                else:
-                    y.append(2) # Frustration
-            else:
-                # Complexity Mapping (Text inherent property)
-                fk = features['metrics']['readabilityIndices']['flesch_kincaid']
-                if fk < 12.0:
-                    y.append(0) # Literal
-                elif fk < 15.0:
-                    y.append(1) # Inferential
-                else:
-                    y.append(2) # Evaluative
-                    
-        except Exception:
-            continue
-            
-    return np.array(X), np.array(y)
-
-def get_data_path():
-    base_dir = os.path.dirname(__file__)
-    commonlit_path = os.path.join(base_dir, "commonlit_data.csv")
-    commonlit_path_alt = os.path.join(base_dir, "train_word_frequencies (1).csv")
-
-    if os.path.exists(commonlit_path):
-        return commonlit_path
-    elif os.path.exists(commonlit_path_alt):
-        return commonlit_path_alt
-    return None
-
 def load_teacher_samples(path: str):
     """Load teacher-verified samples from JSONL. Returns (X, y) numpy arrays."""
     X, y = [], []

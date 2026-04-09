@@ -12,6 +12,7 @@
     "@google/genai": "^1.39.0",
     "@supabase/supabase-js": "^2.97.0",
     "framer-motion": "^12.29.2",
+    "mammoth": "^1.12.0",
     "nltk": "^0.0.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",

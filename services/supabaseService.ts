@@ -46,6 +46,16 @@ export interface MaterialUpload {
   complexity_level?: string;
   complexity_score?: number | null;
   complexity_result?: unknown;
+  original_file?: { base64: string; mimeType: string; name: string } | null;
+  teacher_verified_level?: string | null;
+  teacher_verified_at?: string | null;
+  verification_comment?: string | null;
+  is_verified?: boolean;
+}
+
+export interface MaterialTeacherVerification {
+  level: 'Literal' | 'Inferential' | 'Evaluative';
+  comment?: string;
 }
 
 /** Organization data shape: { "Section A": ["Math", "English"], ... } */
@@ -183,16 +193,38 @@ export async function saveMaterialUpload(upload: MaterialUpload): Promise<{ erro
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: 'Not authenticated' };
 
-  const { error } = await supabase.from('material_uploads').insert([{
+  const payload: Record<string, any> = {
     teacher_id: user.id,
     material_name: upload.material_name,
     material_text: upload.material_text,
     complexity_level: upload.complexity_level ?? null,
     complexity_score: upload.complexity_score ?? null,
     complexity_result: upload.complexity_result ?? null,
-  }]);
+    original_file: upload.original_file ?? null,
+    teacher_verified_level: upload.teacher_verified_level ?? null,
+    teacher_verified_at: upload.teacher_verified_at ?? null,
+    verification_comment: upload.verification_comment ?? null,
+    is_verified: upload.is_verified ?? false,
+  };
 
-  return { error: error ? error.message : null };
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { error } = await supabase.from('material_uploads').insert([payload]);
+    if (!error) return { error: null };
+
+    const msg = error.message || '';
+    const missingColumnMatch = msg.match(/Could not find the '([^']+)' column of 'material_uploads'/i);
+    const missingColumn = missingColumnMatch?.[1];
+
+    if (missingColumn && missingColumn in payload) {
+      console.warn(`material_uploads is missing column '${missingColumn}'. Retrying without it.`);
+      delete payload[missingColumn];
+      continue;
+    }
+
+    return { error: msg };
+  }
+
+  return { error: 'Insert failed after schema fallback retries' };
 }
 
 // ----------------------------------------------------------------
@@ -427,6 +459,29 @@ export async function saveTeacherRubricScores(
   return { error: null };
 }
 
+/** Update essay extracted text for a specific upload row */
+export async function updateStudentEssayText(
+  uploadId: string,
+  essayText: string,
+): Promise<{ error: string | null }> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Not authenticated' };
+
+  const { data, error } = await supabase
+    .from('student_grading_uploads')
+    .update({ essay_text: essayText })
+    .eq('id', uploadId)
+    .eq('teacher_id', user.id)
+    .select('id');
+
+  if (error) return { error: error.message };
+  if (!data || data.length === 0) {
+    return { error: `No row found for essay id=${uploadId}.` };
+  }
+
+  return { error: null };
+}
+
 /** Load material uploads for the current teacher */
 export async function loadMaterialUploads(): Promise<{ data: any[]; error: string | null }> {
   const { data: { user } } = await supabase.auth.getUser();
@@ -447,9 +502,70 @@ export async function loadMaterialUploads(): Promise<{ data: any[]; error: strin
     text: m.material_text,
     uploadedAt: new Date(m.created_at),
     complexityResult: m.complexity_result,
+    teacherVerifiedLevel: m.teacher_verified_level || m.complexity_result?.teacherVerification?.level || undefined,
+    teacherVerifiedAt: m.teacher_verified_at || m.complexity_result?.teacherVerification?.verifiedAt || undefined,
+    verificationComment: m.verification_comment || m.complexity_result?.teacherVerification?.comment || undefined,
+    isVerified: Boolean(m.is_verified || m.teacher_verified_level || m.complexity_result?.teacherVerification?.level),
+    originalFile:
+      m.original_file ||
+      m.complexity_result?.originalFile ||
+      m.complexity_result?.original_file ||
+      undefined,
   }));
 
   return { data: formatted, error: null };
+}
+
+export async function saveMaterialTeacherVerification(
+  materialId: string,
+  verification: MaterialTeacherVerification,
+  existingComplexityResult?: any,
+): Promise<{ error: string | null }> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Not authenticated' };
+
+  const verifiedAt = new Date().toISOString();
+  const mergedComplexityResult = {
+    ...(existingComplexityResult || {}),
+    teacherVerification: {
+      level: verification.level,
+      comment: verification.comment || null,
+      verifiedAt,
+    },
+  };
+
+  const payload: Record<string, any> = {
+    teacher_verified_level: verification.level,
+    teacher_verified_at: verifiedAt,
+    verification_comment: verification.comment || null,
+    is_verified: true,
+    complexity_level: verification.level,
+    complexity_result: mergedComplexityResult,
+  };
+
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const { error } = await supabase
+      .from('material_uploads')
+      .update(payload)
+      .eq('id', materialId)
+      .eq('teacher_id', user.id);
+
+    if (!error) return { error: null };
+
+    const msg = error.message || '';
+    const missingColumnMatch = msg.match(/Could not find the '([^']+)' column of 'material_uploads'/i);
+    const missingColumn = missingColumnMatch?.[1];
+
+    if (missingColumn && missingColumn in payload) {
+      console.warn(`material_uploads is missing column '${missingColumn}'. Retrying without it.`);
+      delete payload[missingColumn];
+      continue;
+    }
+
+    return { error: msg };
+  }
+
+  return { error: 'Update failed after schema fallback retries' };
 }
 
 /** Delete a material upload by its UUID */
@@ -490,7 +606,7 @@ export async function loadDashboardStats(): Promise<{
   // Fetch essays
   const { data: essays, error: essayErr } = await supabase
     .from('student_grading_uploads')
-    .select('student_name_sha, proficiency_level, teacher_rating')
+    .select('*')
     .eq('teacher_id', user.id);
 
   // Fetch materials

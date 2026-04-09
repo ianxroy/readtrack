@@ -10,6 +10,12 @@ const profBadge: Record<string, string> = {
   [ProficiencyLevel.NAGSISIMULA]: 'bg-red-100 text-red-700',
 };
 
+function proficiencyFromOverall(overall: number): ProficiencyLevel {
+  if (overall >= 3.5) return ProficiencyLevel.MAHUSAY;
+  if (overall >= 2.5) return ProficiencyLevel.PAPAUNLAD;
+  return ProficiencyLevel.NAGSISIMULA;
+}
+
 interface EssayPanelProps {
   student: Student | null;
   selectedSubject: Subject | null;
@@ -77,7 +83,10 @@ export const EssayPanel: React.FC<EssayPanelProps> = ({
             ) : (
               <div className="space-y-1.5">
                 {essays.map(essay => {
-                  const prof = essay.diagnosisResult?.proficiency;
+                  const teacherOverall = essay.teacherRubricScores?.overall;
+                  const prof = teacherOverall != null
+                    ? proficiencyFromOverall(teacherOverall)
+                    : essay.diagnosisResult?.proficiency;
                   const isActive = selectedEssayId === essay.id;
                   return (
                     <div key={essay.id} className="group relative">
@@ -97,10 +106,12 @@ export const EssayPanel: React.FC<EssayPanelProps> = ({
                           </span>
                         )}
 
-                        {/* System rubric pips */}
-                        {essay.diagnosisResult?.rubricScore && (
+                        {/* Prefer teacher rubric pips; fallback to system rubric pips */}
+                        {teacherOverall != null ? (
+                          <MiniPips score={Math.round(teacherOverall)} />
+                        ) : essay.diagnosisResult?.rubricScore ? (
                           <MiniPips score={Math.round(essay.diagnosisResult.rubricScore.overallScore)} />
-                        )}
+                        ) : null}
 
                         {/* Natututo pa warning */}
                         {!essay.teacherRubricScores && (() => {

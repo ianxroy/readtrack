@@ -1,39 +1,83 @@
 @startuml ReadTrack Activity Diagram (Simplified)
-title ReadTrack - Activity Diagram (Simplified)
+title ReadTrack — Activity Diagram (Simplified)
 
+skinparam ActivityBackgroundColor #F8FAFF
+skinparam ActivityBorderColor #4A90D9
+skinparam ActivityFontSize 13
+skinparam ArrowColor #4A90D9
+skinparam swimlane {
+  BorderColor #B0BEC5
+  TitleFontSize 12
+  TitleFontStyle bold
+}
+
+|Teacher|
 start
 
 :User opens ReadTrack;
 
 if (Authenticated?) then (no)
-  :Login via Supabase;
+  |Supabase|
+  :Login via Supabase Auth;
+  |Teacher|
 else (yes)
 endif
 
-:Display Dashboard;
+|Frontend|
+:Display Dashboard\n(Grade 7 Reading Complexity & Proficiency Tracker);
 
+|Teacher|
 switch (Select Action)
+
 case (Student Grading)
-  :Input Text\n(Type / Image OCR / PDF);
-  :Analyze Text\n(Language Detection,\nFeature Extraction,\nGrammar Check);
-  :Classify with SVM\n(Proficiency & Complexity);
-  :Display Results;
-  :Save to History;
+  :Input Essay\n(Type / Image OCR / PDF);
+  |Backend|
+  :Analyze Text\n(Language Detection, Feature Extraction,\nGrammar Check);
+  :Classify with SVM:
+  Writing Level: Nagsisimula | Papaunlad | Mahusay
+  Complexity: Literal | Inferential | Evaluative;
+  |Gemini AI|
+  :Generate AI Rubric Feedback (Gemini);
+  |Frontend|
+  :Display Results & Save to Supabase;
 
 case (Material Library)
-  :Upload / Browse Materials;
-  :Auto-classify Complexity;
+  |Teacher|
+  :Upload or Browse Reading Materials;
+  |Backend|
+  :Detect Language (English / Filipino);
+  :Auto-classify Complexity via SVM;
+  |Frontend|
+  :Filter by Language & Complexity;
+
+case (Material Checker — G7)
+  |Teacher|
+  :Paste or Upload Reading Material;
+  |Backend|
+  :Analyze Complexity via SVM\n(POST /analyze/complexity);
+  if (Complexity == Literal?) then (yes)
+    :Verdict: Ready for Grade 7;
+  elseif (Complexity == Inferential?) then (yes)
+    :Verdict: Use with Teacher Support;
+  else (Evaluative)
+    :Verdict: Above Grade 7 Level;
+  endif
+  |Frontend|
+  :Show Phil-IRI level + vocabulary breakdown;
 
 case (Grammar Checker)
+  |Teacher|
   :Input Text;
-  :Check Grammar & Spelling;
+  |Backend|
+  :Check with LanguageTool + SymSpellPy;
+  |Gemini AI|
+  :Enhance with Gemini AI;
+  |Frontend|
   :Display Issues & Suggestions;
 
-case (Model Evaluation)
-  :View ML Model Metrics;
-
-case (AI Chat)
-  :Chat with Gemini AI;
+case (Dashboard)
+  |Frontend|
+  :View Grade 7 Analytics\n(Complexity & Proficiency Distribution);
 
 endswitch
 

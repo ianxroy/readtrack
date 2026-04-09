@@ -14,7 +14,7 @@ import {
 } from 'react-icons/io5';
 import { LibraryMaterial, TextComplexityResult, ComplexityLevel } from '../types';
 import { classifyTextComplexityAPI, extractTextFromImageAPI, detectLanguageAPI, addTrainingSampleAPI } from '../services/pythonService';
-import { saveMaterialUpload, loadMaterialUploads, deleteMaterialUpload } from '../services/supabaseService';
+import { saveMaterialUpload, loadMaterialUploads, deleteMaterialUpload, saveMaterialTeacherVerification } from '../services/supabaseService';
 import { useEffect } from 'react';
 import { IoDocumentOutline } from 'react-icons/io5';
 
@@ -98,6 +98,12 @@ const REASONING_SUMMARIES: Record<ComplexityLevel, string> = {
   [ComplexityLevel.EVALUATIVE]: 'This material uses complex ideas and language that are above Grade 7 level — scaffolding is recommended.',
 };
 
+const LEVEL_DESCRIPTIONS: Record<ComplexityLevel, string> = {
+  [ComplexityLevel.LITERAL]: 'Easy for independent Grade 7 reading.',
+  [ComplexityLevel.INFERENTIAL]: 'Moderate difficulty; may need teacher guidance.',
+  [ComplexityLevel.EVALUATIVE]: 'Difficult and abstract; scaffolding recommended.',
+};
+
 const REASONING_KEYWORDS: Record<ComplexityLevel, Array<{ pattern: RegExp; tag: string }>> = {
   [ComplexityLevel.LITERAL]: [
     { pattern: /short.{0,10}sentence/i, tag: 'Short sentences' },
@@ -139,6 +145,7 @@ interface DetailModalProps {
   onClose: () => void;
   onDelete: (id: string) => void;
   onUpdate: (updated: LibraryMaterial) => void;
+  onVerify: (material: LibraryMaterial, level: ComplexityLevel, comment: string) => Promise<{ ok: boolean; message: string }>;
 }
 
 const SAFE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
@@ -154,18 +161,17 @@ function base64ToBlobUrl(base64: string, mimeType: string): string {
   return URL.createObjectURL(new Blob([arr], { type: mimeType }));
 }
 
-const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, onUpdate }) => {
+const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, onUpdate, onVerify }) => {
   const [editedText, setEditedText] = useState(material.text);
   const [isSavingText, setIsSavingText] = useState(false);
   const [textMessage, setTextMessage] = useState<string | null>(null);
   const [textError, setTextError] = useState(false);
-  const [activeTab, setActiveTab] = useState<'original' | 'analysis'>('original');
-  const [verifyLevel, setVerifyLevel] = useState<string>(material.complexityResult.level);
-  const [isVerifying, setIsVerifying] = useState(false);
+  const [teacherLevel, setTeacherLevel] = useState<ComplexityLevel>(material.teacherVerifiedLevel ?? material.complexityResult.level);
+  const [verificationComment, setVerificationComment] = useState(material.verificationComment ?? '');
+  const [isSavingVerification, setIsSavingVerification] = useState(false);
   const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
   const [verifyError, setVerifyError] = useState(false);
-  const [verifyDone, setVerifyDone] = useState(false);
-
+  const [activeTab, setActiveTab] = useState<'original' | 'analysis'>('original');
   const meta = levelMeta[material.complexityResult.level] ?? levelMeta[ComplexityLevel.LITERAL];
   const cr = material.complexityResult;
   const { summary: reasoningSummary, tags: reasoningTags } = parseReasoning(
@@ -209,19 +215,18 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
     }
   };
 
-  const handleVerifyAndTrain = async () => {
-    setIsVerifying(true);
+  const handleSaveVerification = async () => {
+    setIsSavingVerification(true);
     setVerifyMessage(null);
-    setVerifyError(false);
     try {
-      await addTrainingSampleAPI(material.text, verifyLevel);
-      setVerifyDone(true);
-      setVerifyMessage('Saved as training sample. Model updated.');
+      const res = await onVerify(material, teacherLevel, verificationComment.trim());
+      setVerifyError(!res.ok);
+      setVerifyMessage(res.message);
     } catch (e: any) {
       setVerifyError(true);
-      setVerifyMessage(e.message || 'Could not save sample. Try again.');
+      setVerifyMessage(e?.message || 'Could not save verification.');
     } finally {
-      setIsVerifying(false);
+      setIsSavingVerification(false);
     }
   };
 
@@ -384,6 +389,53 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
           {/* Analysis Tab */}
           {activeTab === 'analysis' && (
             <div className="space-y-6">
+              {/* Teacher verification */}
+              <div className="rounded-xl border border-teal-100 bg-teal-50/60 p-4">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-teal-700 mb-2">
+                  Teacher Verification (Improves Model Reliability)
+                </div>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {(Object.values(ComplexityLevel) as ComplexityLevel[]).map(level => (
+                    <button
+                      key={level}
+                      onClick={() => setTeacherLevel(level)}
+                      className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-colors ${
+                        teacherLevel === level
+                          ? 'bg-teal-600 text-white border-teal-600'
+                          : 'bg-white text-teal-700 border-teal-200 hover:border-teal-400'
+                      }`}
+                    >
+                      {level}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-teal-700 mb-2">{LEVEL_DESCRIPTIONS[teacherLevel]}</p>
+                <textarea
+                  value={verificationComment}
+                  onChange={e => setVerificationComment(e.target.value)}
+                  placeholder="Optional note on why this level is correct"
+                  className="w-full min-h-[70px] bg-white border border-teal-100 rounded-lg p-2 text-xs text-gray-700 outline-none focus:ring-1 focus:ring-teal-400"
+                />
+                <div className="mt-2 flex items-center justify-between gap-3">
+                  <button
+                    onClick={handleSaveVerification}
+                    disabled={isSavingVerification}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${
+                      isSavingVerification
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'bg-teal-600 text-white hover:bg-teal-700'
+                    }`}
+                  >
+                    {isSavingVerification ? 'Saving…' : 'Save & Improve Model'}
+                  </button>
+                  {verifyMessage && (
+                    <p className={`text-[10px] font-medium ${verifyError ? 'text-red-500' : 'text-green-700'}`}>
+                      {verifyMessage}
+                    </p>
+                  )}
+                </div>
+              </div>
+
               {/* Complexity summary */}
               <div className={`rounded-xl border p-4 ${meta.bg} ${meta.border}`}>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
@@ -439,55 +491,151 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
                 )}
               </div>
 
-              {/* Verify for Training */}
-              <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-4 space-y-3">
-                <div className="text-[10px] font-black uppercase tracking-widest text-indigo-500">
-                  Verify Complexity Level
-                </div>
-                <p className="text-[11px] text-indigo-700 leading-relaxed">
-                  Help improve the model by confirming this material's correct complexity level.
-                </p>
-
-                {/* Level selector */}
-                <div className="flex gap-2">
-                  {(['Literal', 'Inferential', 'Evaluative'] as const).map(lvl => (
-                    <button
-                      key={lvl}
-                      disabled={isVerifying || verifyDone}
-                      onClick={() => setVerifyLevel(lvl)}
-                      className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-colors ${
-                        verifyLevel === lvl
-                          ? 'bg-indigo-600 text-white border-indigo-600'
-                          : 'bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-100'
-                      } disabled:opacity-50 disabled:cursor-not-allowed`}
-                    >
-                      {lvl}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Action row */}
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={handleVerifyAndTrain}
-                    disabled={isVerifying || verifyDone}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                      isVerifying || verifyDone
-                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                        : 'bg-indigo-600 text-white hover:bg-indigo-700'
-                    }`}
-                  >
-                    {isVerifying ? 'Training model…' : verifyDone ? '✓ Verified' : 'Verify & Train'}
-                  </button>
-                  {verifyMessage && (
-                    <p className={`text-[10px] font-medium ${verifyError ? 'text-red-500' : 'text-indigo-600'}`}>
-                      {verifyMessage}
-                    </p>
-                  )}
-                </div>
-              </div>
             </div>
           )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+interface UploadVerificationModalProps {
+  material: LibraryMaterial;
+  selectedLevel: ComplexityLevel;
+  comment: string;
+  saving: boolean;
+  onSelectLevel: (level: ComplexityLevel) => void;
+  onChangeComment: (value: string) => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+}
+
+const UploadVerificationModal: React.FC<UploadVerificationModalProps> = ({
+  material,
+  selectedLevel,
+  comment,
+  saving,
+  onSelectLevel,
+  onChangeComment,
+  onCancel,
+  onConfirm,
+}) => {
+  const safeImageMime = material.originalFile?.mimeType && SAFE_IMAGE_TYPES.has(material.originalFile.mimeType)
+    ? material.originalFile.mimeType
+    : null;
+
+  const pdfBlobUrl = useMemo(() => {
+    if (material.originalFile?.mimeType === 'application/pdf' && material.originalFile.base64) {
+      return base64ToBlobUrl(material.originalFile.base64, 'application/pdf');
+    }
+    return null;
+  }, [material.originalFile]);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+        <div className="flex items-start justify-between px-6 pt-6 pb-4 border-b border-gray-100">
+          <div>
+            <h3 className="text-base font-black text-gray-900">Confirm Material Level</h3>
+            <p className="text-xs text-gray-500 mt-1">
+              Model predicted: <span className="font-semibold">{material.complexityResult.level}</span>
+            </p>
+          </div>
+          <button onClick={onCancel} className="p-2 rounded-full hover:bg-gray-100 text-gray-400">
+            <IoCloseOutline className="text-lg" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+          <div className="flex gap-4">
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">Original File</p>
+              {material.originalFile ? (
+                safeImageMime ? (
+                  <img
+                    src={`data:${safeImageMime};base64,${material.originalFile.base64}`}
+                    alt="Original uploaded material"
+                    className="w-full rounded-lg border border-gray-200"
+                  />
+                ) : pdfBlobUrl ? (
+                  <iframe
+                    src={pdfBlobUrl}
+                    className="w-full min-h-[420px] rounded-lg border border-gray-200"
+                    title="Original PDF"
+                  />
+                ) : DOCX_TYPES.has(material.originalFile.mimeType) ? (
+                  <div className="flex flex-col items-center justify-center gap-3 p-8 bg-blue-50 rounded-lg border border-blue-100 min-h-[240px]">
+                    <IoDocumentOutline className="text-5xl text-blue-400" />
+                    <div className="text-center">
+                      <p className="text-sm font-bold text-blue-700">{material.originalFile.name}</p>
+                      <p className="text-[11px] text-blue-500 mt-1">Word Document — no browser preview available</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-xs text-gray-400 italic p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    No preview available for this file type.
+                  </div>
+                )
+              ) : (
+                <div className="text-xs text-gray-400 italic p-4 bg-gray-50 rounded-lg border border-gray-200 min-h-[240px] flex items-center justify-center">
+                  No original file attached.
+                </div>
+              )}
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">Extracted Text</p>
+              <textarea
+                value={material.text}
+                readOnly
+                className="w-full min-h-[420px] bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs text-gray-700 leading-relaxed outline-none resize-none"
+              />
+            </div>
+          </div>
+
+          <div>
+            <div className="text-[11px] text-gray-500 mb-2">Choose the teacher-verified level:</div>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {(Object.values(ComplexityLevel) as ComplexityLevel[]).map(level => (
+                <button
+                  key={level}
+                  onClick={() => onSelectLevel(level)}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-colors ${
+                    selectedLevel === level
+                      ? 'bg-teal-600 text-white border-teal-600'
+                      : 'bg-white text-teal-700 border-teal-200 hover:border-teal-400'
+                  }`}
+                >
+                  {level}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-teal-700 mb-3">{LEVEL_DESCRIPTIONS[selectedLevel]}</p>
+
+            <textarea
+              value={comment}
+              onChange={e => onChangeComment(e.target.value)}
+              placeholder="Optional note for this decision"
+              className="w-full min-h-[80px] bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs outline-none focus:ring-1 focus:ring-teal-400"
+            />
+          </div>
+        </div>
+
+        <div className="px-6 pb-6 pt-2 flex items-center justify-end gap-2 border-t border-gray-100">
+          <button
+            onClick={onCancel}
+            disabled={saving}
+            className="px-4 py-2 text-xs font-semibold rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={saving}
+            className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors ${saving ? 'bg-gray-100 text-gray-400' : 'bg-teal-600 text-white hover:bg-teal-700'}`}
+          >
+            {saving ? 'Saving…' : 'Save & Continue'}
+          </button>
         </div>
       </div>
     </div>
@@ -507,7 +655,14 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
   const [selected, setSelected] = useState<LibraryMaterial | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [showUploadModal, setShowUploadModal] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [uploadFileName, setUploadFileName] = useState<string>('');
+  const [pendingUploadMaterial, setPendingUploadMaterial] = useState<LibraryMaterial | null>(null);
+  const [showUploadVerifyModal, setShowUploadVerifyModal] = useState(false);
+  const [uploadModalLevel, setUploadModalLevel] = useState<ComplexityLevel>(ComplexityLevel.LITERAL);
+  const [uploadModalComment, setUploadModalComment] = useState('');
+  const [savingUploadDecision, setSavingUploadDecision] = useState(false);
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [langFilter, setLangFilter] = useState<'all' | 'eng' | 'fil'>('all');
   const dragCount = useRef(0);
@@ -518,7 +673,6 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
     loadMaterialUploads().then(async ({ data, error }) => {
       if (!cancelled) {
         if (!error && data.length > 0) {
-          // Re-detect language for all loaded materials in parallel
           let langs: Array<'eng' | 'fil'>;
           try {
             langs = await Promise.all(data.map(m => detectLanguageAPI(m.text)));
@@ -538,7 +692,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
 
   const refreshMaterials = async () => {
     const { data, error } = await loadMaterialUploads();
-    if (error) return; // keep current state on error, same as original
+    if (error) return;
     if (data.length > 0) {
       let langs: Array<'eng' | 'fil'>;
       try {
@@ -561,16 +715,108 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
   };
 
   const handleDelete = async (id: string) => {
-    // Optimistic update
     setMaterials((prev) => prev.filter(m => m.id !== id));
     const { error } = await deleteMaterialUpload(id);
     if (error) console.error('Delete material failed:', error);
-    // Refresh from DB to stay in sync
     await refreshMaterials();
+  };
+
+  const handleVerifyMaterial = async (material: LibraryMaterial, level: ComplexityLevel, comment: string) => {
+    const saveRes = await saveMaterialTeacherVerification(material.id, { level, comment }, material.complexityResult);
+    if (saveRes.error) {
+      return { ok: false, message: `Could not save verification: ${saveRes.error}` };
+    }
+
+    let message = 'Teacher verification saved.';
+    let ok = true;
+    try {
+      const trainRes = await addTrainingSampleAPI(material.text, level);
+      message = trainRes.message || message;
+      if (trainRes.status !== 'ok') ok = false;
+    } catch (e: any) {
+      ok = false;
+      message = `Verification saved, but model training failed: ${e?.message || 'unknown error'}`;
+    }
+
+    const updated: LibraryMaterial = {
+      ...material,
+      teacherVerifiedLevel: level,
+      teacherVerifiedAt: new Date().toISOString(),
+      verificationComment: comment || undefined,
+      isVerified: true,
+      complexityResult: {
+        ...material.complexityResult,
+        level,
+      },
+    };
+
+    setMaterials(prev => prev.map(m => (m.id === material.id ? updated : m)));
+    await refreshMaterials();
+    return { ok, message };
+  };
+
+  const handleFinalizePendingUpload = async () => {
+    if (!pendingUploadMaterial) return;
+
+    setSavingUploadDecision(true);
+    const material: LibraryMaterial = {
+      ...pendingUploadMaterial,
+      teacherVerifiedLevel: uploadModalLevel,
+      teacherVerifiedAt: new Date().toISOString(),
+      verificationComment: uploadModalComment.trim() || undefined,
+      isVerified: true,
+      complexityResult: {
+        ...pendingUploadMaterial.complexityResult,
+        level: uploadModalLevel,
+      },
+    };
+
+    persist([material, ...materials]);
+
+    const { error } = await saveMaterialUpload({
+      material_name: material.name,
+      material_text: material.text,
+      complexity_level: material.teacherVerifiedLevel || material.complexityResult.level,
+      complexity_score: material.complexityResult.score,
+      complexity_result: {
+        ...material.complexityResult,
+        originalFile: material.originalFile ?? null,
+        teacherVerification: {
+          level: material.teacherVerifiedLevel,
+          comment: material.verificationComment || null,
+          verifiedAt: material.teacherVerifiedAt,
+        },
+      },
+      original_file: material.originalFile ?? null,
+      teacher_verified_level: material.teacherVerifiedLevel ?? null,
+      teacher_verified_at: material.teacherVerifiedAt ?? null,
+      verification_comment: material.verificationComment ?? null,
+      is_verified: true,
+    });
+
+    if (error) {
+      setUploadError(`Database error: ${error}`);
+    } else {
+      try {
+        const trainRes = await addTrainingSampleAPI(material.text, uploadModalLevel);
+        if (trainRes.status !== 'ok') {
+          setUploadError(trainRes.message || 'Sample saved but retraining is pending.');
+        }
+      } catch (e: any) {
+        setUploadError(`Saved material, but model training failed: ${e?.message || 'unknown error'}`);
+      }
+      await refreshMaterials();
+    }
+
+    setShowUploadVerifyModal(false);
+    setPendingUploadMaterial(null);
+    setUploadModalComment('');
+    setSavingUploadDecision(false);
   };
 
   const processFile = useCallback(async (file: File) => {
     setUploadError(null);
+    setUploadFileName(file.name);
     if (file.size > 10 * 1024 * 1024) { setUploadError('File too large (max 10 MB).'); return; }
 
     let text = '';
@@ -618,10 +864,23 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
       if ((!extractedText || extractedText.trim().length === 0) && base64 && (isImage || isPdf)) {
         let warningMessage = null;
         try {
-          const { text, warning } = await extractTextFromImageAPI(base64, mimeType);
-          warningMessage = warning;
-          extractedText = text;
-        } catch {
+          const ocrResult = await extractTextFromImageAPI(base64, mimeType);
+          const ocrError = (ocrResult as any)?.error;
+          if (ocrError === 'api_key_invalid') {
+            throw new Error('Gemini API key is expired or invalid. Please update GEMINI_API_KEY in .env.local and restart the backend.');
+          } else if (ocrError === 'no_api_key') {
+            throw new Error('No Gemini API key configured. Add GEMINI_API_KEY to .env.local.');
+          } else if (ocrError === 'ocr_timeout') {
+            throw new Error('OCR timed out. Try a smaller file or upload again.');
+          } else if (ocrError === 'ocr_unavailable') {
+            throw new Error('OCR service is unavailable because google-generativeai is not installed on the backend.');
+          } else if (ocrError === 'invalid_base64') {
+            throw new Error('Uploaded file data is invalid. Please upload the file again.');
+          }
+          warningMessage = ocrResult.warning ?? null;
+          extractedText = ocrResult.text;
+        } catch (e: any) {
+          if (e?.message?.includes('API key') || e?.message?.includes('Gemini')) throw e;
           // Preserve original error flow below
         }
         if (warningMessage) throw new Error(warningMessage);
@@ -650,27 +909,17 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
       }
       const materialWithLang: LibraryMaterial = { ...material, language: detectedLang };
 
-      persist([materialWithLang, ...materials]);
-
-      const { error } = await saveMaterialUpload({
-        material_name: material.name,
-        material_text: material.text,
-        complexity_level: material.complexityResult.level,
-        complexity_score: material.complexityResult.score,
-        complexity_result: material.complexityResult,
-      });
-
-      if (error) {
-        setUploadError(`Database error: ${error}`);
-      }
-      
-      await refreshMaterials();
+      setPendingUploadMaterial(materialWithLang);
+      setUploadModalLevel(materialWithLang.complexityResult.level);
+      setUploadModalComment('');
+      setShowUploadModal(false);
+      setShowUploadVerifyModal(true);
     } catch (e: any) {
       setUploadError(e.message || 'Analysis failed.');
     } finally {
       setUploading(false);
     }
-  }, [materials]);
+  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -722,12 +971,98 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
 
   return (
     <div className="flex flex-col h-full bg-[#F2F2F7]">
+      {showUploadModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-100">
+              <div>
+                <h2 className="text-base font-black text-gray-900">Upload Material (Mag-upload ng Materyal)</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Upload reading material for instant complexity analysis</p>
+              </div>
+              <button
+                onClick={() => { setShowUploadModal(false); setUploadError(null); }}
+                className="p-2 rounded-full hover:bg-gray-100 text-gray-400"
+              >
+                <IoCloseOutline className="text-lg" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+              <div
+                className={`border-2 border-dashed rounded-2xl p-6 flex flex-col items-center gap-2 cursor-pointer transition-colors ${
+                  isDragging ? 'border-teal-400 bg-teal-50' : 'border-gray-200 hover:border-teal-300 bg-gray-50'
+                }`}
+                onDragEnter={handleDragEnter}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {uploading ? (
+                  <>
+                    <div className="w-6 h-6 rounded-full border-2 border-teal-400 border-t-transparent animate-spin" />
+                    <div className="text-center">
+                      <div className="text-xs font-bold text-teal-600">Extracting and analyzing…</div>
+                      <div className="text-[10px] text-gray-400">{uploadFileName || 'Processing file'} · OCR via Gemini when needed</div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <IoCloudUploadOutline className={`text-3xl ${isDragging ? 'text-teal-500' : 'text-gray-300'}`} />
+                    <div className="text-center">
+                      <div className="text-xs font-bold text-gray-700">{uploadFileName || 'Click or drag a file'}</div>
+                      <div className="text-[10px] text-gray-400">TXT, MD, PDF, or image · Max 10MB</div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {uploadError && (
+                <div className="bg-red-50 border border-red-200 text-red-600 text-xs rounded-xl px-4 py-3 flex items-center justify-between">
+                  {uploadError}
+                  <button onClick={() => setUploadError(null)}><IoCloseOutline /></button>
+                </div>
+              )}
+
+              <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-blue-600 mb-1">
+                  Grade 7 Readability Check (Philippines DepEd)
+                </div>
+                <p className="text-xs text-blue-700 leading-relaxed">
+                  <span className="font-semibold">Literal</span> = Easy, students can read independently.{' '}
+                  <span className="font-semibold">Inferential</span> = Borderline, may need teacher support.{' '}
+                  <span className="font-semibold">Evaluative</span> = Above G7, not recommended without scaffolding.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showUploadVerifyModal && pendingUploadMaterial && (
+        <UploadVerificationModal
+          material={pendingUploadMaterial}
+          selectedLevel={uploadModalLevel}
+          comment={uploadModalComment}
+          saving={savingUploadDecision}
+          onSelectLevel={setUploadModalLevel}
+          onChangeComment={setUploadModalComment}
+          onCancel={() => {
+            setShowUploadVerifyModal(false);
+            setPendingUploadMaterial(null);
+            setUploadModalComment('');
+          }}
+          onConfirm={handleFinalizePendingUpload}
+        />
+      )}
+
       {selected && (
         <DetailModal
           material={selected}
           onClose={() => setSelected(null)}
           onDelete={handleDelete}
           onUpdate={handleUpdate}
+          onVerify={handleVerifyMaterial}
         />
       )}
 
@@ -744,7 +1079,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
           <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{materials.length}</span>
         </div>
         <button
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => { setUploadError(null); setShowUploadModal(true); }}
           disabled={uploading}
           className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-teal-500 hover:bg-teal-600 text-white text-xs font-semibold transition-colors disabled:opacity-60"
         >
@@ -876,39 +1211,10 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
             </div>
           )}
 
-          {/* Drop zone / empty state */}
+          {/* Empty-state helper text */}
           {!materialsLoading && materials.length === 0 && (
-            <div
-              onDragEnter={handleDragEnter}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className={`flex flex-col items-center justify-center h-60 rounded-2xl border-2 border-dashed cursor-pointer transition-all ${
-                isDragging ? 'border-teal-400 bg-teal-50' : 'border-gray-200 bg-white hover:border-teal-300'
-              }`}
-            >
-              <IoCloudUploadOutline className={`text-4xl mb-3 ${isDragging ? 'text-teal-500' : 'text-gray-300'}`} />
-              <p className="text-sm font-semibold text-gray-500">{isDragging ? 'Drop to analyze' : 'Upload your first material'}</p>
-              <p className="text-xs text-gray-400 mt-1">TXT, MD, PDF, or image — complexity will be measured automatically</p>
-            </div>
-          )}
-
-          {/* Drop overlay for non-empty library */}
-          {materials.length > 0 && (
-            <div
-              onDragEnter={handleDragEnter}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              className={`transition-all rounded-xl border-2 border-dashed text-center text-xs font-medium py-3 cursor-pointer ${
-                isDragging
-                  ? 'border-teal-400 bg-teal-50 text-teal-600'
-                  : 'border-gray-100 text-gray-300 hover:border-gray-200'
-              }`}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              {isDragging ? 'Drop to add to library' : '+ Drop a file here or click to upload'}
+            <div className="text-center py-8 text-sm text-gray-400">
+              Upload your first material to start your library.
             </div>
           )}
 
@@ -926,10 +1232,10 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
                 const meta = levelMeta[mat.complexityResult.level] ?? levelMeta[ComplexityLevel.LITERAL];
                 const cr = mat.complexityResult;
                 return (
-                  <button
+                  <div
                     key={mat.id}
                     onClick={() => setSelected(mat)}
-                    className="group text-left bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all relative overflow-hidden"
+                    className="group text-left bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all relative overflow-hidden cursor-pointer"
                   >
                     {/* Level color bar */}
                     <div className={`absolute top-0 left-0 right-0 h-1 rounded-t-2xl ${meta.dot}`} />
@@ -998,7 +1304,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
                     <div className={`mt-3 pt-3 border-t border-gray-50 text-[10px] font-medium ${meta.text}`}>
                       {meta.desc}
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>

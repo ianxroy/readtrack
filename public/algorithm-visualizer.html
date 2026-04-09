@@ -1,0 +1,1513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ReadTrack — Algorithm Visualizer</title>
+<style>
+/* ── Reset ── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f4f6fb; color: #1a1a2e; font-size: 13px; line-height: 1.5; }
+
+/* ── Page Header ── */
+.page-header {
+  background: linear-gradient(135deg, #1a237e 0%, #1565c0 100%);
+  color: white; padding: 20px 32px;
+  display: flex; flex-direction: column;
+  position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.header-top { display: flex; align-items: center; justify-content: space-between; }
+.page-header h1 { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
+.page-header .tagline { font-size: 11px; opacity: 0.75; margin-top: 2px; }
+.backend-badge {
+  padding: 5px 14px; border-radius: 20px; font-size: 11px; font-weight: 600;
+  border: 1px solid rgba(255,255,255,0.4);
+}
+.backend-badge.connected { background: rgba(76,175,80,0.25); }
+.backend-badge.disconnected { background: rgba(244,67,54,0.25); }
+.jump-links { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.jump-link {
+  font-size: 10px; color: rgba(255,255,255,0.7); text-decoration: none;
+  background: rgba(255,255,255,0.1); border-radius: 10px; padding: 2px 10px;
+  transition: background 0.15s;
+}
+.jump-link:hover { background: rgba(255,255,255,0.25); color: white; }
+
+/* ── Container ── */
+.container { max-width: 1100px; margin: 0 auto; padding: 24px 20px; display: flex; flex-direction: column; gap: 20px; }
+
+/* ── ML Tab Section ── */
+.ml-tabs { display: flex; gap: 6px; flex-wrap: wrap; padding: 14px 20px 0; border-bottom: 1px solid #eef0f5; background: #fafafa; }
+.ml-tab { padding: 7px 16px; font-size: 12px; font-weight: 600; border: none; border-radius: 8px 8px 0 0; cursor: pointer; background: #e8eaf6; color: #5c6bc0; transition: background 0.15s; }
+.ml-tab.active { background: #880e4f; color: white; }
+.ml-tab:hover:not(.active) { background: #c5cae9; }
+.ml-panel { display: none; padding: 20px; }
+.ml-panel.active { display: block; }
+.ml-flow { display: flex; flex-direction: column; gap: 0; margin-bottom: 20px; }
+.ml-flow-step { display: flex; align-items: flex-start; gap: 14px; position: relative; }
+.ml-flow-step:not(:last-child)::after { content:''; position: absolute; left: 15px; top: 36px; width: 2px; height: calc(100% - 4px); background: #e0e0e0; z-index: 0; }
+.ml-step-circle { width: 30px; height: 30px; border-radius: 50%; background: #880e4f; color: white; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; z-index: 1; margin-top: 2px; }
+.ml-step-body { flex: 1; padding-bottom: 20px; }
+.ml-step-title { font-weight: 700; font-size: 13px; color: #1a1a2e; margin-bottom: 4px; }
+.ml-step-desc { font-size: 12px; color: #555; margin-bottom: 10px; line-height: 1.6; }
+.ml-code { background: #1e1e2e; color: #cdd6f4; font-family: 'Consolas','Fira Code',monospace; font-size: 11.5px; border-radius: 8px; padding: 14px 16px; overflow-x: auto; line-height: 1.7; white-space: pre; margin-top: 6px; }
+.ml-code .c-kw  { color: #cba6f7; }  /* keyword */
+.ml-code .c-fn  { color: #89b4fa; }  /* function */
+.ml-code .c-str { color: #a6e3a1; }  /* string */
+.ml-code .c-num { color: #fab387; }  /* number */
+.ml-code .c-cm  { color: #6c7086; font-style: italic; }  /* comment */
+.ml-code .c-cls { color: #f38ba8; }  /* class */
+.ml-file-badge { display: inline-block; font-size: 10px; font-weight: 600; background: #f3e5f5; color: #880e4f; border-radius: 4px; padding: 2px 8px; margin-bottom: 6px; font-family: monospace; }
+.ml-arch-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
+.ml-arch-card { background: #f8f9ff; border: 1px solid #e0e4ff; border-radius: 8px; padding: 14px; }
+.ml-arch-card h4 { font-size: 12px; font-weight: 700; color: #283593; margin-bottom: 8px; }
+.ml-arch-card p  { font-size: 11px; color: #555; line-height: 1.6; }
+.ml-table { width: 100%; border-collapse: collapse; font-size: 11.5px; margin-top: 10px; }
+.ml-table th { background: #880e4f; color: white; padding: 7px 10px; text-align: left; font-weight: 600; }
+.ml-table td { padding: 6px 10px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+.ml-table tr:nth-child(even) td { background: #fafafa; }
+.ml-badge { display: inline-block; font-size: 10px; font-weight: 700; border-radius: 4px; padding: 1px 6px; }
+.ml-badge.green { background: #e8f5e9; color: #2e7d32; }
+.ml-badge.blue  { background: #e3f2fd; color: #1565c0; }
+.ml-badge.purple{ background: #f3e5f5; color: #6a1b9a; }
+.ml-badge.orange{ background: #fff3e0; color: #e65100; }
+
+/* ── Section Cards ── */
+.section-card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); overflow: hidden; }
+.section-header { padding: 13px 20px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #eef0f5; }
+.section-number { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; color: white; }
+.section-title { font-size: 14px; font-weight: 600; }
+.section-subtitle { font-size: 11px; color: #666; margin-top: 1px; }
+.section-body { padding: 18px 20px; }
+
+/* Section accent colors */
+.s1 .section-number { background: #1565c0; }
+.s1 .section-header { border-left: 4px solid #1565c0; }
+.s2 .section-number { background: #2e7d32; }
+.s2 .section-header { border-left: 4px solid #2e7d32; }
+.s3 .section-number { background: #6a1b9a; }
+.s3 .section-header { border-left: 4px solid #6a1b9a; }
+.s4 .section-number { background: #e65100; }
+.s4 .section-header { border-left: 4px solid #e65100; }
+.s5 .section-number { background: #00695c; }
+.s5 .section-header { border-left: 4px solid #00695c; }
+.s6 .section-number { background: #283593; }
+.s6 .section-header { border-left: 4px solid #283593; }
+.s7 .section-number { background: #880e4f; }
+.s7 .section-header { border-left: 4px solid #880e4f; }
+
+/* ── Error Banner ── */
+.error-banner { background: #ffebee; border: 1px solid #ef9a9a; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; display: none; font-size: 12px; color: #c62828; }
+.error-banner.visible { display: block; }
+
+/* ── Loading Spinner ── */
+.spinner { display: inline-block; width: 16px; height: 16px; vertical-align: middle; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 6px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Section 1: Input ── */
+.essay-textarea { width: 100%; border: 1px solid #d0d5e8; border-radius: 8px; padding: 12px; font-size: 13px; font-family: inherit; resize: vertical; min-height: 110px; background: #fafbff; transition: border-color 0.2s; }
+.essay-textarea:focus { outline: none; border-color: #1565c0; box-shadow: 0 0 0 3px rgba(21,101,192,0.1); }
+.input-row { display: flex; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+.btn-primary { background: #1565c0; color: white; border: none; border-radius: 8px; padding: 10px 24px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; transition: background 0.2s; }
+.btn-primary:hover { background: #1976d2; }
+.btn-primary:disabled { background: #90a4ae; cursor: not-allowed; }
+.lang-badge { background: #e3f2fd; color: #1565c0; border-radius: 12px; padding: 4px 12px; font-size: 11px; font-weight: 600; }
+.api-note { font-size: 10px; color: #aaa; font-family: monospace; }
+.section-error { background: #ffebee; color: #c62828; border-radius: 6px; padding: 8px 12px; font-size: 12px; margin-top: 10px; display: none; }
+.section-error.visible { display: block; }
+
+/* ── Footer ── */
+.page-footer { text-align: center; padding: 20px; color: #aaa; font-size: 11px; }
+
+/* ── Section 2: Feature Grid ── */
+.feature-legend { display: flex; gap: 14px; margin-bottom: 12px; flex-wrap: wrap; }
+.legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 500; }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+.feature-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+@media (max-width: 800px) { .feature-grid { grid-template-columns: repeat(2, 1fr); } }
+
+.feature-chip { border-radius: 8px; padding: 9px 11px; border: 1px solid #e0e4f0; transition: transform 0.15s; }
+.feature-chip:hover { transform: translateY(-1px); }
+.feature-chip .fname { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #555; }
+.feature-chip .fval { font-size: 17px; font-weight: 800; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.feature-chip .fdesc { font-size: 10px; color: #888; margin-top: 1px; }
+.cefr-hidden-note { font-size: 11px; color: #7b1fa2; background: #f3e5f5; border-radius: 6px; padding: 6px 12px; margin-bottom: 10px; }
+.feature-chip .cefr-words { font-size: 9px; color: #7b1fa2; margin-top: 4px; line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; cursor: help; }
+.feature-chip.server-only { opacity: 0.55; }
+.feature-chip.server-only .fval { font-size: 12px; font-style: italic; color: #aaa; }
+
+.fc-vocab  { background: #e8f5e9; border-color: #a5d6a7; }
+.fc-vocab  .fval { color: #2e7d32; }
+.fc-syntax { background: #e3f2fd; border-color: #90caf9; }
+.fc-syntax .fval { color: #1565c0; }
+.fc-cefr   { background: #f3e5f5; border-color: #ce93d8; }
+.fc-cefr   .fval { color: #6a1b9a; }
+.fc-read   { background: #fff3e0; border-color: #ffcc80; }
+.fc-read   .fval { color: #e65100; }
+
+/* ── Section 3: Formulas ── */
+.formula-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 700px) { .formula-grid { grid-template-columns: 1fr; } }
+
+.formula-block { background: #fafbff; border: 1px solid #e0e4f0; border-radius: 8px; padding: 13px 15px; }
+.formula-title { font-size: 12px; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.formula-eq  { font-family: 'Courier New', monospace; font-size: 13px; margin-bottom: 4px; }
+.formula-sub { font-family: 'Courier New', monospace; font-size: 11px; color: #555; margin-bottom: 3px; }
+.formula-result { font-size: 14px; font-weight: 800; color: #e65100; margin-top: 6px; }
+
+.svm-box { background: #f3e5f5; border: 1px solid #ce93d8; border-radius: 10px; padding: 14px 16px; margin-top: 12px; }
+.svm-box-title { font-weight: 700; color: #6a1b9a; margin-bottom: 6px; font-size: 13px; }
+.svm-box-code  { font-family: monospace; font-size: 11px; color: #444; line-height: 1.7; margin-bottom: 8px; }
+.svm-verdict   { font-size: 16px; font-weight: 800; }
+.confidence-tag { display: inline-block; background: #e3f2fd; color: #1565c0; border-radius: 10px; padding: 2px 10px; font-size: 11px; margin-left: 8px; font-weight: 600; }
+
+/* ── Shared layout ── */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+.subsection-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #555; margin-bottom: 10px; }
+
+/* ── Section 4: DepEd Scale ── */
+.verdict-band { border-radius: 10px; padding: 13px 15px; margin-bottom: 8px; border: 2px solid transparent; transition: border-color 0.2s; }
+.verdict-band.active { border-color: #1565c0 !important; }
+.verdict-band-label { font-size: 15px; font-weight: 700; }
+.verdict-band-sub   { font-size: 11px; margin-top: 3px; color: #555; }
+.verdict-band-g7    { font-size: 11px; font-weight: 600; margin-top: 5px; }
+.verdict-badge { float: right; display: inline-block; border-radius: 12px; padding: 3px 12px; font-size: 10px; font-weight: 700; color: white; }
+.vb-literal     { background: #e8f5e9; border-color: #c8e6c9; }
+.vb-literal     .verdict-band-label { color: #2e7d32; }
+.vb-literal     .verdict-band-g7    { color: #2e7d32; }
+.vb-literal     .verdict-badge      { background: #2e7d32; }
+.vb-inferential { background: #fff8e1; border-color: #ffecb3; }
+.vb-inferential .verdict-band-label { color: #f57f17; }
+.vb-inferential .verdict-band-g7    { color: #f57f17; }
+.vb-inferential .verdict-badge      { background: #f57f17; }
+.vb-evaluative  { background: #fce4ec; border-color: #f8bbd0; }
+.vb-evaluative  .verdict-band-label { color: #c62828; }
+.vb-evaluative  .verdict-band-g7    { color: #c62828; }
+.vb-evaluative  .verdict-badge      { background: #c62828; }
+
+.prof-bands { display: flex; flex-direction: column; gap: 7px; margin-top: 14px; }
+.prof-band { border-radius: 8px; padding: 9px 13px; border: 2px solid transparent; display: flex; align-items: center; justify-content: space-between; transition: border-color 0.2s; }
+.prof-band.active { border-color: #1565c0 !important; }
+.prof-label { font-weight: 700; font-size: 13px; }
+.prof-desc  { font-size: 11px; color: #555; margin-top: 1px; }
+.pb-mahusay     { background: #e8f5e9; border-color: #c8e6c9; }
+.pb-mahusay     .prof-label { color: #2e7d32; }
+.pb-papaunlad   { background: #fff8e1; border-color: #ffecb3; }
+.pb-papaunlad   .prof-label { color: #f57f17; }
+.pb-nagsisimula { background: #fce4ec; border-color: #f8bbd0; }
+.pb-nagsisimula .prof-label { color: #c62828; }
+.current-tag { display: inline-block; background: #1565c0; color: white; border-radius: 10px; padding: 2px 10px; font-size: 10px; font-weight: 700; }
+
+.slider-section { display: flex; flex-direction: column; gap: 10px; }
+.slider-row { display: grid; grid-template-columns: 150px 1fr 55px; align-items: center; gap: 10px; }
+.slider-label { font-size: 11px; font-weight: 600; color: #444; }
+.slider-val { font-size: 12px; font-weight: 700; color: #1565c0; text-align: right; font-variant-numeric: tabular-nums; }
+.slider-hint { font-size: 10px; color: #888; margin-top: -4px; grid-column: 2; }
+.slider-info-note { font-size: 10px; color: #aaa; font-style: italic; }
+input[type=range] { width: 100%; accent-color: #1565c0; cursor: pointer; }
+
+.live-formula-box { background: #fff3e0; border: 1px solid #ffcc80; border-radius: 8px; padding: 11px 13px; margin-top: 12px; }
+.live-formula-title { font-size: 11px; font-weight: 700; color: #e65100; margin-bottom: 5px; }
+.live-formula-eq    { font-family: monospace; font-size: 12px; margin-bottom: 2px; }
+.live-formula-result { font-size: 15px; font-weight: 800; margin-top: 6px; }
+.threshold-note { font-size: 10px; color: #888; margin-top: 3px; }
+
+/* ── Section 5: Teacher Feedback Loop ── */
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.stat-box  { background: #f0f4ff; border-radius: 8px; padding: 10px 12px; text-align: center; }
+.stat-val  { font-size: 24px; font-weight: 800; color: #1565c0; font-variant-numeric: tabular-nums; }
+.stat-lbl  { font-size: 10px; color: #666; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.4px; }
+.stat-meta { background: #f0f4ff; border-radius: 8px; padding: 11px 13px; font-size: 11px; line-height: 1.8; }
+.stat-meta code { background: #dce8ff; padding: 1px 5px; border-radius: 3px; font-size: 10px; }
+.pipeline { display: flex; flex-direction: column; }
+.pipe-step { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; }
+.pipe-dot  { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: white; margin-top: 1px; }
+.pipe-line { width: 2px; background: #d0d5e8; margin-left: 13px; height: 14px; }
+.pipe-text b    { display: block; font-weight: 600; color: #1a1a2e; font-size: 12px; }
+.pipe-text span { color: #666; font-size: 11px; }
+.retry-btn { background: none; border: 1px solid #1565c0; color: #1565c0; border-radius: 6px; padding: 4px 12px; font-size: 11px; cursor: pointer; margin-top: 8px; }
+
+/* ── Section 6: Rubric Scorer ── */
+.rubric-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 16px; }
+@media (max-width: 800px) { .rubric-grid { grid-template-columns: repeat(2, 1fr); } }
+.rubric-dimension { background: #fafbff; border: 1px solid #e0e4f0; border-radius: 8px; padding: 11px 12px; }
+.rubric-dim-name  { font-size: 12px; font-weight: 700; color: #333; margin-bottom: 8px; }
+.score-buttons    { display: flex; gap: 5px; }
+.score-btn {
+  flex: 1; padding: 7px 0; border: 1px solid #d0d5e8; border-radius: 6px;
+  background: white; cursor: pointer; font-weight: 700; font-size: 13px;
+  color: #555; transition: all 0.15s; position: relative;
+}
+.score-btn:hover   { border-color: #1565c0; color: #1565c0; background: #f0f4ff; }
+.score-btn.selected { background: #1565c0; color: white; border-color: #1565c0; }
+.score-btn-tooltip {
+  position: absolute; bottom: 110%; left: 50%; transform: translateX(-50%);
+  background: #1a1a2e; color: white; font-size: 10px; font-weight: 400;
+  padding: 5px 8px; border-radius: 5px; white-space: nowrap; pointer-events: none;
+  opacity: 0; transition: opacity 0.15s; z-index: 10; min-width: 120px; text-align: center;
+}
+.score-btn:hover .score-btn-tooltip { opacity: 1; }
+
+.rubric-total-row {
+  display: flex; align-items: center; gap: 14px; margin-bottom: 14px;
+  background: #f0f4ff; border-radius: 8px; padding: 12px 16px; flex-wrap: wrap;
+}
+.total-score { font-size: 28px; font-weight: 800; color: #1565c0; font-variant-numeric: tabular-nums; }
+.total-label { font-size: 11px; color: #666; }
+.deped-verdict { margin-left: auto; font-size: 15px; font-weight: 700; padding: 6px 18px; border-radius: 20px; }
+.dv-nagsisimula { background: #fce4ec; color: #c62828; }
+.dv-papaunlad   { background: #fff8e1; color: #f57f17; }
+.dv-mahusay     { background: #e8f5e9; color: #2e7d32; }
+
+.comparison-box {
+  border: 1px solid #e0e4f0; border-radius: 8px; padding: 12px 16px;
+  margin-bottom: 14px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+}
+.cmp-item { text-align: center; }
+.cmp-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; color: #888; }
+.cmp-value { font-size: 14px; font-weight: 700; margin-top: 2px; }
+.cmp-match    { background: #e8f5e9; border-color: #a5d6a7; }
+.cmp-mismatch { background: #fff8e1; border-color: #ffe082; }
+.cmp-status { font-size: 11px; font-style: italic; color: #555; margin-left: auto; }
+
+.lang-selector { display: flex; gap: 8px; margin-bottom: 14px; align-items: center; }
+.lang-btn { padding: 5px 16px; border: 1px solid #d0d5e8; border-radius: 20px; background: white; cursor: pointer; font-size: 12px; font-weight: 600; color: #555; }
+.lang-btn.active { background: #1565c0; color: white; border-color: #1565c0; }
+
+.btn-retrain { background: #00695c; color: white; border: none; border-radius: 8px; padding: 11px 28px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s; }
+.btn-retrain:hover    { background: #00796b; }
+.btn-retrain:disabled { background: #90a4ae; cursor: not-allowed; }
+.retrain-result { margin-top: 12px; background: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 8px; padding: 12px 16px; display: none; font-size: 12px; }
+.retrain-result.visible { display: block; }
+.retrain-result strong { font-size: 14px; color: #2e7d32; }
+.retrain-error { margin-top: 12px; background: #ffebee; border: 1px solid #ef9a9a; border-radius: 8px; padding: 10px 14px; display: none; font-size: 12px; color: #c62828; }
+.retrain-error.visible { display: block; }
+
+/* ── Print / Export ── */
+@media print {
+  .page-header { position: static; box-shadow: none; }
+  .jump-links, .backend-badge, .btn-primary, .btn-retrain,
+  .input-row button, input[type="range"], .score-btn,
+  .retrain-actions, .api-note { display: none !important; }
+  .section-card { box-shadow: none; border: 1px solid #ddd; break-inside: avoid; }
+  body { background: white; }
+  .container { padding: 12px; }
+}
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <div class="header-top">
+    <div>
+      <h1>ReadTrack — Algorithm Visualizer</h1>
+      <div class="tagline">Step-by-step: how a student essay is analyzed, scored, and classified</div>
+    </div>
+    <div class="backend-badge disconnected" id="backendBadge">⬤ Checking backend…</div>
+  </div>
+  <div class="jump-links">
+    <a class="jump-link" href="#sec1">① Input</a>
+    <a class="jump-link" href="#sec2">② Features</a>
+    <a class="jump-link" href="#sec3">③ Formulas</a>
+    <a class="jump-link" href="#sec4">④ DepEd Scale</a>
+    <a class="jump-link" href="#sec5">⑤ Teacher Loop</a>
+    <a class="jump-link" href="#sec6">⑥ Rubric Scorer</a>
+    <a class="jump-link" href="#sec7">⑦ ML Code</a>
+  </div>
+</div>
+
+<div class="container" id="main">
+  <div class="error-banner" id="globalError"></div>
+</div>
+
+<div class="page-footer">ReadTrack Algorithm Visualizer · Thesis Defense Reference · 2026</div>
+
+<script>
+const API = 'http://localhost:8000';
+let analysisResult = null;
+let complexityResult = null;
+let detectedLang = 'en'; // 'en' or 'tl' — set after each analysis
+
+const PROF_LABELS = {
+  en: { Mahusay: 'Proficient', Papaunlad: 'Developing', Nagsisimula: 'Beginning' },
+  tl: { Mahusay: 'Mahusay',   Papaunlad: 'Papaunlad',  Nagsisimula: 'Nagsisimula' },
+};
+function profLabel(key) { return PROF_LABELS[detectedLang]?.[key] ?? key; }
+
+async function checkBackend() {
+  const badge = document.getElementById('backendBadge');
+  try {
+    const r = await fetch(`${API}/health`, { signal: AbortSignal.timeout(3000) });
+    if (r.ok) {
+      badge.textContent = '● Connected to backend';
+      badge.className = 'backend-badge connected';
+      return true;
+    }
+  } catch (_) {}
+  badge.textContent = '✕ Backend offline';
+  badge.className = 'backend-badge disconnected';
+  showGlobalError(`Backend unreachable at ${API}. Start the backend with: cd backend && uvicorn main:app --reload --port 8000`);
+  return false;
+}
+
+function showGlobalError(msg) {
+  const el = document.getElementById('globalError');
+  el.textContent = msg;
+  el.classList.add('visible');
+}
+function hideGlobalError() {
+  document.getElementById('globalError').classList.remove('visible');
+}
+
+// Stub builders — replaced section by section below
+function buildSection2() {
+  // /analyze/complexity returns fields at top level (no metrics wrapper); key is "readability"
+  // /analyze/student returns cefrDistribution and vocabularyRichness under metrics
+  const am = analysisResult?.metrics || {};
+  const cefr = am.cefrDistribution || {};
+  const wc = complexityResult?.wordCount || 1;
+  const ri = complexityResult?.readability || am.readability || {};
+
+  const rawTtr = am.vocabularyRichness != null ? am.vocabularyRichness / 100 : null;
+  const ttr = rawTtr != null ? rawTtr.toFixed(3) : '—';
+  const asl = complexityResult?.avgSentenceLength != null ? complexityResult.avgSentenceLength.toFixed(1) : '—';
+  const dwr = complexityResult?.difficultWordRatio != null ? complexityResult.difficultWordRatio.toFixed(1) + '%' : '—';
+  const advCount = (cefr.C1 || 0) + (cefr.C2 || 0);
+  const advRatio = wc > 1 ? (advCount / wc).toFixed(3) : '—';
+  const fk  = ri.flesch_kincaid != null ? ri.flesch_kincaid.toFixed(1) : '—';
+  const fog = ri.gunning_fog    != null ? ri.gunning_fog.toFixed(1)    : '—';
+
+  const byLevel = am.cefrWordsByLevel || {};
+  const cefrVal = (key) => {
+    const count = cefr[key] || 0;
+    const pct = wc > 0 ? ((count/wc)*100).toFixed(1) : '0.0';
+    return count > 0 ? `${pct}% (${count})` : '—';
+  };
+  const cefrWords = (key) => (byLevel[key] || []).slice(0, 20).join(', ') || '—';
+  const basicCount = (cefr.A1||0) + (cefr.A2||0);
+  const indCount   = (cefr.B1||0) + (cefr.B2||0);
+  const profCount  = (cefr.C1||0) + (cefr.C2||0);
+  const groupVal = (count) => count > 0 ? `${wc > 0 ? ((count/wc)*100).toFixed(1) : '0.0'}% (${count})` : '—';
+
+  const chips = [
+    { cat:'fc-vocab',  name:'TTR',              val: ttr,           desc:'Unique / total words' },
+    { cat:'fc-syntax', name:'Avg Sent Length',  val: asl,           desc:'Words per sentence' },
+    { cat:'fc-read',   name:'Difficult Word %', val: dwr,           desc:'≥ 3 syllables' },
+    { cat:'fc-cefr',   name:'Adv CEFR Ratio',   val: advRatio,      desc:'C1/C2 word fraction' },
+    { cat:'fc-cefr',   name:'CEFR A1', val: cefrVal('A1'), desc:'Basic', words: cefrWords('A1') },
+    { cat:'fc-cefr',   name:'CEFR A2', val: cefrVal('A2'), desc:'Elementary', words: cefrWords('A2') },
+    { cat:'fc-cefr',   name:'CEFR B1', val: cefrVal('B1'), desc:'Intermediate', words: cefrWords('B1') },
+    { cat:'fc-cefr',   name:'CEFR B2', val: cefrVal('B2'), desc:'Upper-Intermediate', words: cefrWords('B2') },
+    { cat:'fc-cefr',   name:'CEFR C1', val: cefrVal('C1'), desc:'Advanced',           words: cefrWords('C1') },
+    { cat:'fc-cefr',   name:'CEFR C2', val: cefrVal('C2'), desc:'Mastery',            words: cefrWords('C2') },
+    { cat:'fc-syntax', name:'Verb Ratio',         val: complexityResult?.verbRatio != null ? complexityResult.verbRatio.toFixed(3) : '—', desc:'Verb tokens / total' },
+    { cat:'fc-syntax', name:'Noun Ratio',         val: complexityResult?.nounRatio != null ? complexityResult.nounRatio.toFixed(3) : '—', desc:'Noun tokens / total' },
+    { cat:'fc-syntax', name:'Adj Ratio',          val: complexityResult?.adjRatio  != null ? complexityResult.adjRatio.toFixed(3)  : '—', desc:'Adj tokens / total' },
+    { cat:'fc-syntax', name:'Clause Density',     val: complexityResult?.clauseDensity != null ? complexityResult.clauseDensity.toFixed(3) : '—', desc:'Verbs / sentences' },
+    { cat:'fc-syntax', name:'Structure Score',    val: (complexityResult?.clauseDensity != null && complexityResult?.avgSentenceLength != null) ? Math.min(100, (complexityResult.clauseDensity*10 + complexityResult.avgSentenceLength*2)).toFixed(1) : '—', desc:'(CD×10)+(ASL×2)' },
+    { cat:'fc-syntax', name:'Sent Complexity',    val: complexityResult?.avgSentenceLength != null ? Math.min(100, complexityResult.avgSentenceLength * 4).toFixed(1) : '—', desc:'ASL × 4, cap 100' },
+    { cat:'fc-syntax', name:'Avg Dep Distance',   val: complexityResult?.avgDepDistance != null ? complexityResult.avgDepDistance.toFixed(3) : '—', desc:'Syntax tree depth' },
+    { cat:'fc-read',   name:'Flesch-Kincaid',     val: fk,            desc:'Grade level' },
+    { cat:'fc-read',   name:'Gunning Fog',        val: fog,           desc:'Years education needed' },
+    { cat:'fc-syntax', name:'Punct Density',      val: complexityResult?.punctDensity   != null ? complexityResult.punctDensity.toFixed(3)   : '—', desc:'Punctuation / total' },
+    { cat:'fc-syntax', name:'Sent Len StdDev',    val: complexityResult?.sentLenStdDev  != null ? complexityResult.sentLenStdDev.toFixed(3)  : '—', desc:'Sentence "burstiness"' },
+    { cat:'fc-cefr',   name:'% Basic CEFR',  val: groupVal(basicCount), desc:'A1–A2 words', words: [...(byLevel.A1||[]), ...(byLevel.A2||[])].slice(0,20).join(', ') || '—' },
+    { cat:'fc-cefr',   name:'% Independent', val: groupVal(indCount),   desc:'B1–B2 words', words: [...(byLevel.B1||[]), ...(byLevel.B2||[])].slice(0,20).join(', ') || '—' },
+    { cat:'fc-cefr',   name:'% Proficient',  val: groupVal(profCount),  desc:'C1–C2 words', words: [...(byLevel.C1||[]), ...(byLevel.C2||[])].slice(0,20).join(', ') || '—' },
+  ];
+
+  const visibleChips = detectedLang === 'tl' ? chips.filter(c => c.cat !== 'fc-cefr') : chips;
+  const chipHtml = visibleChips.map(c => `
+    <div class="feature-chip ${c.cat}${c.serverOnly ? ' server-only' : ''}">
+      <div class="fname">${c.name}</div>
+      <div class="fval">${c.serverOnly ? '— (spaCy)' : c.val}</div>
+      <div class="fdesc">${c.desc}</div>
+      ${c.words && c.words !== '—' ? `<div class="cefr-words" title="${c.words}">${c.words}</div>` : ''}
+    </div>`).join('');
+
+  return `
+  <div class="section-card s2" id="sec2">
+    <div class="section-header">
+      <div class="section-number">2</div>
+      <div>
+        <div class="section-title">Feature Extraction — 24-Dimensional Vector</div>
+        <div class="section-subtitle">Computed by spaCy en_core_web_sm + cefrpy · Each value feeds directly into the SVM classifier</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <div class="feature-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#2e7d32"></div>Vocabulary</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#1565c0"></div>Syntax / Structure</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#6a1b9a"></div>CEFR Levels</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#e65100"></div>Readability</div>
+        <div class="legend-item" style="opacity:0.55"><div class="legend-dot" style="background:#aaa"></div>Server-side only (spaCy)</div>
+      </div>
+      ${detectedLang === 'tl' ? '<div class="cefr-hidden-note">ℹ CEFR features hidden — cefrpy is English-only. Filipino essays use 0 for all CEFR dimensions.</div>' : ''}
+      <div class="feature-grid">${chipHtml}</div>
+    </div>
+  </div>`;
+}
+
+function countSyllables(word) {
+  word = word.toLowerCase().replace(/[^a-z]/g, '');
+  if (!word) return 0;
+  const vowels = 'aeiouy';
+  let count = vowels.includes(word[0]) ? 1 : 0;
+  for (let i = 1; i < word.length; i++) {
+    if (vowels.includes(word[i]) && !vowels.includes(word[i-1])) count++;
+  }
+  if (word.endsWith('e')) count--;
+  return Math.max(1, count);
+}
+
+function buildSection3() {
+  const ri = complexityResult?.readability || analysisResult?.metrics?.readability || {};
+  const wc = complexityResult?.wordCount || 0;
+  const am3 = analysisResult?.metrics || {};
+  const cefr3 = am3.cefrDistribution || {};
+
+  const asl = complexityResult?.avgSentenceLength != null ? parseFloat(complexityResult.avgSentenceLength).toFixed(1) : '?';
+  const dwr = complexityResult?.difficultWordRatio != null ? parseFloat(complexityResult.difficultWordRatio).toFixed(2) : '?';
+  const fk  = ri.flesch_kincaid != null ? ri.flesch_kincaid.toFixed(2) : '?';
+  const fog = ri.gunning_fog    != null ? ri.gunning_fog.toFixed(2)    : '?';
+  const ttr = am3.vocabularyRichness != null ? (am3.vocabularyRichness / 100).toFixed(3) : '?';
+  const advC = (cefr3.C1 || 0) + (cefr3.C2 || 0);
+
+  const essay = document.getElementById('essayInput').value.trim();
+  const words = essay.match(/\b\w+\b/g) || [];
+  const sentences = essay.split(/[.!?]+/).filter(s => s.trim()).length || 1;
+  const uniqueWords = new Set(words.map(w => w.toLowerCase())).size;
+  const syllableCount = words.reduce((s, w) => s + countSyllables(w), 0);
+  const complexWords = words.filter(w => countSyllables(w) >= 3).length;
+
+  const level = complexityResult?.level || '—';
+  const proficiency = analysisResult?.proficiency || '—';
+  const score = complexityResult?.score != null ? complexityResult.score.toFixed(1) : '—';
+
+  const dwr_num  = complexityResult?.difficultWordRatio != null ? parseFloat(complexityResult.difficultWordRatio) : 0;
+  const asl_num  = complexityResult?.avgSentenceLength  != null ? parseFloat(complexityResult.avgSentenceLength)  : 0;
+  const adv_num  = typeof advC === 'number' ? advC : 0;
+  const cs = ((asl_num * 3) + (dwr_num * 4) + (adv_num * 3)).toFixed(1);
+  const csThreshold = parseFloat(cs) < 40 ? 'Literal (< 40)' : parseFloat(cs) < 75 ? 'Inferential (< 75)' : 'Evaluative (≥ 75)';
+  const dwrNum = dwr.replace('%','');
+
+  return `
+  <div class="section-card s3" id="sec3">
+    <div class="section-header">
+      <div class="section-number">3</div>
+      <div>
+        <div class="section-title">Score Computation — Formulas with Exact Values</div>
+        <div class="section-subtitle">Every formula step-by-step using the actual numbers from this essay</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <div class="formula-grid">
+
+        <div class="formula-block">
+          <div class="formula-title" style="color:#2e7d32">📐 TTR — Type-Token Ratio</div>
+          <div class="formula-eq">TTR = unique_words / total_words</div>
+          <div class="formula-sub">= ${uniqueWords} / ${words.length}</div>
+          <div class="formula-result">= ${ttr}</div>
+        </div>
+
+        <div class="formula-block">
+          <div class="formula-title" style="color:#1565c0">📐 Average Sentence Length</div>
+          <div class="formula-eq">ASL = total_words / total_sentences</div>
+          <div class="formula-sub">= ${words.length} / ${sentences}</div>
+          <div class="formula-result">= ${asl} words/sentence</div>
+        </div>
+
+        <div class="formula-block">
+          <div class="formula-title" style="color:#e65100">📐 Difficult Word Ratio</div>
+          <div class="formula-eq">DWR = (complex_words / total_words) × 100</div>
+          <div class="formula-sub">complex words (≥ 3 syllables) = ${complexWords}</div>
+          <div class="formula-sub">= (${complexWords} / ${words.length}) × 100</div>
+          <div class="formula-result">= ${dwrNum}%</div>
+        </div>
+
+        <div class="formula-block">
+          <div class="formula-title" style="color:#e65100">📐 Flesch-Kincaid Grade Level</div>
+          <div class="formula-eq">FK = (0.39 × ASL) + (11.8 × Syl/W) − 15.59</div>
+          <div class="formula-sub">syllables = ${syllableCount}, words = ${words.length}</div>
+          <div class="formula-sub">= (0.39 × ${asl}) + (11.8 × ${(syllableCount/Math.max(words.length,1)).toFixed(3)}) − 15.59</div>
+          <div class="formula-result">= ${fk} → Grade ${isNaN(parseFloat(fk)) ? '?' : Math.round(parseFloat(fk))} reading level <span style="font-size:10px;color:#888">(from backend)</span></div>
+        </div>
+
+        <div class="formula-block">
+          <div class="formula-title" style="color:#e65100">📐 Gunning Fog Index</div>
+          <div class="formula-eq">Fog = 0.4 × (ASL + 100 × CW/W)</div>
+          <div class="formula-sub">CW (≥ 3 syllables) = ${complexWords}</div>
+          <div class="formula-sub">= 0.4 × (${asl} + 100 × ${complexWords}/${words.length})</div>
+          <div class="formula-sub">= 0.4 × (${asl} + ${(100 * complexWords / Math.max(words.length,1)).toFixed(2)})</div>
+          <div class="formula-result">= ${fog} → ~Grade ${isNaN(parseFloat(fog)) ? '?' : Math.round(parseFloat(fog))} education needed</div>
+        </div>
+
+        <div class="formula-block">
+          <div class="formula-title" style="color:#1565c0">📐 Structure Score (partial)</div>
+          <div class="formula-eq">SS = min(100, (CD × 10) + (ASL × 2))</div>
+          <div class="formula-sub">CD (clause density) = computed server-side by spaCy</div>
+          <div class="formula-sub">ASL component = ${(asl_num * 2).toFixed(1)}</div>
+          <div class="formula-result">Full SS requires spaCy verb count (server-side)</div>
+        </div>
+
+        <div class="formula-block" style="grid-column: span 2">
+          <div class="formula-title" style="color:#6a1b9a">📐 Heuristic Complexity Score (CS)</div>
+          <div class="formula-eq">CS = (ASL × 3) + (DWR × 4) + (AdvCEFR_count × 3)</div>
+          <div class="formula-sub">= (${asl} × 3) + (${dwrNum} × 4) + (${advC} × 3)</div>
+          <div class="formula-sub">= ${(asl_num*3).toFixed(2)} + ${(dwr_num*4).toFixed(2)} + ${(adv_num*3).toFixed(2)}</div>
+          <div class="formula-result">= ${cs} → <strong>${csThreshold}</strong></div>
+          <div style="font-size:10px;color:#888;margin-top:4px;">Threshold: &lt;40 Literal · &lt;75 Inferential · ≥75 Evaluative</div>
+        </div>
+
+      </div>
+
+      <div class="svm-box">
+        <div class="svm-box-title">🤖 SVM Model Prediction</div>
+        <div class="svm-box-code">
+          feature_vector[24] → StandardScaler.transform() → SVC(kernel="rbf", C=10, gamma="scale")<br>
+          predict() → label index → labels = ["Literal", "Inferential", "Evaluative"]
+        </div>
+        <div class="svm-verdict">
+          Complexity: <span style="color:#e65100">${level}</span>
+          <span class="confidence-tag">score: ${score}</span>
+          &nbsp;&nbsp;|&nbsp;&nbsp;
+          Proficiency: <span style="color:#6a1b9a">${profLabel(proficiency)}</span>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+function buildSection4() {
+  const level = complexityResult?.level || 'Literal';
+  const proficiency = analysisResult?.proficiency || 'Nagsisimula';
+  const cefr4 = analysisResult?.metrics?.cefrDistribution || {};
+
+  const initAsl = complexityResult?.avgSentenceLength != null ? parseFloat(complexityResult.avgSentenceLength).toFixed(1) : '9.0';
+  const initDwr = complexityResult?.difficultWordRatio != null ? parseFloat(complexityResult.difficultWordRatio).toFixed(1) : '15.0';
+  const initAdv = (cefr4.C1 || 0) + (cefr4.C2 || 0) || 2;
+
+  const essay = document.getElementById('essayInput').value.trim();
+  const words = essay.match(/\b\w+\b/g) || ['x'];
+  const initTtr = (new Set(words.map(w => w.toLowerCase())).size / words.length).toFixed(2);
+
+  const verdictBands = [
+    { cls:'vb-literal',     id:'vb-literal',    label:'Literal',     sub:'Direct, surface-level meaning · Phil-IRI: Instructional', g7:'→ Ready for Grade 7 use',   badge:'G7 Ready'   },
+    { cls:'vb-inferential', id:'vb-inferential', label:'Inferential', sub:'Reading between the lines · Phil-IRI: Frustration',      g7:'→ Use with Teacher Support', badge:'With Support'},
+    { cls:'vb-evaluative',  id:'vb-evaluative',  label:'Evaluative',  sub:'Critical judgment required · Phil-IRI: Independent',     g7:'→ Above Grade 7 Level',      badge:'Above G7'   },
+  ].map(b => `
+    <div class="verdict-band ${b.cls} ${level === b.label ? 'active' : ''}" id="${b.id}">
+      <span class="verdict-badge">${b.badge}</span>
+      <div class="verdict-band-label">${b.label}</div>
+      <div class="verdict-band-sub">${b.sub}</div>
+      <div class="verdict-band-g7">${b.g7}</div>
+    </div>`).join('');
+
+  const profBands = [
+    { cls:'pb-mahusay',     key:'Mahusay',     desc:'Proficient — varied vocab, complex sentences, clear organization' },
+    { cls:'pb-papaunlad',   key:'Papaunlad',   desc:'Developing — emerging structure, growing vocabulary' },
+    { cls:'pb-nagsisimula', key:'Nagsisimula', desc:'Beginning — limited vocabulary, simple sentences' },
+  ].map(b => `
+    <div class="prof-band ${b.cls} ${proficiency === b.key ? 'active' : ''}" id="pb-${b.key}">
+      <div><div class="prof-label">${profLabel(b.key)}</div><div class="prof-desc">${b.desc}</div></div>
+      ${proficiency === b.key ? '<span class="current-tag">CURRENT</span>' : ''}
+    </div>`).join('');
+
+  return `
+  <div class="section-card s4" id="sec4">
+    <div class="section-header">
+      <div class="section-number">4</div>
+      <div>
+        <div class="section-title">DepEd Scale — G7 Suitability Verdict &amp; What-if Sliders</div>
+        <div class="section-subtitle">Phil-IRI levels anchored to DepEd MELCs · Sliders show how feature changes shift the classification</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <div class="two-col">
+        <div>
+          <div class="subsection-label">Complexity Classification Bands</div>
+          ${verdictBands}
+          <div class="subsection-label" style="margin-top:14px">Writing Proficiency Level (SVM)</div>
+          <div class="prof-bands">${profBands}</div>
+        </div>
+        <div>
+          <div class="subsection-label">What-if Feature Sliders</div>
+          <div style="font-size:11px;color:#888;margin-bottom:12px;">Drag ASL, DWR, or Adv CEFR to shift the complexity classification. TTR and Clause Density are informational only.</div>
+          <div class="slider-section">
+            <div>
+              <div class="slider-row">
+                <div class="slider-label">Avg Sentence Length</div>
+                <input type="range" id="sl-asl" min="3" max="40" step="0.5" value="${initAsl}" oninput="updateSliders()">
+                <div class="slider-val" id="sv-asl">${initAsl}</div>
+              </div>
+              <div class="slider-row"><div></div><div class="slider-hint">↑ Longer = more complex syntax</div></div>
+            </div>
+            <div>
+              <div class="slider-row">
+                <div class="slider-label">Difficult Word %</div>
+                <input type="range" id="sl-dwr" min="0" max="60" step="1" value="${initDwr}" oninput="updateSliders()">
+                <div class="slider-val" id="sv-dwr">${initDwr}%</div>
+              </div>
+              <div class="slider-row"><div></div><div class="slider-hint">↑ More 3+ syllable words = harder text</div></div>
+            </div>
+            <div>
+              <div class="slider-row">
+                <div class="slider-label">Advanced CEFR count</div>
+                <input type="range" id="sl-adv" min="0" max="30" step="1" value="${initAdv}" oninput="updateSliders()">
+                <div class="slider-val" id="sv-adv">${initAdv}</div>
+              </div>
+              <div class="slider-row"><div></div><div class="slider-hint">↑ More C1/C2 words pushes toward Evaluative</div></div>
+            </div>
+            <div>
+              <div class="slider-row">
+                <div class="slider-label">TTR <span class="slider-info-note">(info only)</span></div>
+                <input type="range" id="sl-ttr" min="10" max="100" step="1" value="${Math.round(parseFloat(initTtr)*100)}" oninput="updateTtrDisplay()">
+                <div class="slider-val" id="sv-ttr">${initTtr}</div>
+              </div>
+              <div class="slider-row"><div></div><div class="slider-hint">Vocabulary diversity — does not affect CS formula</div></div>
+            </div>
+            <div>
+              <div class="slider-row">
+                <div class="slider-label">Clause Density <span class="slider-info-note">(info only)</span></div>
+                <input type="range" id="sl-cd" min="5" max="50" step="1" value="18" oninput="updateCdDisplay()">
+                <div class="slider-val" id="sv-cd">1.8</div>
+              </div>
+              <div class="slider-row"><div></div><div class="slider-hint">Verbs/sentence — does not affect CS formula</div></div>
+            </div>
+          </div>
+          <div class="live-formula-box">
+            <div class="live-formula-title">LIVE HEURISTIC FORMULA</div>
+            <div class="live-formula-eq" id="lf-eq">CS = (? × 3) + (? × 4) + (? × 3)</div>
+            <div class="live-formula-eq" id="lf-sub">   = ? + ? + ?</div>
+            <div class="live-formula-result" id="lf-result">= ?</div>
+            <div class="threshold-note">Threshold: &lt;40 Literal · &lt;75 Inferential · ≥75 Evaluative</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function updateSliders() {
+  const asl = parseFloat(document.getElementById('sl-asl').value);
+  const dwr = parseFloat(document.getElementById('sl-dwr').value);
+  const adv = parseFloat(document.getElementById('sl-adv').value);
+
+  document.getElementById('sv-asl').textContent = asl.toFixed(1);
+  document.getElementById('sv-dwr').textContent = dwr.toFixed(1) + '%';
+  document.getElementById('sv-adv').textContent = adv;
+
+  const cs = (asl * 3) + (dwr * 4) + (adv * 3);
+  const newLevel = cs < 40 ? 'Literal' : cs < 75 ? 'Inferential' : 'Evaluative';
+
+  document.getElementById('lf-eq').textContent   = `CS = (${asl.toFixed(1)} × 3) + (${dwr.toFixed(1)} × 4) + (${adv} × 3)`;
+  document.getElementById('lf-sub').textContent  = `   = ${(asl*3).toFixed(2)} + ${(dwr*4).toFixed(2)} + ${(adv*3).toFixed(2)}`;
+  document.getElementById('lf-result').textContent = `= ${cs.toFixed(1)} → ${newLevel}`;
+  document.getElementById('lf-result').style.color = newLevel === 'Literal' ? '#2e7d32' : newLevel === 'Inferential' ? '#f57f17' : '#c62828';
+
+  ['Literal','Inferential','Evaluative'].forEach(l => {
+    const el = document.getElementById(`vb-${l.toLowerCase()}`);
+    if (el) el.classList.toggle('active', l === newLevel);
+  });
+}
+
+function updateTtrDisplay() {
+  const v = parseInt(document.getElementById('sl-ttr').value) / 100;
+  document.getElementById('sv-ttr').textContent = v.toFixed(2);
+}
+function updateCdDisplay() {
+  const v = parseInt(document.getElementById('sl-cd').value) / 10;
+  document.getElementById('sv-cd').textContent = v.toFixed(1);
+}
+
+function buildSection5() {
+  const pipeSteps = [
+    { color:'#1565c0', title:'Teacher rates student essay',        detail:'Assigns rubric scores (Content, Organization, Vocab, Grammar, Mechanics) in ReadTrack app' },
+    { color:'#1565c0', title:'Stored in Supabase',                 detail:'teacher_rubric_scores + diagnosis_result saved to student_grading_uploads table' },
+    { color:'#1565c0', title:'POST /train/proficiency triggered',   detail:'Fetches all rated essays · re-extracts 24-dim feature vectors for each' },
+    { color:'#00695c', title:'RobustScaler.fit_transform(X)',       detail:'Normalizes features using median + IQR — resistant to outliers in small datasets' },
+    { color:'#00695c', title:'SVC.fit(X_scaled, y)',               detail:'Trains SVM: kernel="rbf", C=10, gamma="scale", class_weight="balanced", random_state=42' },
+    { color:'#00695c', title:'Save .pkl + hot-reload',             detail:'New model serialized to disk and loaded into memory immediately — no server restart needed' },
+  ];
+
+  const pipeHtml = pipeSteps.map((s, i) => `
+    ${i > 0 ? '<div class="pipe-line"></div>' : ''}
+    <div class="pipe-step">
+      <div class="pipe-dot" style="background:${s.color}">${i+1}</div>
+      <div class="pipe-text"><b>${s.title}</b><span>${s.detail}</span></div>
+    </div>`).join('');
+
+  return `
+  <div class="section-card s5" id="sec5">
+    <div class="section-header">
+      <div class="section-number">5</div>
+      <div>
+        <div class="section-title">Teacher Feedback Loop — Model Retraining</div>
+        <div class="section-subtitle">How teacher ratings of student essays improve the SVM model over time</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <div class="two-col">
+        <div>
+          <div class="subsection-label">Live Model Performance <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#888">(GET /train/status)</span></div>
+          <div class="stat-grid">
+            <div class="stat-box"><div class="stat-val" id="stat-en-rated">—</div><div class="stat-lbl">Rated Essays (EN)</div></div>
+            <div class="stat-box"><div class="stat-val" id="stat-tl-rated">—</div><div class="stat-lbl">Rated Essays (TL)</div></div>
+            <div class="stat-box"><div class="stat-val" id="stat-en-new">—</div><div class="stat-lbl">New Since Retrain (EN)</div></div>
+            <div class="stat-box"><div class="stat-val" id="stat-tl-new">—</div><div class="stat-lbl">New Since Retrain (TL)</div></div>
+          </div>
+          <div class="stat-meta">
+            <div><strong>Last Retrain (EN):</strong> <span id="stat-en-date">—</span></div>
+            <div><strong>Confidence:</strong> <span id="stat-en-conf">—</span></div>
+            <div><strong>Model:</strong> <code>proficiency_model_en.pkl</code> / <code>proficiency_model_tl.pkl</code></div>
+            <div><strong>Scaler:</strong> <code>RobustScaler</code> · <strong>Algorithm:</strong> <code>SVC(rbf, C=10)</code></div>
+            <div><strong>EN Blend:</strong> PH essays (×2 weight) + ASAP2 benchmark dataset</div>
+          </div>
+          <button class="retry-btn" onclick="loadTrainStatus()">↻ Refresh stats</button>
+        </div>
+        <div>
+          <div class="subsection-label">Retraining Pipeline</div>
+          <div class="pipeline">${pipeHtml}</div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function loadTrainStatus() {
+  try {
+    const r = await fetch(`${API}/train/status`);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    const en = data.english || data.en || {};
+    const tl = data.filipino || data.tl || {};
+
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val ?? '—'; };
+    set('stat-en-rated', en.rated_essays ?? '—');
+    set('stat-tl-rated', tl.rated_essays ?? '—');
+    set('stat-en-new',   en.new_since_retrain ?? '—');
+    set('stat-tl-new',   tl.new_since_retrain ?? '—');
+    set('stat-en-date',  en.last_retrain ? new Date(en.last_retrain).toLocaleDateString() : 'Not yet retrained');
+    set('stat-en-conf',  en.confidence_level ?? '—');
+  } catch (_) {
+    ['stat-en-rated','stat-tl-rated','stat-en-new','stat-tl-new'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = '—';
+    });
+  }
+}
+
+const RUBRIC_TOOLTIPS = {
+  content:      ['Does not develop ideas','Partial ideas, little support','Clear ideas, some support','Fully developed, strong support'],
+  organization: ['No structure','Weak intro/body/conclusion','Clear structure, some transitions','Strong structure, smooth flow'],
+  language:     ['Very limited, inappropriate','Simple, some errors','Adequate, mostly appropriate','Varied, precise, register-appropriate'],
+  grammar:      ['Many errors impede understanding','Frequent errors, meaning mostly clear','Some errors, meaning clear','Few/no errors'],
+  mechanics:    ['Pervasive errors','Many errors','Some errors','Correct punctuation, capitalization, spelling'],
+};
+
+const RUBRIC_DIMS = [
+  { key:'content',      label:'Content' },
+  { key:'organization', label:'Organization' },
+  { key:'language',     label:'Language / Vocab' },
+  { key:'grammar',      label:'Grammar' },
+  { key:'mechanics',    label:'Mechanics' },
+];
+
+let rubricScores = { content: 0, organization: 0, language: 0, grammar: 0, mechanics: 0 };
+let rubricLang = 'en';
+
+function buildSection6() {
+  const dimHtml = RUBRIC_DIMS.map(d => {
+    const btns = [1,2,3,4].map(n => `
+      <button class="score-btn" data-dim="${d.key}" data-score="${n}"
+        onclick="setRubricScore('${d.key}', ${n})">
+        ${n}
+        <div class="score-btn-tooltip">${n} — ${RUBRIC_TOOLTIPS[d.key][n-1]}</div>
+      </button>`).join('');
+    return `
+      <div class="rubric-dimension">
+        <div class="rubric-dim-name">${d.label}</div>
+        <div class="score-buttons" id="rb-${d.key}">${btns}</div>
+      </div>`;
+  }).join('');
+
+  return `
+  <div class="section-card s6" id="sec6">
+    <div class="section-header">
+      <div class="section-number">6</div>
+      <div>
+        <div class="section-title">Teacher DepEd Rubric Scorer</div>
+        <div class="section-subtitle">Score the student essay on 5 dimensions · Submit to retrain the SVM model with this rating</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <div class="lang-selector">
+        <span style="font-size:12px;font-weight:600;color:#444">Essay Language:</span>
+        <button class="lang-btn ${detectedLang === 'en' ? 'active' : ''}" id="lbtn-en" onclick="setRubricLang('en')">English (EN)</button>
+        <button class="lang-btn ${detectedLang === 'tl' ? 'active' : ''}" id="lbtn-tl" onclick="setRubricLang('tl')">Filipino (TL)</button>
+      </div>
+      <div class="rubric-grid">${dimHtml}</div>
+      <div class="rubric-total-row">
+        <div>
+          <div class="total-score"><span id="rubric-total">0</span> / 20</div>
+          <div class="total-label">Total rubric score</div>
+        </div>
+        <div>
+          <div class="total-label">DepEd Scale</div>
+          <div style="font-size:12px;color:#888;margin-top:2px;">5–8 Nagsisimula · 9–14 Papaunlad · 15–20 Mahusay</div>
+        </div>
+        <div class="deped-verdict" id="rubric-verdict">—</div>
+      </div>
+      <div class="comparison-box" id="cmpBox">
+        <div class="cmp-item">
+          <div class="cmp-label">SVM Says</div>
+          <div class="cmp-value" style="color:#6a1b9a" id="cmp-svm">${profLabel(analysisResult?.proficiency || '') || '—'}</div>
+        </div>
+        <div style="font-size:20px;color:#ccc">↔</div>
+        <div class="cmp-item">
+          <div class="cmp-label">Teacher Rubric Says</div>
+          <div class="cmp-value" id="cmp-teacher">—</div>
+        </div>
+        <div class="cmp-status" id="cmp-status">Score the essay above to compare</div>
+      </div>
+      <button class="btn-retrain" id="retrainBtn" onclick="submitAndRetrain()">
+        ↻ Submit Score &amp; Retrain Model
+      </button>
+      <div class="retrain-result" id="retrainResult"></div>
+      <div class="retrain-error"  id="retrainError"></div>
+    </div>
+  </div>`;
+}
+
+function setRubricLang(lang) {
+  rubricLang = lang;
+  document.getElementById('lbtn-en').classList.toggle('active', lang === 'en');
+  document.getElementById('lbtn-tl').classList.toggle('active', lang === 'tl');
+}
+
+function setRubricScore(dim, score) {
+  rubricScores[dim] = score;
+  document.querySelectorAll(`[data-dim="${dim}"]`).forEach(btn => {
+    btn.classList.toggle('selected', parseInt(btn.dataset.score) === score);
+  });
+  updateRubricTotal();
+}
+
+function updateRubricTotal() {
+  const total = Object.values(rubricScores).reduce((a, b) => a + b, 0);
+  const hasVerdict = total >= 5;
+  const verdict = hasVerdict ? (total <= 8 ? 'Nagsisimula' : total <= 14 ? 'Papaunlad' : 'Mahusay') : '';
+  const cls     = verdict === 'Nagsisimula' ? 'dv-nagsisimula' : verdict === 'Papaunlad' ? 'dv-papaunlad' : verdict === 'Mahusay' ? 'dv-mahusay' : '';
+
+  document.getElementById('rubric-total').textContent = total;
+  const vEl = document.getElementById('rubric-verdict');
+  vEl.textContent = hasVerdict ? profLabel(verdict) : '—';
+  vEl.className = `deped-verdict${cls ? ' ' + cls : ''}`;
+
+  const svmLabel = analysisResult?.proficiency || '—';
+  const match = hasVerdict && svmLabel === verdict;
+  const cmpTeacher = document.getElementById('cmp-teacher');
+  if (cmpTeacher) {
+    cmpTeacher.textContent = hasVerdict ? profLabel(verdict) : '—';
+    cmpTeacher.style.color = verdict === 'Mahusay' ? '#2e7d32' : verdict === 'Papaunlad' ? '#f57f17' : verdict === 'Nagsisimula' ? '#c62828' : '';
+  }
+  const cmpSvm = document.getElementById('cmp-svm');
+  if (cmpSvm) {
+    cmpSvm.style.color = (hasVerdict && !match) ? '#f57c00' : '#6a1b9a';
+  }
+  const cmpBox = document.getElementById('cmpBox');
+  if (cmpBox) cmpBox.className = `comparison-box ${hasVerdict ? (match ? 'cmp-match' : 'cmp-mismatch') : ''}`;
+  const cmpStatus = document.getElementById('cmp-status');
+  if (cmpStatus) cmpStatus.textContent = !hasVerdict
+    ? 'Score the essay above to compare'
+    : match
+      ? '✓ SVM and teacher agree on this essay'
+      : 'Teacher rating differs from SVM — this essay will help improve the model.';
+}
+
+async function submitAndRetrain() {
+  const scoredCount = Object.values(rubricScores).filter(v => v > 0).length;
+  if (scoredCount < 5) {
+    const errEl = document.getElementById('retrainError');
+    errEl.textContent = `Please score all 5 dimensions before submitting (${scoredCount}/5 scored).`;
+    errEl.classList.add('visible');
+    return;
+  }
+
+  const btn = document.getElementById('retrainBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner" style="border-top-color:#00695c;border-color:rgba(0,105,92,0.3)"></span>Retraining…';
+  document.getElementById('retrainResult').classList.remove('visible');
+  document.getElementById('retrainError').classList.remove('visible');
+
+  try {
+    const r = await fetch(`${API}/train/proficiency`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ language: rubricLang })
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    if (data.error) throw new Error(data.error);
+
+    const resultEl = document.getElementById('retrainResult');
+    resultEl.innerHTML = `
+      <strong>Model retrained successfully</strong><br>
+      New accuracy: <strong>${data.accuracy || '—'}</strong> ·
+      Trained on <strong>${data.samples_used ?? '—'}</strong> rated essays
+      ${data.asap2_samples > 0 ? ` + ${data.asap2_samples} ASAP2 benchmark samples (EN only)` : ''}
+    `;
+    resultEl.classList.add('visible');
+    await loadTrainStatus();
+  } catch (e) {
+    const errEl = document.getElementById('retrainError');
+    errEl.textContent = `Retraining failed: ${e.message}. Make sure there are at least 5 rated essays in Supabase.`;
+    errEl.classList.add('visible');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '↻ Submit Score &amp; Retrain Model';
+  }
+}
+
+function showMlTab(id) {
+  document.querySelectorAll('.ml-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === id));
+  document.querySelectorAll('.ml-panel').forEach(p => p.classList.toggle('active', p.id === id));
+}
+
+function buildSection7() {
+  return `
+  <div class="section-card s7" id="sec7">
+    <div class="section-header">
+      <div class="section-number">7</div>
+      <div>
+        <div class="section-title">Machine Learning — Code &amp; Flow Explanation</div>
+        <div class="section-subtitle">Step-by-step walkthrough of the algorithms, training pipeline, and prediction code</div>
+      </div>
+    </div>
+    <div class="ml-tabs">
+      <button class="ml-tab active" data-tab="ml-overview"  onclick="showMlTab('ml-overview')">Overview</button>
+      <button class="ml-tab"        data-tab="ml-preprocess" onclick="showMlTab('ml-preprocess')">1. Preprocessing</button>
+      <button class="ml-tab"        data-tab="ml-features"   onclick="showMlTab('ml-features')">2. Feature Extraction</button>
+      <button class="ml-tab"        data-tab="ml-svm"        onclick="showMlTab('ml-svm')">3. SVM Prediction</button>
+      <button class="ml-tab"        data-tab="ml-training"   onclick="showMlTab('ml-training')">4. Training Pipeline</button>
+      <button class="ml-tab"        data-tab="ml-lang"       onclick="showMlTab('ml-lang')">5. Language Detection</button>
+    </div>
+
+    <!-- OVERVIEW -->
+    <div class="ml-panel active" id="ml-overview">
+      <div class="ml-arch-grid">
+        <div class="ml-arch-card">
+          <h4>Layer 1 — Deterministic NLP</h4>
+          <p>Rule-based and statistical algorithms run locally on the server. <strong>spaCy</strong> tokenizes and tags text, <strong>cefrpy</strong> classifies vocabulary, and <strong>SVM models</strong> produce the final classification. Fast, reproducible, no API cost.</p>
+        </div>
+        <div class="ml-arch-card">
+          <h4>Layer 2 — AI Enhancement</h4>
+          <p><strong>Google Gemini 2.5 Flash</strong> handles tasks requiring contextual understanding: OCR from images, rubric scoring, and grammar explanations. It enriches Layer 1 results — it does not replace them.</p>
+        </div>
+      </div>
+      <div style="margin-top:16px;">
+        <div class="subsection-label">End-to-End Flow</div>
+        <div class="ml-flow" style="margin-top:12px;">
+          ${[
+            ['Student submits essay', 'Plain text, OCR image, or PDF. Text is extracted and cleaned by <code>clean_text()</code> in <strong>preprocessing.py</strong>.', 'blue'],
+            ['Language Detection', '<code>detect_language(text)</code> in <strong>grammar_service.py</strong> — Filipino function word heuristic first, then langdetect. Returns <code>"en"</code> or <code>"tl"</code>.', 'blue'],
+            ['Feature Extraction', '<code>extract_features(text, language)</code> in <strong>preprocessing.py</strong> — spaCy + cefrpy produce a 24-dimensional numeric vector describing the essay.', 'purple'],
+            ['SVM Prediction (Complexity)', '<code>TextComplexitySVM.predict()</code> in <strong>svm_models.py</strong> — StandardScaler → SVC(rbf) → "Literal" / "Inferential" / "Evaluative".', 'orange'],
+            ['SVM Prediction (Proficiency)', '<code>StudentProficiencySVM.predict()</code> in <strong>svm_models.py</strong> — same pipeline, language-specific model → "Nagsisimula" / "Papaunlad" / "Mahusay".', 'orange'],
+            ['Teacher Rating → Retraining', 'Teacher rubric scores saved to Supabase. <code>POST /train/proficiency</code> fetches rated essays, re-extracts features, and calls <code>SVC.fit()</code> via <strong>train_utils.py</strong>.', 'green'],
+          ].map(([title, desc, color], i) => `
+            <div class="ml-flow-step">
+              <div class="ml-step-circle">${i+1}</div>
+              <div class="ml-step-body">
+                <div class="ml-step-title"><span class="ml-badge ${color}">${title}</span></div>
+                <div class="ml-step-desc">${desc}</div>
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>
+      <table class="ml-table">
+        <tr><th>Component</th><th>File</th><th>Algorithm</th><th>Output</th></tr>
+        <tr><td>Text Cleaning</td><td><code>preprocessing.py</code></td><td>Unicode NFC + Regex</td><td>Clean string</td></tr>
+        <tr><td>Feature Extraction</td><td><code>preprocessing.py</code></td><td>spaCy + cefrpy</td><td>24-dim float vector</td></tr>
+        <tr><td>Complexity SVM</td><td><code>svm_models.py</code></td><td>SVC(kernel=rbf, C=10)</td><td>Literal / Inferential / Evaluative</td></tr>
+        <tr><td>Proficiency SVM</td><td><code>svm_models.py</code></td><td>SVC(kernel=rbf, C=10)</td><td>Nagsisimula / Papaunlad / Mahusay</td></tr>
+        <tr><td>Training</td><td><code>train_utils.py</code></td><td>RobustScaler + SVC.fit()</td><td>.pkl model file</td></tr>
+        <tr><td>Language Detection</td><td><code>grammar_service.py</code></td><td>Word heuristic + langdetect</td><td>"en" or "tl"</td></tr>
+        <tr><td>Grammar Check</td><td><code>grammar_service.py</code></td><td>LanguageTool + SymSpellPy</td><td>Issue list</td></tr>
+        <tr><td>OCR / Rubric</td><td><code>ocr.py</code></td><td>Gemini Vision</td><td>Extracted text / rubric JSON</td></tr>
+      </table>
+    </div>
+
+    <!-- PREPROCESSING -->
+    <div class="ml-panel" id="ml-preprocess">
+      <div class="ml-flow">
+        <div class="ml-flow-step">
+          <div class="ml-step-circle">1</div>
+          <div class="ml-step-body">
+            <div class="ml-step-title">Unicode Normalization + Whitespace Collapse</div>
+            <div class="ml-step-desc">Ensures consistent character encoding and removes extra spaces/newlines before any analysis.</div>
+            <div class="ml-file-badge">preprocessing.py → clean_text()</div>
+            <div class="ml-code"><span class="c-kw">import</span> unicodedata, re
+
+<span class="c-kw">def</span> <span class="c-fn">clean_text</span>(text):
+    <span class="c-cm"># NFC: compose multi-codepoint chars into single codepoint</span>
+    text = unicodedata.<span class="c-fn">normalize</span>(<span class="c-str">'NFC'</span>, text)
+    <span class="c-cm"># Collapse tabs, newlines, double-spaces into single space</span>
+    text = re.<span class="c-fn">sub</span>(<span class="c-str">r'\s+'</span>, <span class="c-str">' '</span>, text)
+    <span class="c-kw">return</span> text.<span class="c-fn">strip</span>()</div>
+          </div>
+        </div>
+        <div class="ml-flow-step">
+          <div class="ml-step-circle">2</div>
+          <div class="ml-step-body">
+            <div class="ml-step-title">spaCy Tokenization</div>
+            <div class="ml-step-desc">Parses text into a <code>Doc</code> object. Provides sentence boundaries, POS tags (VERB/NOUN/ADJ), dependency labels, and token heads used in syntax features.</div>
+            <div class="ml-file-badge">preprocessing.py → extract_features()</div>
+            <div class="ml-code">nlp = spacy.<span class="c-fn">load</span>(<span class="c-str">"en_core_web_sm"</span>)
+doc = <span class="c-fn">nlp</span>(text)
+
+sentences = <span class="c-fn">list</span>(doc.sents)       <span class="c-cm"># sentence list</span>
+words     = [t.text <span class="c-kw">for</span> t <span class="c-kw">in</span> doc <span class="c-kw">if</span> t.is_alpha]
+
+<span class="c-cm"># POS tags available per token:</span>
+<span class="c-cm"># token.pos_  → "VERB", "NOUN", "ADJ", "ADV" …</span>
+<span class="c-cm"># token.dep_  → "nsubj", "dobj", "amod" …</span>
+<span class="c-cm"># token.head  → syntactic head token</span></div>
+          </div>
+        </div>
+        <div class="ml-flow-step">
+          <div class="ml-step-circle">3</div>
+          <div class="ml-step-body">
+            <div class="ml-step-title">Syllable Counting</div>
+            <div class="ml-step-desc">Used for Flesch-Kincaid, Gunning Fog, and Difficult Word Ratio. Counts vowel transitions per word.</div>
+            <div class="ml-file-badge">preprocessing.py → count_syllables()</div>
+            <div class="ml-code"><span class="c-kw">def</span> <span class="c-fn">count_syllables</span>(word):
+    word    = word.<span class="c-fn">lower</span>()
+    vowels  = <span class="c-str">'aeiouy'</span>
+    count   = <span class="c-num">1</span> <span class="c-kw">if</span> word[<span class="c-num">0</span>] <span class="c-kw">in</span> vowels <span class="c-kw">else</span> <span class="c-num">0</span>
+    <span class="c-kw">for</span> i <span class="c-kw">in</span> <span class="c-fn">range</span>(<span class="c-num">1</span>, <span class="c-fn">len</span>(word)):
+        <span class="c-cm"># count vowel if previous char was NOT a vowel</span>
+        <span class="c-kw">if</span> word[i] <span class="c-kw">in</span> vowels <span class="c-kw">and</span> word[i-<span class="c-num">1</span>] <span class="c-kw">not in</span> vowels:
+            count += <span class="c-num">1</span>
+    <span class="c-kw">if</span> word.<span class="c-fn">endswith</span>(<span class="c-str">'e'</span>): count -= <span class="c-num">1</span>
+    <span class="c-kw">return</span> <span class="c-fn">max</span>(<span class="c-num">1</span>, count)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FEATURE EXTRACTION -->
+    <div class="ml-panel" id="ml-features">
+      <div class="ml-step-desc" style="margin-bottom:14px;">All 24 features are computed by <code>extract_features(text, language)</code> in <strong>preprocessing.py</strong> and returned as a NumPy array used by the SVM.</div>
+      <div class="ml-flow">
+        <div class="ml-flow-step">
+          <div class="ml-step-circle">A</div>
+          <div class="ml-step-body">
+            <div class="ml-step-title">Vocabulary Features (Features 1–3)</div>
+            <div class="ml-file-badge">preprocessing.py → calculate_ttr(), get_difficult_words()</div>
+            <div class="ml-code"><span class="c-cm"># Feature 1: TTR (Type-Token Ratio)</span>
+ttr = <span class="c-fn">len</span>(<span class="c-fn">set</span>(w.<span class="c-fn">lower</span>() <span class="c-kw">for</span> w <span class="c-kw">in</span> words)) / <span class="c-fn">len</span>(words)
+
+<span class="c-cm"># Feature 2: Average Sentence Length</span>
+avg_sentence_length = word_count / sentence_count
+
+<span class="c-cm"># Feature 3: Difficult Word Ratio (≥3 syllables)</span>
+difficult_words = [w <span class="c-kw">for</span> w <span class="c-kw">in</span> words <span class="c-kw">if</span> <span class="c-fn">count_syllables</span>(w) >= <span class="c-num">3</span>]
+diff_ratio = (<span class="c-fn">len</span>(difficult_words) / word_count) * <span class="c-num">100</span></div>
+          </div>
+        </div>
+        <div class="ml-flow-step">
+          <div class="ml-step-circle">B</div>
+          <div class="ml-step-body">
+            <div class="ml-step-title">CEFR Features (Features 4–10, 22–24)</div>
+            <div class="ml-step-desc">cefrpy assigns each word an A1–C2 level using a pre-built frequency dictionary. English only — Filipino text defaults these to 0.</div>
+            <div class="ml-file-badge">preprocessing.py → get_cefr_distribution(), get_cefr_word_groups()</div>
+            <div class="ml-code"><span class="c-kw">from</span> cefrpy <span class="c-kw">import</span> <span class="c-cls">CEFRSpaCyAnalyzer</span>, <span class="c-cls">CEFRLevel</span>
+analyzer = <span class="c-cls">CEFRSpaCyAnalyzer</span>()
+
+cefr_tokens = analyzer.<span class="c-fn">analize_doc</span>(doc)
+<span class="c-kw">for</span> token_data <span class="c-kw">in</span> cefr_tokens:
+    word, _, is_skipped, level = token_data
+    <span class="c-kw">if not</span> is_skipped <span class="c-kw">and</span> level <span class="c-kw">is not</span> <span class="c-kw">None</span>:
+        cefr_rank = <span class="c-fn">round</span>(level)          <span class="c-cm"># 1=A1 … 6=C2</span>
+        level_str = <span class="c-cls">CEFRLevel</span>(cefr_rank).name
+        levels[level_str] += <span class="c-num">1</span>
+
+<span class="c-cm"># Feature 4: Advanced CEFR ratio (C1+C2 / total)</span>
+advanced_ratio = advanced_cefr_count / word_count
+<span class="c-cm"># Features 5–10: per-level ratios A1/wc, A2/wc … C2/wc</span>
+cefr_ratios = [cefr_dist[lv] / word_count <span class="c-kw">for</span> lv <span class="c-kw">in</span> [<span class="c-str">"A1"</span>,<span class="c-str">"A2"</span>,<span class="c-str">"B1"</span>,<span class="c-str">"B2"</span>,<span class="c-str">"C1"</span>,<span class="c-str">"C2"</span>]]</div>
+          </div>
+        </div>
+        <div class="ml-flow-step">
+          <div class="ml-step-circle">C</div>
+          <div class="ml-step-body">
+            <div class="ml-step-title">Syntax Features (Features 11–17, 20–21)</div>
+            <div class="ml-step-desc">Computed by spaCy. Requires a loaded NLP model. Dependency distance measures parse tree complexity — deeper trees = more complex syntax.</div>
+            <div class="ml-file-badge">preprocessing.py → extract_features() → if nlp: block</div>
+            <div class="ml-code"><span class="c-cm"># POS ratios (features 11–13)</span>
+verb_ratio = <span class="c-fn">len</span>([t <span class="c-kw">for</span> t <span class="c-kw">in</span> doc <span class="c-kw">if</span> t.pos_ == <span class="c-str">"VERB"</span>]) / word_count
+noun_ratio = <span class="c-fn">len</span>([t <span class="c-kw">for</span> t <span class="c-kw">in</span> doc <span class="c-kw">if</span> t.pos_ == <span class="c-str">"NOUN"</span>]) / word_count
+adj_ratio  = <span class="c-fn">len</span>([t <span class="c-kw">for</span> t <span class="c-kw">in</span> doc <span class="c-kw">if</span> t.pos_ == <span class="c-str">"ADJ"</span>])  / word_count
+
+<span class="c-cm"># Feature 14: Clause Density</span>
+clause_density = verb_count / sentence_count
+
+<span class="c-cm"># Feature 17: Avg Dependency Distance</span>
+dep_dist = <span class="c-fn">sum</span>(<span class="c-fn">abs</span>(t.i - t.head.i) <span class="c-kw">for</span> t <span class="c-kw">in</span> doc <span class="c-kw">if</span> t.head != t)
+avg_dep_distance = dep_dist / word_count
+
+<span class="c-cm"># Feature 20: Punctuation Density</span>
+punct_density = <span class="c-fn">len</span>([t <span class="c-kw">for</span> t <span class="c-kw">in</span> doc <span class="c-kw">if</span> t.is_punct]) / word_count
+
+<span class="c-cm"># Feature 21: Sentence Length Std Dev (burstiness)</span>
+sent_len_std = np.<span class="c-fn">std</span>([<span class="c-fn">len</span>(s.text.<span class="c-fn">split</span>()) <span class="c-kw">for</span> s <span class="c-kw">in</span> sentences])</div>
+          </div>
+        </div>
+        <div class="ml-flow-step">
+          <div class="ml-step-circle">D</div>
+          <div class="ml-step-body">
+            <div class="ml-step-title">Readability Features (Features 18–19)</div>
+            <div class="ml-file-badge">preprocessing.py → calculate_readability()</div>
+            <div class="ml-code"><span class="c-cm"># Feature 18: Flesch-Kincaid Grade Level</span>
+fk = (<span class="c-num">0.39</span> * asl) + (<span class="c-num">11.8</span> * syllables/words) - <span class="c-num">15.59</span>
+
+<span class="c-cm"># Feature 19: Gunning Fog Index</span>
+fog = <span class="c-num">0.4</span> * (asl + <span class="c-num">100</span> * complex_words/words)
+
+<span class="c-cm"># Assembled into the 24-dim vector:</span>
+feature_vector = np.<span class="c-fn">array</span>([
+    ttr, avg_sentence_length, diff_ratio, clause_density,
+    advanced_ratio, fk, fog, verb_ratio, noun_ratio, adj_ratio,
+    avg_dep_distance, word_count, sentence_count, sent_len_std,
+    punct_density, stopword_ratio, avg_word_length, syllables_per_word,
+    *cefr_ratios   <span class="c-cm"># 6 CEFR level ratios (A1–C2)</span>
+]).<span class="c-fn">reshape</span>(<span class="c-num">1</span>, -<span class="c-num">1</span>)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SVM PREDICTION -->
+    <div class="ml-panel" id="ml-svm">
+      <div class="ml-flow">
+        <div class="ml-flow-step">
+          <div class="ml-step-circle">1</div>
+          <div class="ml-step-body">
+            <div class="ml-step-title">What is an SVM?</div>
+            <div class="ml-step-desc">A <strong>Support Vector Machine</strong> finds the hyperplane that best separates classes with the <em>maximum margin</em>. The <strong>RBF (Radial Basis Function) kernel</strong> maps data into a higher-dimensional space so non-linear boundaries become linearly separable.</div>
+          </div>
+        </div>
+        <div class="ml-flow-step">
+          <div class="ml-step-circle">2</div>
+          <div class="ml-step-body">
+            <div class="ml-step-title">Complexity Classification — TextComplexitySVM</div>
+            <div class="ml-step-desc">Classifies reading material as Literal / Inferential / Evaluative. A heuristic formula is used as fallback if the .pkl model is missing.</div>
+            <div class="ml-file-badge">svm_models.py → TextComplexitySVM.predict()</div>
+            <div class="ml-code">vector  = features_data[<span class="c-str">'vector'</span>]        <span class="c-cm"># 24-dim NumPy array</span>
+metrics = features_data[<span class="c-str">'metrics'</span>]
+
+<span class="c-cm"># ML path: load .pkl, scale, predict</span>
+<span class="c-kw">with</span> <span class="c-fn">open</span>(model_path, <span class="c-str">'rb'</span>) <span class="c-kw">as</span> f:
+    saved   = pickle.<span class="c-fn">load</span>(f)
+    model   = saved[<span class="c-str">'model'</span>]    <span class="c-cm"># SVC instance</span>
+    scaler  = saved[<span class="c-str">'scaler'</span>]   <span class="c-cm"># StandardScaler</span>
+
+X_scaled = scaler.<span class="c-fn">transform</span>(vector)
+label_idx = model.<span class="c-fn">predict</span>(X_scaled)[<span class="c-num">0</span>]
+<span class="c-cm"># 0 → "Literal"  1 → "Inferential"  2 → "Evaluative"</span>
+
+<span class="c-cm"># Heuristic fallback (no model file):</span>
+cs = (asl * <span class="c-num">3</span>) + (diff_ratio * <span class="c-num">4</span>) + (advanced_cefr * <span class="c-num">3</span>)
+level = <span class="c-str">"Literal"</span> <span class="c-kw">if</span> cs &lt; <span class="c-num">40</span> <span class="c-kw">else</span> <span class="c-str">"Inferential"</span> <span class="c-kw">if</span> cs &lt; <span class="c-num">75</span> <span class="c-kw">else</span> <span class="c-str">"Evaluative"</span></div>
+          </div>
+        </div>
+        <div class="ml-flow-step">
+          <div class="ml-step-circle">3</div>
+          <div class="ml-step-body">
+            <div class="ml-step-title">Proficiency Classification — StudentProficiencySVM</div>
+            <div class="ml-step-desc">Two separate models: one for English (<code>proficiency_model_en.pkl</code>), one for Filipino (<code>proficiency_model_tl.pkl</code>). Language is auto-detected before prediction.</div>
+            <div class="ml-file-badge">svm_models.py → StudentProficiencySVM.predict()</div>
+            <div class="ml-code"><span class="c-cm"># Choose model based on detected language</span>
+model_path = <span class="c-str">"proficiency_model_en.pkl"</span> <span class="c-kw">if</span> language == <span class="c-str">"en"</span> \
+             <span class="c-kw">else</span> <span class="c-str">"proficiency_model_tl.pkl"</span>
+
+X_scaled  = scaler.<span class="c-fn">transform</span>(vector)
+proficiency = model.<span class="c-fn">predict</span>(X_scaled)[<span class="c-num">0</span>]
+<span class="c-cm"># → "Nagsisimula" | "Papaunlad" | "Mahusay"</span>
+
+<span class="c-cm"># SVM hyperparameters:</span>
+<span class="c-cm"># kernel="rbf"           → handles non-linear class boundaries</span>
+<span class="c-cm"># C=10                   → higher = tighter fit, less margin</span>
+<span class="c-cm"># gamma="scale"          → 1/(n_features × X.var())</span>
+<span class="c-cm"># class_weight="balanced"→ compensates for unequal class sizes</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TRAINING PIPELINE -->
+    <div class="ml-panel" id="ml-training">
+      <div class="ml-flow">
+        <div class="ml-flow-step">
+          <div class="ml-step-circle">1</div>
+          <div class="ml-step-body">
+            <div class="ml-step-title">Load Rated Essays from Supabase</div>
+            <div class="ml-step-desc">Essays with both <code>teacher_rubric_scores</code> and <code>diagnosis_result</code> filled are fetched. Filipino essays use only PH data; English blends with ASAP2.</div>
+            <div class="ml-file-badge">main.py → _get_training_rows()</div>
+            <div class="ml-code">client = <span class="c-fn">create_client</span>(SUPABASE_URL, SUPABASE_KEY)
+rows = client.<span class="c-fn">table</span>(<span class="c-str">"student_grading_uploads"</span>) \
+    .<span class="c-fn">select</span>(<span class="c-str">"essay_text, teacher_rubric_scores"</span>) \
+    .not_.<span class="c-fn">is_</span>(<span class="c-str">"teacher_rubric_scores"</span>, <span class="c-str">"null"</span>) \
+    .<span class="c-fn">execute</span>().<span class="c-fn">data</span></div>
+          </div>
+        </div>
+        <div class="ml-flow-step">
+          <div class="ml-step-circle">2</div>
+          <div class="ml-step-body">
+            <div class="ml-step-title">Re-extract Features + ASAP2 Blend (EN only)</div>
+            <div class="ml-step-desc">PH essays are weighted 2× by duplicating them in the training set to prioritize local Filipino student writing patterns over the US-based ASAP2 dataset.</div>
+            <div class="ml-file-badge">train_utils.py → load_asap_data()</div>
+            <div class="ml-code">X_ph = [<span class="c-fn">extract_features</span>(row[<span class="c-str">'essay_text'</span>], lang)[<span class="c-str">'vector'</span>]
+        <span class="c-kw">for</span> row <span class="c-kw">in</span> ph_rows]
+y_ph = [<span class="c-fn">map_label</span>(row[<span class="c-str">'diagnosis_result'</span>]) <span class="c-kw">for</span> row <span class="c-kw">in</span> ph_rows]
+
+<span class="c-cm"># English only: blend with ASAP2, PH essays weighted ×2</span>
+X_train = np.<span class="c-fn">vstack</span>([X_asap, X_ph, X_ph])
+y_train = np.<span class="c-fn">concatenate</span>([y_asap, y_ph, y_ph])</div>
+          </div>
+        </div>
+        <div class="ml-flow-step">
+          <div class="ml-step-circle">3</div>
+          <div class="ml-step-body">
+            <div class="ml-step-title">RobustScaler + SVC.fit()</div>
+            <div class="ml-step-desc"><strong>RobustScaler</strong> uses median + IQR instead of mean + std — more resistant to outliers in small Philippine datasets than StandardScaler.</div>
+            <div class="ml-file-badge">main.py → _train_language_model()</div>
+            <div class="ml-code"><span class="c-kw">from</span> sklearn.preprocessing <span class="c-kw">import</span> <span class="c-cls">RobustScaler</span>
+<span class="c-kw">from</span> sklearn.svm          <span class="c-kw">import</span> <span class="c-cls">SVC</span>
+
+scaler  = <span class="c-cls">RobustScaler</span>()
+X_scaled = scaler.<span class="c-fn">fit_transform</span>(X_train)
+
+model = <span class="c-cls">SVC</span>(
+    kernel=<span class="c-str">"rbf"</span>,
+    C=<span class="c-num">10</span>,
+    gamma=<span class="c-str">"scale"</span>,
+    class_weight=<span class="c-str">"balanced"</span>,
+    random_state=<span class="c-num">42</span>
+)
+model.<span class="c-fn">fit</span>(X_scaled, y_train)</div>
+          </div>
+        </div>
+        <div class="ml-flow-step">
+          <div class="ml-step-circle">4</div>
+          <div class="ml-step-body">
+            <div class="ml-step-title">Save .pkl + Hot Reload</div>
+            <div class="ml-step-desc">Model and scaler are pickled together. The server immediately loads the new model into memory — no restart required.</div>
+            <div class="ml-file-badge">main.py → _train_language_model()</div>
+            <div class="ml-code"><span class="c-kw">import</span> pickle
+
+<span class="c-kw">with</span> <span class="c-fn">open</span>(model_path, <span class="c-str">'wb'</span>) <span class="c-kw">as</span> f:
+    pickle.<span class="c-fn">dump</span>({<span class="c-str">"model"</span>: model, <span class="c-str">"scaler"</span>: scaler}, f)
+
+<span class="c-cm"># Hot reload — no server restart needed</span>
+<span class="c-kw">if</span> language == <span class="c-str">"en"</span>:
+    student_model_en.<span class="c-fn">reload</span>()
+<span class="c-kw">else</span>:
+    student_model_tl.<span class="c-fn">reload</span>()</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LANGUAGE DETECTION -->
+    <div class="ml-panel" id="ml-lang">
+      <div class="ml-flow">
+        <div class="ml-flow-step">
+          <div class="ml-step-circle">1</div>
+          <div class="ml-step-body">
+            <div class="ml-step-title">Why langdetect alone fails for Filipino</div>
+            <div class="ml-step-desc">Filipino text contains many English loanwords (<em>Ingles</em>, <em>computer</em>, <em>basketball</em>). This causes <code>langdetect</code> to misclassify Filipino essays as English. A word-heuristic runs first.</div>
+          </div>
+        </div>
+        <div class="ml-flow-step">
+          <div class="ml-step-circle">2</div>
+          <div class="ml-step-body">
+            <div class="ml-step-title">Filipino Function Word Heuristic</div>
+            <div class="ml-step-desc">Checks for 50+ Filipino function words (ang, ng, sa, ay, mga, ako, ko, hindi, po, etc.). If ≥3 hits → Filipino immediately, no langdetect call needed.</div>
+            <div class="ml-file-badge">grammar_service.py → detect_language()</div>
+            <div class="ml-code">FILIPINO_WORDS = frozenset([
+    <span class="c-str">'ang'</span>, <span class="c-str">'ng'</span>, <span class="c-str">'mga'</span>, <span class="c-str">'sa'</span>, <span class="c-str">'na'</span>, <span class="c-str">'ay'</span>, <span class="c-str">'ako'</span>, <span class="c-str">'ko'</span>,
+    <span class="c-str">'hindi'</span>, <span class="c-str">'po'</span>, <span class="c-str">'siya'</span>, <span class="c-str">'kaya'</span>, <span class="c-str">'pero'</span>, <span class="c-str">'dahil'</span>, ...
+])
+
+<span class="c-kw">def</span> <span class="c-fn">detect_language</span>(text):
+    words    = re.<span class="c-fn">findall</span>(<span class="c-str">r'\b\w+\b'</span>, text.<span class="c-fn">lower</span>())
+    fil_hits = <span class="c-fn">sum</span>(<span class="c-num">1</span> <span class="c-kw">for</span> w <span class="c-kw">in</span> words <span class="c-kw">if</span> w <span class="c-kw">in</span> FILIPINO_WORDS)
+
+    <span class="c-kw">if</span> fil_hits >= <span class="c-num">3</span>:
+        <span class="c-kw">return</span> <span class="c-str">'tl'</span>   <span class="c-cm"># Filipino confirmed without langdetect</span>
+
+    <span class="c-kw">try</span>:
+        detected = <span class="c-fn">detect</span>(text)    <span class="c-cm"># langdetect fallback</span>
+        <span class="c-kw">return</span> <span class="c-str">'tl'</span> <span class="c-kw">if</span> detected <span class="c-kw">in</span> (<span class="c-str">'tl'</span>, <span class="c-str">'fil'</span>) <span class="c-kw">else</span> <span class="c-str">'en'</span>
+    <span class="c-kw">except</span> <span class="c-cls">LangDetectException</span>:
+        <span class="c-kw">return</span> <span class="c-str">'tl'</span> <span class="c-kw">if</span> fil_hits >= <span class="c-num">1</span> <span class="c-kw">else</span> <span class="c-str">'en'</span></div>
+          </div>
+        </div>
+        <div class="ml-flow-step">
+          <div class="ml-step-circle">3</div>
+          <div class="ml-step-body">
+            <div class="ml-step-title">Filipino NLP via calamanCy</div>
+            <div class="ml-step-desc">When language is <code>"tl"</code>, text is also routed through <strong>calamanCy</strong> (<code>tl_calamancy_md</code>) — a spaCy-compatible model trained on Tagalog data. Provides Filipino POS tags, NER, and morphology.</div>
+            <div class="ml-file-badge">tagalog_service.py</div>
+            <div class="ml-code"><span class="c-kw">import</span> calamancy
+
+model_versions = [<span class="c-str">"tl_calamancy_md-0.2.0"</span>, <span class="c-str">"tl_calamancy_md-0.1.0"</span>]
+<span class="c-kw">for</span> version <span class="c-kw">in</span> model_versions:
+    nlp_tl = calamancy.<span class="c-fn">load</span>(version)  <span class="c-cm"># tries newer first</span>
+
+doc = <span class="c-fn">nlp_tl</span>(text)
+<span class="c-cm"># token.pos_   → NOUN, VERB, ADJ, PROPN …</span>
+<span class="c-cm"># token.morph  → verb focus (mag-, um-, -in, -an, i-)</span>
+<span class="c-cm"># doc.ents     → named entities (persons, locations)</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>`;
+}
+
+function renderResults() {
+  ['sec2','sec3','sec4','sec5','sec6'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.remove();
+  });
+  rubricScores = { content: 0, organization: 0, language: 0, grammar: 0, mechanics: 0 };
+  rubricLang = detectedLang;
+  const main = document.getElementById('main');
+  if (complexityResult || analysisResult) {
+    main.insertAdjacentHTML('beforeend', buildSection2());
+    main.insertAdjacentHTML('beforeend', buildSection3());
+    main.insertAdjacentHTML('beforeend', buildSection4());
+    main.insertAdjacentHTML('beforeend', buildSection5());
+    main.insertAdjacentHTML('beforeend', buildSection6());
+    loadTrainStatus();
+    setTimeout(() => { if (document.getElementById('sl-asl')) updateSliders(); }, 0);
+  }
+}
+
+function buildSection1() {
+  return `
+  <div class="section-card s1" id="sec1">
+    <div class="section-header">
+      <div class="section-number">1</div>
+      <div>
+        <div class="section-title">Student Essay Input</div>
+        <div class="section-subtitle">Enter or paste a student essay — plain text, OCR from image, or extracted from PDF</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <textarea class="essay-textarea" id="essayInput" placeholder="Paste student essay here…" oninput="const b=document.getElementById('langBadge');if(b)b.textContent='🌐 Language: '+detectLangLabel(this.value);">The sun sets slowly behind the mountains. Birds fly home as darkness comes. Children run to their houses. The air gets cold and quiet. Stars begin to appear in the sky above.</textarea>
+      <div class="input-row">
+        <button class="btn-primary" id="analyzeBtn" onclick="runAnalysis()">
+          ▶ Analyze Essay
+        </button>
+        <span class="lang-badge" id="langBadge">🌐 Language: —</span>
+        <span class="api-note">POST /analyze/student · POST /analyze/complexity</span>
+      </div>
+      <div class="section-error" id="sec1Error"></div>
+    </div>
+  </div>`;
+}
+
+function detectLangLabel(essayText) {
+  const filipino = new Set([
+    'ang','ng','mga','sa','na','ay','at','si','ni','kay','para','kung','pero',
+    'dahil','kaya','nang','din','rin','nga','ba','mo','ko','niya','namin',
+    'natin','nila','siya','sila','kami','tayo','ito','iyan','iyon','dito',
+    'diyan','doon','hindi','wala','mayroon','may','po','opo','ho','oho',
+    'ako','ka','ikaw','kita','sayo','kaniya','kanila','atin','amin','inyo',
+    'nandito','nandoon','nandiyan','bakit','paano','kailan','nasaan','sino',
+    'ano','alin','gaano','naman','talaga','lang','pala','kasi','kahit',
+    'kapag','habang','bago','pagkatapos','ngayon','kanina','bukas','kahapon',
+    'oo','hindi','huwag','tigil','halika','sige','tara','grabe','sayang',
+  ]);
+  const words = (essayText || '').toLowerCase().match(/\b\w+\b/g) || [];
+  const filCount = words.filter(w => filipino.has(w)).length;
+  // Scale threshold with text length: 1 hit for short texts, up to 3 for long
+  const threshold = words.length <= 6 ? 1 : words.length <= 15 ? 2 : 3;
+  return filCount >= threshold ? 'Filipino (TL)' : 'English (EN)';
+}
+
+async function runAnalysis() {
+  const text = document.getElementById('essayInput').value.trim();
+  if (!text) return;
+
+  const btn = document.getElementById('analyzeBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Analyzing…';
+  document.getElementById('sec1Error').classList.remove('visible');
+  hideGlobalError();
+
+  try {
+    const [studentRes, complexityRes] = await Promise.allSettled([
+      fetch(`${API}/analyze/student`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      }).then(r => r.json()),
+      fetch(`${API}/analyze/complexity`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      }).then(r => r.json())
+    ]);
+
+    const studentOk = studentRes.status === 'fulfilled' && !studentRes.value?.error;
+    const complexityOk = complexityRes.status === 'fulfilled' && !complexityRes.value?.error;
+
+    if (studentOk) {
+      analysisResult = studentRes.value;
+      detectedLang = detectLangLabel(text) === 'Filipino (TL)' ? 'tl' : 'en';
+      document.getElementById('langBadge').textContent = `🌐 Language: ${detectLangLabel(text)}`;
+    }
+    if (complexityOk) {
+      complexityResult = complexityRes.value;
+    }
+
+    if (!studentOk && !complexityOk) {
+      const err = document.getElementById('sec1Error');
+      err.textContent = 'Analysis failed — backend returned an error. Is the backend running?';
+      err.classList.add('visible');
+    } else if (!complexityOk) {
+      showGlobalError('Complexity analysis unavailable — backend error. Sections 3–4 may be incomplete.');
+    } else if (!studentOk) {
+      showGlobalError('Proficiency analysis unavailable — backend error. Proficiency verdict will show —.');
+    }
+
+    renderResults();
+  } catch (e) {
+    const err = document.getElementById('sec1Error');
+    err.textContent = `Network error: ${e.message}. Start backend with: uvicorn main:app --reload --port 8000`;
+    err.classList.add('visible');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '▶ Analyze Essay';
+  }
+}
+
+function renderSections() {
+  const main = document.getElementById('main');
+  main.insertAdjacentHTML('beforeend', buildSection1());
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  checkBackend();
+  renderSections();
+  // Section 7 is static — render immediately, no API data needed
+  document.getElementById('main').insertAdjacentHTML('beforeend', buildSection7());
+});
+</script>
+</body>
+</html>

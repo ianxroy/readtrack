@@ -10,17 +10,18 @@ import {
 } from 'react-icons/io5';
 
 import { Student, Subject, StudentEssay, TeacherRubricScores } from './types';
-import { GrammarHighlightedText } from './GrammarHighlightedText';
 import {
   ProficiencyLevel,
   DepEdRubricScore,
 } from '../../types';
+import { GrammarHighlightedText } from './GrammarHighlightedText';
 
 interface EssayViewerModalProps {
   student: Student;
   essay: StudentEssay;
   subject: Subject | null;
   onSaveEvaluation: (essayId: string, rubricScores: TeacherRubricScores, comment: string) => Promise<void>;
+  onSaveEssayText: (essayId: string, essayText: string) => Promise<void>;
   onClose: () => void;
 }
 
@@ -136,6 +137,7 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
   essay,
   subject,
   onSaveEvaluation,
+  onSaveEssayText,
   onClose,
 }) => {
   const defaultDims = { content: 0, organization: 0, languageVocab: 0, grammar: 0, mechanics: 0 };
@@ -156,6 +158,10 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
   const [evaluationMessage, setEvaluationMessage] = useState<string | null>(null);
   const [evaluationError, setEvaluationError] = useState(false);
   const [activeTab, setActiveTab] = useState<'original' | 'analysis'>('original');
+  const [editableText, setEditableText] = useState(essay.text);
+  const [isSavingText, setIsSavingText] = useState(false);
+  const [textMessage, setTextMessage] = useState<string | null>(null);
+  const [textError, setTextError] = useState(false);
 
   useEffect(() => {
     setTeacherDims(
@@ -172,7 +178,32 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
     setTeacherComment(essay.teacherComment ?? '');
     setEvaluationMessage(null);
     setActiveTab('original');
+    setEditableText(essay.text);
+    setTextMessage(null);
+    setTextError(false);
   }, [essay.id]);
+
+  const handleSaveEditedText = async () => {
+    const next = editableText.trim();
+    if (!next) {
+      setTextError(true);
+      setTextMessage('Hindi maaaring walang laman ang extracted text.');
+      return;
+    }
+
+    setIsSavingText(true);
+    setTextMessage(null);
+    try {
+      await onSaveEssayText(essay.id, next);
+      setTextError(false);
+      setTextMessage('Nai-save ang extracted text.');
+    } catch {
+      setTextError(true);
+      setTextMessage('Hindi nai-save ang extracted text. Subukan muli.');
+    } finally {
+      setIsSavingText(false);
+    }
+  };
 
   const handleSaveTeacherEvaluation = async () => {
     const dims = ['content', 'organization', 'languageVocab', 'grammar', 'mechanics'] as const;
@@ -309,11 +340,57 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
                   {/* Right: extracted text */}
                   <div className="flex-1 min-w-0">
                     <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">Extracted Text</p>
-                    <GrammarHighlightedText text={essay.text} issues={dr?.issues ?? []} />
+                    <textarea
+                      className="w-full min-h-[280px] bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs text-gray-700 leading-relaxed outline-none focus:ring-1 focus:ring-teal-500"
+                      value={editableText}
+                      onChange={e => setEditableText(e.target.value)}
+                    />
+                    <div className="mt-2 flex items-center justify-between gap-3">
+                      <button
+                        onClick={handleSaveEditedText}
+                        disabled={isSavingText || editableText.trim() === essay.text.trim()}
+                        className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${
+                          isSavingText || editableText.trim() === essay.text.trim()
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : 'bg-teal-600 text-white hover:bg-teal-700'
+                        }`}
+                      >
+                        {isSavingText ? 'Nag-iimbak…' : 'I-save ang Text'}
+                      </button>
+                      {textMessage && (
+                        <p className={`text-[10px] font-medium ${textError ? 'text-red-500' : 'text-green-600'}`}>
+                          {textMessage}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
               ) : (
-                <GrammarHighlightedText text={essay.text} issues={dr?.issues ?? []} />
+                <div>
+                  <textarea
+                    className="w-full min-h-[320px] bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs text-gray-700 leading-relaxed outline-none focus:ring-1 focus:ring-teal-500"
+                    value={editableText}
+                    onChange={e => setEditableText(e.target.value)}
+                  />
+                  <div className="mt-2 flex items-center justify-between gap-3">
+                    <button
+                      onClick={handleSaveEditedText}
+                      disabled={isSavingText || editableText.trim() === essay.text.trim()}
+                      className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${
+                        isSavingText || editableText.trim() === essay.text.trim()
+                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : 'bg-teal-600 text-white hover:bg-teal-700'
+                      }`}
+                    >
+                      {isSavingText ? 'Nag-iimbak…' : 'I-save ang Text'}
+                    </button>
+                    {textMessage && (
+                      <p className={`text-[10px] font-medium ${textError ? 'text-red-500' : 'text-green-600'}`}>
+                        {textMessage}
+                      </p>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
           )}
@@ -321,6 +398,15 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
           {/* Analysis Tab */}
           {activeTab === 'analysis' && (
             <div className="space-y-8">
+              <div className="w-full">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">
+                  Highlighted Preview
+                </h4>
+                <div className="w-full rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+                  <GrammarHighlightedText text={editableText} issues={dr?.issues ?? []} />
+                </div>
+              </div>
+
               {/* DepEd Rubric — primary evaluation */}
               {dr?.rubricScore && (
                 <DepEdRubricPanel rubric={dr.rubricScore} />

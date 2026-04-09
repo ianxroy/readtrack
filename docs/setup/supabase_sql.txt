@@ -127,8 +127,20 @@ CREATE TABLE IF NOT EXISTS material_uploads (
   complexity_level  TEXT,
   complexity_score  NUMERIC(6, 2),
   complexity_result JSONB,
+  original_file     JSONB,
+  teacher_verified_level TEXT,
+  teacher_verified_at TIMESTAMPTZ,
+  verification_comment TEXT,
+  is_verified       BOOLEAN     DEFAULT FALSE,
   created_at        TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE material_uploads
+  ADD COLUMN IF NOT EXISTS original_file JSONB,
+  ADD COLUMN IF NOT EXISTS teacher_verified_level TEXT,
+  ADD COLUMN IF NOT EXISTS teacher_verified_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS verification_comment TEXT,
+  ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT FALSE;
 
 ALTER TABLE material_uploads ENABLE ROW LEVEL SECURITY;
 

@@ -1,15 +1,32 @@
 @startuml ReadTrack Activity Diagram
-title ReadTrack - Activity Diagram
+title ReadTrack — Activity Diagram
 
+skinparam ActivityBackgroundColor #F8FAFF
+skinparam ActivityBorderColor #4A90D9
+skinparam ActivityFontSize 13
+skinparam ArrowColor #4A90D9
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+skinparam swimlane {
+  BorderColor #B0BEC5
+  TitleFontSize 12
+  TitleFontStyle bold
+}
+
+|Teacher|
 start
 
 :User opens ReadTrack;
 
+|Frontend|
 if (Authenticated?) then (no)
   :Display Login Page;
+  |Teacher|
   :Enter Credentials;
-  :Authenticate via Supabase;
+  |Supabase|
+  :Authenticate via Supabase Auth;
   if (Valid Credentials?) then (no)
+    |Frontend|
     :Show Error Message;
     stop
   else (yes)
@@ -17,126 +34,161 @@ if (Authenticated?) then (no)
 else (yes)
 endif
 
-:Display Dashboard;
+|Frontend|
+:Display Dashboard\n(Grade 7 Reading Complexity & Proficiency Tracker);
 
+|Teacher|
 switch (Select Action)
+
 case (Student Grading)
   :Navigate to Student Grading;
 
   switch (Input Method)
-  case (Type/Paste Text)
-    :Enter text directly;
+  case (Type / Paste)
+    :Enter essay text directly;
   case (Upload Image)
     :Upload image file;
-    :Send to Google Gemini Vision API;
-    :Extract text via OCR;
+    |Gemini AI|
+    :Extract text via Gemini Vision OCR;
+    |Teacher|
   case (Upload PDF)
     :Upload PDF file;
-    :Extract text via PyPDF;
+    |Backend|
+    :Extract text via pypdf;
+    |Teacher|
   endswitch
 
-  :Submit text for analysis;
+  :Submit essay for analysis;
 
+  |Backend|
   fork
-    :Detect Language\n(English / Tagalog);
+    :Detect Language\n(English or Filipino);
   fork again
-    :Extract 50+ Linguistic Features\n(vocabulary, syntax, readability,\nsentence complexity, cohesion);
+    :Extract 24-Dimensional\nLinguistic Feature Vector\n(vocabulary, syntax, readability,\nsentence structure, CEFR groups);
   fork again
-    :Check Grammar & Spelling\n(LanguageTool);
+    :Check Grammar & Spelling\n(LanguageTool + SymSpellPy);
   end fork
 
-  if (Language == Tagalog?) then (yes)
-    :Process with calamanCy\n(POS tagging, NER, morphology);
+  if (Language is Filipino?) then (yes)
+    :Process with calamanCy\n(POS tagging, NER, dependency parsing);
   else (no)
-    :Process with spaCy English model;
+    :Process with spaCy en_core_web_sm;
   endif
 
   fork
-    :Scale features with RobustScaler;
-    :Classify Proficiency Level (SVM)\n[Frustration | Instructional | Independent];
-    :Determine Learning Band\n[Intervention | Consolidation | Enhancement];
+    :Classify Student Writing Level (SVM)\n[Nagsisimula | Papaunlad | Mahusay];
   fork again
     :Classify Text Complexity (SVM)\n[Literal | Inferential | Evaluative];
   fork again
-    :Calculate Readability Scores\n(Flesch-Kincaid, Gunning Fog,\nColeman-Liau, ARI);
+    :Compute Readability Scores\n(Flesch-Kincaid, Gunning Fog);
   end fork
 
-  if (Reference documents uploaded?) then (yes)
-    :Send text + references to Gemini API;
-    :Validate content against references;
-    :Generate AI-enhanced feedback;
-  else (no)
-    :Generate standard feedback;
-  endif
+  |Gemini AI|
+  :Generate AI Rubric Feedback\n(Gemini 2.5 Flash);
 
-  :Display Analysis Results\n(metrics, charts, issues, suggestions);
+  |Frontend|
+  :Display Results\n(writing level, complexity, grammar issues,\nreadability scores, AI feedback);
 
+  |Teacher|
   if (Save analysis?) then (yes)
-    :Save to analysis history\n(localStorage / Supabase);
-  else (no)
-  endif
-
-  if (Rate student work?) then (yes)
-    :Assign star rating (1-5);
+    |Supabase|
+    :Save to Supabase\n(student_grading_uploads);
+    |Frontend|
+    :Dashboard updated with new data;
   else (no)
   endif
 
 case (Material Library)
+  |Teacher|
   :Navigate to Material Library;
 
-  switch (Material Action)
+  switch (Action)
   case (Upload Material)
-    :Upload text / file;
+    :Upload text, image, or PDF;
+    |Backend|
     :Extract text content;
-    :Extract linguistic features;
-    :Auto-classify complexity\n(Literal / Inferential / Evaluative);
-    :Save to Material Library;
-  case (Upload Reference)
-    :Upload reference document\n(text, image, PDF);
-    :Process and extract text;
-    :Store as reference for analysis;
-  case (Browse Materials)
-    :Display material list;
-    :Search / filter materials;
-    :View material details;
+
+    fork
+      :Detect Language\n(detectLanguageAPI → eng or fil);
+    fork again
+      :Extract linguistic features;
+      :Classify complexity via SVM\n(Literal / Inferential / Evaluative);
+    end fork
+
+    |Supabase|
+    :Save material with language tag\n(material_uploads in Supabase);
+
+  case (Browse & Filter)
+    |Supabase|
+    :Load materials from Supabase;
+    |Backend|
+    :Detect language for all materials\n(parallel Promise.all);
+    |Frontend|
+    :Filter by Language\n(All | English | Filipino);
+    :Filter by Complexity Level;
+    :View material card and detail;
   endswitch
 
-case (Grammar Checker)
-  :Navigate to Grammar Checker;
-  :Enter or paste text;
-  :Send to Grammar Service;
+case (Material Checker — G7 Suitability)
+  |Teacher|
+  :Navigate to Material Checker;
+  :Paste reading material or upload file;
 
-  fork
-    :Check Grammar errors;
-  fork again
-    :Check Spelling errors;
-  fork again
-    :Check Punctuation issues;
-  fork again
-    :Check Style suggestions;
-  end fork
+  |Backend|
+  :Send to POST /analyze/complexity;
 
-  :Display issues with highlights;
-  :Show suggestions & replacements;
+  :SVM classifies complexity level\n(Literal | Inferential | Evaluative);
 
-  if (Enhance with AI?) then (yes)
-    :Send to Gemini API;
-    :Get AI-enhanced explanations;
-    :Display enhanced suggestions;
+  note right
+    Verdict is determined by the SVM
+    complexity model alone — anchored
+    to DepEd Grade 7 MELCs standards.
+    Flesch-Kincaid is display-only.
+  end note
+
+  if (Complexity Level == Literal?) then (yes)
+    :Verdict: Ready for Grade 7;
+  elseif (Complexity Level == Inferential?) then (yes)
+    :Verdict: Use with Teacher Support;
+  else (Evaluative)
+    :Verdict: Above Grade 7 Level;
+  endif
+
+  :Derive Phil-IRI Reading Level\n(Flesch-Kincaid score → Independent / Instructional / Frustration)\n[Display only — does not affect verdict];
+
+  if (CEFR word group data available?) then (yes)
+    :Display vocabulary breakdown\n(% Basic · % Intermediate · % Advanced);
   else (no)
   endif
 
-case (Model Evaluation)
-  :Navigate to Model Evaluation;
-  :Load model metrics\n(accuracy, precision, recall, F1);
-  :Display confusion matrices;
-  :Show performance comparison;
+  |Frontend|
+  :Display G7 Suitability Panel\n(verdict badge, Phil-IRI level, explanation);
 
-case (AI Chat)
-  :Navigate to Chat Interface;
-  :Enter prompt / question;
-  :Send to Gemini API with context;
-  :Display AI response;
+case (Grammar Checker)
+  |Teacher|
+  :Navigate to Grammar Checker;
+  :Enter or paste text;
+
+  |Backend|
+  fork
+    :LanguageTool\n(grammar & punctuation rules);
+  fork again
+    :SymSpellPy\n(fast dictionary spell check);
+  end fork
+
+  |Gemini AI|
+  :Enhance with Gemini AI\n(context-aware corrections & explanations);
+
+  |Frontend|
+  :Display issues with inline highlights;
+  :Show suggestions and replacements;
+
+case (Dashboard & Analytics)
+  |Frontend|
+  :View Grade 7 Complexity Distribution;
+  :View Student Proficiency Distribution;
+  :View essay and material metrics;
+  :Access quick-action navigation;
 
 endswitch
 

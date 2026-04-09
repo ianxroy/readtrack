@@ -64,7 +64,7 @@ export const About: React.FC<AboutProps> = ({ onMenuClick }) => {
     </header>
 
     <div className="flex-1 overflow-y-auto">
-      <div className="max-w-3xl mx-auto px-5 py-6 space-y-4">
+      <div className="max-w-3xl mx-auto px-5 py-4 space-y-3">
 
         {/* Overview */}
         <Section title="Overview">
@@ -170,20 +170,18 @@ export const About: React.FC<AboutProps> = ({ onMenuClick }) => {
                 <span className="text-[9px] font-bold text-teal-500 bg-white border border-teal-200 px-1.5 py-0.5 rounded uppercase tracking-wider">Kaggle</span>
               </div>
               <p className="text-[11px] text-teal-800/70 leading-relaxed">
-                Automated Student Assessment Prize 2 essay dataset (`ASAP2_train_sourcetexts.csv`) is
-                used to train the proficiency model. Human score labels are mapped to
-                Frustration/Instructional/Independent classes.
+                Automated Student Assessment Prize 2 — 24,721 student essays. Human score labels
+                are mapped to Frustration / Instructional / Independent for the proficiency model.
               </p>
             </div>
             <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
               <div className="flex items-center gap-2 mb-1.5">
-                <span className="text-sm font-bold text-blue-700">CommonLit</span>
-                <span className="text-[9px] font-bold text-blue-500 bg-white border border-blue-200 px-1.5 py-0.5 rounded uppercase tracking-wider">Library</span>
+                <span className="text-sm font-bold text-blue-700">Phil-IRI</span>
+                <span className="text-[9px] font-bold text-blue-500 bg-white border border-blue-200 px-1.5 py-0.5 rounded uppercase tracking-wider">DepEd</span>
               </div>
               <p className="text-[11px] text-blue-800/70 leading-relaxed">
-                Complexity training uses the CommonLit-style readability dataset
-                (`train_word_frequencies (1).csv` fallback) and maps target readability into
-                Literal/Inferential/Evaluative classes.
+                Philippine Informal Reading Inventory grade-level passages (G4–G10). Labels map
+                directly to complexity levels: G4–G6 = Literal, G7 = Inferential, G8–G10 = Evaluative.
               </p>
             </div>
           </div>
@@ -251,6 +249,23 @@ export const About: React.FC<AboutProps> = ({ onMenuClick }) => {
                 {i < arr.length - 1 && <span className="text-gray-300 font-bold">›</span>}
               </React.Fragment>
             ))}
+          </div>
+        </Section>
+
+        {/* Algorithm Visualizer */}
+        <Section title="Algorithm Visualizer">
+          <p className="text-xs text-gray-500 leading-relaxed mb-3">
+            Step-by-step walkthrough of the NLP pipeline — from raw text to SVM classification,
+            DepEd verdict, and teacher-driven model retraining. Requires the backend to be running.
+          </p>
+          <div className="rounded-xl overflow-hidden border border-gray-200 shadow-sm">
+            <iframe
+              src="/algorithm-visualizer.html"
+              title="ReadTrack Algorithm Visualizer"
+              className="w-full"
+              style={{ height: "680px", border: "none" }}
+              allow="same-origin"
+            />
           </div>
         </Section>
 

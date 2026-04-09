@@ -1,17 +1,18 @@
 import spacy
 import os
-import torch
 import base64
 import json
+import logging
 import threading
 import asyncio
 import pickle
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional, cast
 from io import BytesIO
 from pypdf import PdfReader
 from dotenv import load_dotenv
+from spacy.cli.download import download as spacy_download
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,17 +29,34 @@ from ocr import extract_text_from_image
 from tagalog_service import router as tagalog_router
 from grammar_service import router as grammar_router
 
+logger = logging.getLogger(__name__)
+
 BACKEND_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BACKEND_DIR.parent
 
 # Preferred: a single workspace-level env file shared by frontend/backend.
 # Backward-compatible fallback: backend-local env files.
-load_dotenv(PROJECT_ROOT / '.env.local')
-load_dotenv(PROJECT_ROOT / '.env')
 load_dotenv(BACKEND_DIR / '.env.local')
 load_dotenv(BACKEND_DIR / '.env')
+load_dotenv(PROJECT_ROOT / '.env.local')
+load_dotenv(PROJECT_ROOT / '.env')
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+
+def get_gemini_api_key() -> str:
+    # Reload env files with override so key updates are picked up without stale process state.
+    load_dotenv(BACKEND_DIR / '.env.local', override=True)
+    load_dotenv(BACKEND_DIR / '.env', override=True)
+    load_dotenv(PROJECT_ROOT / '.env.local', override=True)
+    load_dotenv(PROJECT_ROOT / '.env', override=True)
+
+    key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or ""
+    normalized = key.strip().strip('"').strip("'")
+    if normalized.lower().startswith("bearer "):
+        normalized = normalized[7:].strip()
+    return normalized
+
+
+GEMINI_API_KEY = get_gemini_api_key()
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
 MODEL_DIR = Path(__file__).parent / "models"
@@ -52,7 +70,7 @@ else:
 async def lifespan(app: FastAPI):
 
     try:
-        if torch.cuda.is_available():
+        if False:  # GPU check disabled — torch not required
             spacy.prefer_gpu()
             print("GPU acceleration enabled for spaCy")
         else:
@@ -64,7 +82,7 @@ async def lifespan(app: FastAPI):
         spacy.load("en_core_web_sm")
     except OSError:
         print("Downloading spaCy model 'en_core_web_sm'...")
-        spacy.cli.download("en_core_web_sm")
+        spacy_download("en_core_web_sm")
         print("Model downloaded successfully.")
 
     models_dir = os.path.join(os.path.dirname(__file__), 'models')
@@ -122,8 +140,13 @@ def retrain_complexity_model(samples_path: str):
         if X_orig is None:
             print("Warning: complexity_features.csv missing — retraining on teacher samples only.")
             X_orig, y_orig = np.empty((0, 24)), np.array([], dtype=int)
+        else:
+            X_orig = np.asarray(X_orig)
+            y_orig = np.asarray(y_orig) if y_orig is not None else np.array([], dtype=int)
 
         X_teach, y_teach = load_teacher_samples(samples_path)
+        X_teach = np.asarray(X_teach) if X_teach is not None else np.empty((0, 24))
+        y_teach = np.asarray(y_teach) if y_teach is not None else np.array([], dtype=int)
 
         if len(X_orig) == 0 and len(X_teach) == 0:
             raise RuntimeError("No training data available for retrain.")
@@ -141,7 +164,11 @@ def retrain_complexity_model(samples_path: str):
 
         comp_path = os.path.join(models_dir, 'complexity_model.pkl')
         with open(comp_path, 'wb') as f:
-            pickle.dump({'model': new_model.model, 'scaler': new_model.scaler}, f)
+            pickle.dump({
+                'model': new_model.model,
+                'scaler': new_model.scaler,
+                'feature_idx': getattr(new_model, 'feature_idx', None),
+            }, f)
 
         # Thread-safe global replacement — lock already held
         complexity_model = new_model
@@ -279,22 +306,30 @@ def _score_to_label(avg: float) -> str:
     return "Nagsisimula"
 
 
+def _safe_float(value: Any) -> Optional[float]:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _extract_training_matrix(rows: list, language: str):
     X, y = [], []
     for row in rows:
-        text = (row.get("essay_text") or "").strip()
+        if not isinstance(row, dict):
+            continue
+
+        text = str(row.get("essay_text") or "").strip()
         rubric = row.get("teacher_rubric_scores") or {}
         if not text or not isinstance(rubric, dict):
             continue
 
-        dims = [rubric.get("content"), rubric.get("organization"), rubric.get("languageVocab"), rubric.get("grammar"), rubric.get("mechanics")]
-        if any(d is None for d in dims):
+        dims_raw = [rubric.get("content"), rubric.get("organization"), rubric.get("languageVocab"), rubric.get("grammar"), rubric.get("mechanics")]
+        dims = [_safe_float(v) for v in dims_raw]
+        if any(v is None for v in dims):
             continue
 
-        try:
-            avg = float(sum(float(v) for v in dims) / 5.0)
-        except Exception:
-            continue
+        avg = sum(cast(list[float], dims)) / 5.0
 
         features = extract_features(text, language=language)
         vec = features.get("vector")
@@ -373,12 +408,14 @@ def generate_reference_title(text: str, name: Optional[str] = None) -> str:
     return first_line[:80]
 
 async def evaluate_rubric_with_gemini(text: str, language: str, grade_level: str) -> dict:
-    if not GEMINI_API_KEY:
+    api_key = get_gemini_api_key()
+    if not api_key:
         raise ValueError("Gemini API key not configured")
 
     import google.generativeai as genai
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel("gemini-2.5-flash")
+    genai_api = cast(Any, genai)
+    genai_api.configure(api_key=api_key)
+    model = genai_api.GenerativeModel("gemini-2.5-flash")
 
     lang_label = "Filipino (Tagalog)" if language == "filipino" else "English"
 
@@ -449,7 +486,7 @@ Respond ONLY with valid JSON in this exact format:
     import json
     response = model.generate_content(
         prompt,
-        generation_config=genai.types.GenerationConfig(
+        generation_config=genai_api.types.GenerationConfig(
             response_mime_type="application/json",
             temperature=0.2,
         )
@@ -514,7 +551,7 @@ async def analyze_student_text(request: TextRequest): # Added async to handle aw
             if mime == "application/pdf":
                 ocr_text = extract_text_from_pdf(request.image)
             else:
-                ocr_text = extract_text_from_image(request.image, GEMINI_API_KEY, mime_type=mime).get("text", "")
+                ocr_text = extract_text_from_image(request.image, get_gemini_api_key(), mime_type=mime).get("text", "")
 
             if ocr_text:
                 text_to_analyze = (text_to_analyze + "\n" + ocr_text).strip()
@@ -658,21 +695,27 @@ def train_performance(lang: str = "en"):
         system_labels = []
 
         for row in rows:
-            dr = row.get("diagnosis_result") or {}
-            tr = row.get("teacher_rubric_scores") or {}
+            if not isinstance(row, dict):
+                continue
 
-            sys_raw = dr.get("proficiency", "")
+            dr_raw = row.get("diagnosis_result") or {}
+            tr_raw = row.get("teacher_rubric_scores") or {}
+            if not isinstance(dr_raw, dict) or not isinstance(tr_raw, dict):
+                continue
+
+            dr = cast(dict[str, Any], dr_raw)
+            tr = cast(dict[str, Any], tr_raw)
+
+            sys_raw_val = dr.get("proficiency", "")
+            sys_raw = sys_raw_val if isinstance(sys_raw_val, str) else str(sys_raw_val)
             sys_label = LEGACY_MAP.get(sys_raw, sys_raw)
             if sys_label not in VALID_LABELS:
                 continue
 
-            teacher_overall = tr.get("overall")
+            teacher_overall = _safe_float(tr.get("overall"))
             if teacher_overall is None:
                 continue
-            try:
-                teacher_label = _score_to_label(float(teacher_overall))
-            except (TypeError, ValueError):
-                continue
+            teacher_label = _score_to_label(teacher_overall)
 
             teacher_labels.append(teacher_label)
             system_labels.append(sys_label)
@@ -682,25 +725,28 @@ def train_performance(lang: str = "en"):
             return {"insufficient_data": True, "rated_essays": total_compared, "lang": lang}
 
         LABELS = ["Mahusay", "Papaunlad", "Nagsisimula"]
-        report = classification_report(
+        report_raw = classification_report(
             teacher_labels, system_labels,
             labels=LABELS, output_dict=True, zero_division=0
         )
+        report = cast(dict[str, Any], report_raw)
         cm = sklearn_cm(teacher_labels, system_labels, labels=LABELS).tolist()
 
-        macro = report["macro avg"]
-        macro_f1        = round(macro["f1-score"], 3)
-        macro_precision = round(macro["precision"], 3)
-        macro_recall    = round(macro["recall"], 3)
+        macro = report.get("macro avg", {})
+        macro_dict = macro if isinstance(macro, dict) else {}
+        macro_f1        = round(float(macro_dict.get("f1-score", 0.0)), 3)
+        macro_precision = round(float(macro_dict.get("precision", 0.0)), 3)
+        macro_recall    = round(float(macro_dict.get("recall", 0.0)), 3)
 
         per_class = {}
         for label in LABELS:
-            cls = report.get(label, {})
+            cls_raw = report.get(label, {})
+            cls = cls_raw if isinstance(cls_raw, dict) else {}
             per_class[label] = {
-                "precision": round(cls.get("precision", 0), 3),
-                "recall":    round(cls.get("recall", 0), 3),
-                "f1":        round(cls.get("f1-score", 0), 3),
-                "support":   int(cls.get("support", 0)),
+                "precision": round(float(cls.get("precision", 0.0)), 3),
+                "recall":    round(float(cls.get("recall", 0.0)), 3),
+                "f1":        round(float(cls.get("f1-score", 0.0)), 3),
+                "support":   int(float(cls.get("support", 0))),
             }
 
         # Per-dimension MAE
@@ -709,20 +755,29 @@ def train_performance(lang: str = "en"):
         dim_tea_scores  = {d: [] for d in DIMS}
 
         for row in rows:
-            dr = row.get("diagnosis_result") or {}
-            tr = row.get("teacher_rubric_scores") or {}
-            rubric = dr.get("rubricScore")
-            if not rubric or not tr:
+            if not isinstance(row, dict):
                 continue
+
+            dr_raw = row.get("diagnosis_result") or {}
+            tr_raw = row.get("teacher_rubric_scores") or {}
+            if not isinstance(dr_raw, dict) or not isinstance(tr_raw, dict):
+                continue
+
+            rubric_raw = dr_raw.get("rubricScore")
+            if not isinstance(rubric_raw, dict):
+                continue
+
+            tr = cast(dict[str, Any], tr_raw)
+            rubric = cast(dict[str, Any], rubric_raw)
             for dim in DIMS:
-                sys_score = (rubric.get(dim) or {}).get("score")
+                dim_obj = rubric.get(dim)
+                sys_score = dim_obj.get("score") if isinstance(dim_obj, dict) else None
                 tea_score = tr.get(dim)
-                if sys_score is not None and tea_score is not None:
-                    try:
-                        dim_sys_scores[dim].append(float(sys_score))
-                        dim_tea_scores[dim].append(float(tea_score))
-                    except (TypeError, ValueError):
-                        pass
+                sys_num = _safe_float(sys_score)
+                tea_num = _safe_float(tea_score)
+                if sys_num is not None and tea_num is not None:
+                    dim_sys_scores[dim].append(sys_num)
+                    dim_tea_scores[dim].append(tea_num)
 
         per_dimension = {}
         for dim in DIMS:
@@ -836,20 +891,29 @@ def extract_text_from_image_endpoint(request: OCRRequest):
             # Scanned PDF — fall back to Gemini OCR
             if not ocr_text.strip():
                 print("DEBUG: pypdf returned no text (scanned PDF), falling back to Gemini OCR")
-                ocr_result = extract_text_from_image(request.image, GEMINI_API_KEY, mime_type="application/pdf")
+                ocr_result = extract_text_from_image(request.image, get_gemini_api_key(), mime_type="application/pdf")
                 ocr_text = ocr_result.get("text", "")
-                return {"text": ocr_text, "warning": ocr_result.get("warning")}
+                return {"text": ocr_text, "warning": ocr_result.get("warning"), "error": ocr_result.get("error")}
             return {"text": ocr_text, "warning": None}
 
-        print(f"Processing image for OCR. Mime: {request.mimeType}")
-        ocr_result = extract_text_from_image(request.image, GEMINI_API_KEY, mime_type=request.mimeType)
+        print(f"\n{'='*60}")
+        print(f"OCR REQUEST  mime={request.mimeType}  size={len(request.image)} chars")
+        ocr_result = extract_text_from_image(request.image, get_gemini_api_key(), mime_type=request.mimeType)
         ocr_text = ocr_result.get("text", "")
         ocr_warning = ocr_result.get("warning")
-        print(f"Extracted OCR text: {ocr_text}")
+        ocr_error = ocr_result.get("error")
+        if ocr_error:
+            print(f"OCR ERROR: {ocr_error}")
+            print(f"{'='*60}\n")
+            return {"text": "", "warning": None, "error": ocr_error}
         if ocr_text:
-            print(f"Extracted {len(ocr_text)} characters from image")
+            print(f"OCR SUCCESS  {len(ocr_text)} chars extracted")
+            print(f"--- EXTRACTED TEXT ---")
+            print(ocr_text[:2000] + ("..." if len(ocr_text) > 2000 else ""))
+            print(f"--- END ---")
         else:
-            print("Warning: No text extracted from image")
+            print(f"OCR WARNING: No text extracted. warning={ocr_warning}")
+        print(f"{'='*60}\n")
 
         return {"text": ocr_text, "warning": ocr_warning}
     except Exception as e:
@@ -869,7 +933,7 @@ def ingest_reference(request: ReferenceIngestRequest):
             if request.mimeType == "application/pdf":
                 text = extract_text_from_pdf(request.file)
             elif request.mimeType.startswith("image/"):
-                text = extract_text_from_image(request.file, GEMINI_API_KEY, mime_type=request.mimeType).get("text", "")
+                text = extract_text_from_image(request.file, get_gemini_api_key(), mime_type=request.mimeType).get("text", "")
             elif request.mimeType.startswith("text/"):
                 decoded = base64.b64decode(request.file)
                 text = decoded.decode("utf-8", errors="replace")
@@ -913,9 +977,9 @@ def analyze_complexity_text(request: TextRequest):
                 # Scanned PDF — pypdf finds no text layer; fall back to Gemini OCR
                 if not ocr_text.strip():
                     print("DEBUG: pypdf returned no text (scanned PDF), falling back to Gemini OCR")
-                    ocr_text = extract_text_from_image(request.image, GEMINI_API_KEY, mime_type="application/pdf").get("text", "")
+                    ocr_text = extract_text_from_image(request.image, get_gemini_api_key(), mime_type="application/pdf").get("text", "")
             else:
-                ocr_text = extract_text_from_image(request.image, GEMINI_API_KEY, mime_type=mime).get("text", "")
+                ocr_text = extract_text_from_image(request.image, get_gemini_api_key(), mime_type=mime).get("text", "")
             if ocr_text:
                 text_to_analyze = (text_to_analyze + "\n" + ocr_text).strip()
 
