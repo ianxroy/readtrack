@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { IoCloseOutline, IoCloudUploadOutline } from 'react-icons/io5';
 import { Student, Subject, Section } from './types';
-import { extractTextFromImageAPI } from '../../services/pythonService';
+import { extractTextFromImageAPI, ingestReferenceAPI } from '../../services/pythonService';
 import mammoth from 'mammoth';
 
 interface UploadModalProps {
@@ -45,13 +45,39 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
   const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
+  const resolveTitleAndBody = async (extractedText: string, fallbackTitle: string): Promise<{ title: string; bodyText: string }> => {
+    let nextTitle = fallbackTitle;
+    let nextBodyText = extractedText;
+    try {
+      const ingestResult = await ingestReferenceAPI({ text: extractedText });
+      const candidate = ingestResult?.title?.trim();
+      const cleanedText = ingestResult?.text?.trim();
+      if (candidate) {
+        nextTitle = candidate;
+      }
+      if (cleanedText) {
+        nextBodyText = cleanedText;
+      }
+    } catch {
+      // Keep filename fallback when title extraction is unavailable.
+    }
+
+    return { title: nextTitle, bodyText: nextBodyText };
+  };
+
   const handleFile = async (file: File) => {
     if (file.size > 10 * 1024 * 1024) { setError('File exceeds 10MB limit.'); return; }
     setError(null);
+    const fallbackTitle = file.name.replace(/\.[^.]+$/, '').trim() || 'Untitled Essay';
 
     if (file.type === 'text/plain') {
       const reader = new FileReader();
-      reader.onload = e => setText(e.target?.result as string);
+      reader.onload = async e => {
+        const extractedText = (e.target?.result as string) || '';
+        const { title: nextTitle, bodyText } = await resolveTitleAndBody(extractedText, fallbackTitle);
+        setText(bodyText);
+        setTitle(prev => prev.trim() || nextTitle);
+      };
       reader.readAsText(file);
     } else if (file.type === DOCX_MIME || file.name.toLowerCase().endsWith('.docx')) {
       // Extract text from .docx client-side using mammoth
@@ -60,8 +86,9 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         const result = await mammoth.extractRawText({ arrayBuffer });
         const extracted = result.value.trim();
         if (extracted) {
-          setText(extracted);
-          setTitle(prev => prev || file.name.replace(/\.docx$/i, ''));
+          const { title: nextTitle, bodyText } = await resolveTitleAndBody(extracted, fallbackTitle);
+          setText(bodyText);
+          setTitle(prev => prev.trim() || nextTitle);
         } else {
           setError('Could not extract text from this .docx file. Please paste the text manually.');
         }
@@ -87,7 +114,9 @@ export const UploadModal: React.FC<UploadModalProps> = ({
           } else if ((extracted as any)?.error === 'invalid_base64') {
             setError('Uploaded file data was invalid. Please re-upload the file.');
           } else if (extracted?.text) {
-            setText(extracted.text);
+            const { title: nextTitle, bodyText } = await resolveTitleAndBody(extracted.text, fallbackTitle);
+            setText(bodyText);
+            setTitle(prev => prev.trim() || nextTitle);
             if (extracted?.warning) setError(extracted.warning);
           } else {
             setError('Could not extract text from this file. Please paste the text manually.');

@@ -13,7 +13,7 @@ import {
   IoImageOutline,
 } from 'react-icons/io5';
 import { LibraryMaterial, TextComplexityResult, ComplexityLevel } from '../types';
-import { classifyTextComplexityAPI, extractTextFromImageAPI, detectLanguageAPI, addTrainingSampleAPI } from '../services/pythonService';
+import { classifyTextComplexityAPI, extractTextFromImageAPI, detectLanguageAPI, addTrainingSampleAPI, ingestReferenceAPI } from '../services/pythonService';
 import { saveMaterialUpload, loadMaterialUploads, deleteMaterialUpload, saveMaterialTeacherVerification } from '../services/supabaseService';
 import { useEffect } from 'react';
 import { IoDocumentOutline } from 'react-icons/io5';
@@ -892,9 +892,25 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
         throw new Error("No text could be extracted from this file. Please ensure it contains readable text.");
       }
 
+      const fallbackTitle = file.name.replace(/\.[^.]+$/, '');
+      let autoTitle = fallbackTitle;
+      try {
+        const ingestResult = await ingestReferenceAPI({ text: extractedText });
+        const candidate = ingestResult?.title?.trim();
+        const cleanedBody = ingestResult?.text?.trim();
+        if (candidate) {
+          autoTitle = candidate;
+        }
+        if (cleanedBody) {
+          extractedText = normalizeMaterialText(cleanedBody);
+        }
+      } catch {
+        // Keep filename fallback when title generation is unavailable.
+      }
+
       const material: LibraryMaterial = {
         id: Date.now().toString(),
-        name: file.name.replace(/\.[^.]+$/, ''),
+        name: autoTitle,
         text: extractedText,
         uploadedAt: new Date(),
         complexityResult: result,

@@ -40,6 +40,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   useEffect(() => {
     if (!menuOpenId) return;
     const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('[data-section-menu="true"]') || target?.closest('[data-section-menu-trigger="true"]')) {
+        return;
+      }
       setMenuOpenId(null);
     };
     document.addEventListener('mousedown', handler);
@@ -151,13 +155,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {/* ⋯ menu */}
                 <div className="relative">
                   <button
+                    data-section-menu-trigger="true"
                     onClick={(e) => { e.stopPropagation(); setMenuOpenId(isMenuOpen ? null : section.id); }}
                     className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-gray-200 text-gray-500 transition-opacity"
                   >
                     <IoEllipsisHorizontal className="text-sm" />
                   </button>
                   {isMenuOpen && (
-                    <div className="absolute right-0 top-full mt-1 bg-white border border-gray-100 rounded-lg shadow-xl z-30 min-w-[130px] overflow-hidden" onClick={e => e.stopPropagation()}>
+                    <div
+                      data-section-menu="true"
+                      className="absolute right-0 top-full mt-1 bg-white border border-gray-100 rounded-lg shadow-xl z-30 min-w-[130px] overflow-hidden"
+                      onClick={e => e.stopPropagation()}
+                      onMouseDown={e => e.stopPropagation()}
+                    >
                       <button
                         className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50 text-gray-700"
                         onClick={() => { setRenaming({ id: section.id, name: section.name }); setMenuOpenId(null); }}
@@ -165,17 +175,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         Rename (Palitan)
                       </button>
                       <button
-                        className={`w-full text-left px-3 py-2 text-xs ${
-                          count > 0
-                            ? 'text-gray-300 cursor-not-allowed'
-                            : 'hover:bg-red-50 text-red-600'
-                        }`}
-                        disabled={count > 0}
-                        title={count > 0 ? 'Move or delete all students first' : undefined}
-                        onClick={() => { if (count === 0) { onDeleteSection(section.id); setMenuOpenId(null); } }}
+                        className="w-full text-left px-3 py-2 text-xs hover:bg-red-50 text-red-600"
+                        onClick={() => { onDeleteSection(section.id); setMenuOpenId(null); }}
                       >
                         Delete (Burahin)
-                        {count > 0 && <span className="block text-[9px] text-gray-400">Move students first</span>}
+                        <span className="block text-[9px] text-gray-400">Deletes section, students, and essays</span>
                       </button>
                     </div>
                   )}

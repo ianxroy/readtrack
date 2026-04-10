@@ -22,7 +22,7 @@ import { ModelPerformancePage } from './ModelPerformancePage';
 import { ProficiencyLevel, CachedAnalysis, StudentDiagnosisResult, DepEdRubricScore } from '../../types';
 import { IoRefreshOutline } from 'react-icons/io5';
 import { analyzeStudentWorkAPI, classifyTextComplexityAPI, evaluateDepEdRubricAPI, getTrainStatusAPI, triggerRetrainAPI, TrainStatusResponse } from '../../services/pythonService';
-import { saveStudentGradingUpload, saveTeacherRubricScores, lookupEssayIdByText, deleteStudentUpload, deleteStudentAllUploads, updateStudentEssayText } from '../../services/supabaseService';
+import { saveStudentGradingUpload, saveTeacherRubricScores, lookupEssayIdByText, deleteStudentUpload, deleteStudentAllUploads, updateStudentEssayText, deleteSection as deleteSectionRemote } from '../../services/supabaseService';
 
 interface StudentGradingProps {
   onMenuClick?: () => void;
@@ -79,6 +79,14 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
   const [uploadPrefilledText, setUploadPrefilledText] = useState<string | undefined>();
   const [showMigration, setShowMigration] = useState(() => needsMigration(initialStudents));
   const [showPerformance, setShowPerformance] = useState(false);
+  const [pendingSectionDelete, setPendingSectionDelete] = useState<{
+    id: string;
+    name: string;
+    studentCount: number;
+    essayCount: number;
+  } | null>(null);
+  const [isDeletingSection, setIsDeletingSection] = useState(false);
+  const [sectionDeleteNotice, setSectionDeleteNotice] = useState<string | null>(null);
 
   // ── Derived ───────────────────────────────────────────
   const needsSetup = sections.length === 0 || subjects.length === 0;
@@ -94,6 +102,9 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
   const updateSections = useCallback((next: Section[]) => { setSections(next); saveSections(next); }, []);
   const updateSubjects = useCallback((next: Subject[]) => { setSubjects(next); saveSubjects(next); }, []);
   const updateStudents = useCallback((next: Student[]) => { setStudents(next); saveStudents(next); }, []);
+  const isUuid = useCallback((value: string) => {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+  }, []);
 
   // ── Setup completion ──────────────────────────────────
   const handleSetupComplete = (section: Section, newSubjects: Subject[]) => {
@@ -125,14 +136,80 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
   };
 
   const handleDeleteSection = (id: string) => {
-    const name = sections.find(s => s.id === id)?.name ?? 'this section';
-    if (!confirm(`Delete "${name}"?`)) return;
-    const next = sections.filter(s => s.id !== id);
-    updateSections(next);
-    if (selectedSectionId === id) {
-      setSelectedSectionId(next[0]?.id ?? '');
-      setSelectedStudentId(null);
-      setSelectedEssayId(null);
+    const targetSection = sections.find(s => s.id === id);
+    const name = targetSection?.name ?? 'this section';
+    const studentsInSection = students.filter(s => s.sectionId === id);
+    const essayIds = studentsInSection.flatMap(s => s.essays.map(e => e.id));
+
+    setPendingSectionDelete({
+      id,
+      name,
+      studentCount: studentsInSection.length,
+      essayCount: essayIds.length,
+    });
+  };
+
+  const confirmDeleteSection = async () => {
+    if (!pendingSectionDelete || isDeletingSection) return;
+
+    const { id, name } = pendingSectionDelete;
+    const targetSection = sections.find(s => s.id === id);
+    const studentsInSection = students.filter(s => s.sectionId === id);
+    const essayIds = studentsInSection.flatMap(s => s.essays.map(e => e.id));
+
+    setIsDeletingSection(true);
+    setSectionDeleteNotice(null);
+    try {
+      const nextSections = sections.filter(s => s.id !== id);
+      const nextStudents = students.filter(s => s.sectionId !== id);
+
+      updateSections(nextSections);
+      updateStudents(nextStudents);
+
+      if (selectedSectionId === id) {
+        setSelectedSectionId(nextSections[0]?.id ?? '');
+        setSelectedStudentId(null);
+        setSelectedEssayId(null);
+      } else if (selectedStudentId && studentsInSection.some(s => s.id === selectedStudentId)) {
+        setSelectedStudentId(null);
+        setSelectedEssayId(null);
+      }
+
+      const remoteEssayIds = essayIds.filter(isUuid);
+      const remoteErrors: string[] = [];
+
+      if (remoteEssayIds.length > 0) {
+        const deleteResults = await Promise.all(
+          remoteEssayIds.map(async essayId => {
+            const { error } = await deleteStudentUpload(essayId);
+            return { essayId, error };
+          })
+        );
+
+        deleteResults.forEach((result) => {
+          if (result.error) {
+            remoteErrors.push(`Essay ${result.essayId}: ${result.error}`);
+          }
+        });
+      }
+
+      if (targetSection?.name) {
+        const { error } = await deleteSectionRemote(targetSection.name);
+        if (error) {
+          remoteErrors.push(`Section ${targetSection.name}: ${error}`);
+        }
+      }
+
+      if (remoteErrors.length > 0) {
+        console.error('Section cascade delete completed with remote errors:', remoteErrors);
+        setSectionDeleteNotice(`"${name}" was deleted, but some cloud records failed to delete. Please refresh and retry if needed.`);
+      }
+    } catch (err) {
+      console.error('Section cascade delete failed:', err);
+      setSectionDeleteNotice(`Could not delete "${name}" completely. Please try again.`);
+    } finally {
+      setPendingSectionDelete(null);
+      setIsDeletingSection(false);
     }
   };
 
@@ -524,6 +601,18 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
         </div>
       </header>
 
+      {sectionDeleteNotice && (
+        <div className="px-5 py-2 bg-amber-50 border-b border-amber-100 text-[11px] text-amber-700 flex items-center justify-between">
+          <span>{sectionDeleteNotice}</span>
+          <button
+            onClick={() => setSectionDeleteNotice(null)}
+            className="text-[11px] font-semibold text-amber-700 hover:text-amber-900"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           sections={sections}
@@ -663,6 +752,43 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
           onSaveEssayText={handleSaveEssayText}
           onClose={() => setSelectedEssayId(null)}
         />
+      )}
+
+      {pendingSectionDelete && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="px-6 pt-6 pb-4 border-b border-gray-100">
+              <h3 className="text-base font-black text-gray-900">Delete Section</h3>
+              <p className="text-xs text-gray-500 mt-1">
+                This action cannot be undone.
+              </p>
+            </div>
+            <div className="px-6 py-4 space-y-3">
+              <p className="text-sm text-gray-700">
+                Delete <span className="font-bold">"{pendingSectionDelete.name}"</span>?
+              </p>
+              <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                This will also delete {pendingSectionDelete.studentCount} student(s) and {pendingSectionDelete.essayCount} essay(s).
+              </p>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setPendingSectionDelete(null)}
+                disabled={isDeletingSection}
+                className="px-3 py-2 rounded-lg text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteSection}
+                disabled={isDeletingSection}
+                className="px-3 py-2 rounded-lg text-xs font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50"
+              >
+                {isDeletingSection ? 'Deleting...' : 'Delete Section'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -2,6 +2,7 @@ import spacy
 import os
 import base64
 import json
+import re
 import logging
 import threading
 import asyncio
@@ -402,10 +403,113 @@ def extract_text_from_pdf(base64_string: str) -> str:
         return ""
 
 def generate_reference_title(text: str, name: Optional[str] = None) -> str:
-    if name:
-        return name
-    first_line = next((line.strip() for line in text.split("\n") if line.strip()), "Reference")
-    return first_line[:80]
+    if name and name.strip():
+        return name.strip()[:80]
+
+    lines = [line.strip() for line in text.split("\n") if line.strip()]
+    if not lines:
+        return "Reference"
+
+    def _clean_title(candidate: str) -> str:
+        cleaned = re.sub(r"^\s*(?:chapter\s+\d+[:.-]?\s*)", "", candidate, flags=re.IGNORECASE)
+        cleaned = re.sub(r"^\s*[#*\-–•\d\.)\(:]+", "", cleaned)
+        cleaned = re.sub(r"\s+", " ", cleaned)
+        cleaned = cleaned.strip("\"'`~|:;,. ")
+        return cleaned
+
+    def _split_merged_title_and_body(candidate: str) -> tuple[str, str]:
+        words = candidate.split()
+        if len(words) <= 12:
+            return candidate, ""
+
+        sentence_starters = {
+            "there", "this", "these", "those", "it", "i", "we", "they", "he", "she",
+            "if", "when", "while", "because", "nowadays", "today", "in", "on", "at",
+        }
+
+        limit = min(len(words), 18)
+        for idx in range(4, limit):
+            prev_word = re.sub(r"[^A-Za-z]", "", words[idx - 1])
+            current_word = re.sub(r"[^A-Za-z]", "", words[idx])
+            if not prev_word or not current_word:
+                continue
+
+            looks_like_boundary = (
+                prev_word.islower()
+                and current_word[0].isupper()
+                and current_word.lower() in sentence_starters
+            )
+            if not looks_like_boundary:
+                continue
+
+            title_part = " ".join(words[:idx]).strip()
+            body_part = " ".join(words[idx:]).strip()
+            if 3 <= len(title_part.split()) <= 12 and len(body_part.split()) >= 4:
+                return title_part, body_part
+
+        return candidate, ""
+
+    for line in lines[:3]:
+        candidate = _clean_title(line)
+        if len(candidate) < 3:
+            continue
+
+        title_part, _ = _split_merged_title_and_body(candidate)
+        if len(title_part) >= 3:
+            return title_part[:80]
+
+    return "Reference"
+
+
+def _normalize_title_for_match(value: str) -> str:
+    normalized = re.sub(r"[^\w\s]", " ", value.lower())
+    normalized = re.sub(r"_", " ", normalized)
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    return normalized
+
+
+def remove_title_from_body(text: str, title: str) -> str:
+    if not text.strip() or not title.strip():
+        return text
+
+    lines = text.splitlines()
+    first_non_empty_index = next((i for i, line in enumerate(lines) if line.strip()), None)
+    if first_non_empty_index is None:
+        return text
+
+    first_line = lines[first_non_empty_index].strip()
+    normalized_first_line = _normalize_title_for_match(first_line)
+    normalized_title = _normalize_title_for_match(title)
+
+    if len(normalized_first_line) < 3 or len(normalized_title) < 3:
+        return text
+
+    is_title_duplicate = (
+        normalized_first_line == normalized_title
+        or normalized_first_line.startswith(normalized_title)
+        or normalized_title.startswith(normalized_first_line)
+    )
+
+    if not is_title_duplicate:
+        return text
+
+    remaining_lines = lines[first_non_empty_index + 1 :]
+    first_line_tokens = first_line.split()
+    title_token_count = len(title.split())
+
+    # If OCR merged title + paragraph into one line, remove only the title prefix.
+    if len(first_line_tokens) > title_token_count:
+        trimmed_first_line = " ".join(first_line_tokens[title_token_count:]).strip(" -:;,.\t")
+        merged_lines = [trimmed_first_line] + remaining_lines
+        cleaned_inline = "\n".join(line for line in merged_lines if line.strip()).strip()
+        if cleaned_inline:
+            return cleaned_inline
+
+    while remaining_lines and not remaining_lines[0].strip():
+        remaining_lines.pop(0)
+
+    cleaned_text = "\n".join(remaining_lines).strip()
+    return cleaned_text or text
 
 async def evaluate_rubric_with_gemini(text: str, language: str, grade_level: str) -> dict:
     api_key = get_gemini_api_key()
@@ -939,7 +1043,8 @@ def ingest_reference(request: ReferenceIngestRequest):
                 text = decoded.decode("utf-8", errors="replace")
 
         title = generate_reference_title(text, request.name)
-        return {"title": title, "text": text}
+        cleaned_text = remove_title_from_body(text, title)
+        return {"title": title, "text": cleaned_text}
     except Exception as e:
         import traceback
         print("ERROR in ingest_reference:")

@@ -55,11 +55,19 @@ const DIMENSION_META = {
   mechanics:    { labelFil: 'Mekanika',             label: 'Mechanics',     color: 'rose'   },
 } as const;
 
-const SCORE_LABEL: Record<number, string> = {
-  1: 'Nagsisimula',
-  2: 'Papaunlad',
-  3: 'Papalapit sa Kahusayan',
-  4: 'Mahusay',
+const SCORE_LABELS: Record<'english' | 'filipino', Record<number, string>> = {
+  english: {
+    1: 'Beginning',
+    2: 'Developing',
+    3: 'Approaching Proficiency',
+    4: 'Proficient',
+  },
+  filipino: {
+    1: 'Nagsisimula',
+    2: 'Papaunlad',
+    3: 'Papalapit sa Kahusayan',
+    4: 'Mahusay',
+  },
 };
 
 function ScorePips({ score }: { score: number }) {
@@ -80,14 +88,45 @@ function ScorePips({ score }: { score: number }) {
 function DepEdRubricPanel({ rubric }: { rubric: DepEdRubricScore }) {
   const dims = (['content', 'organization', 'languageVocab', 'grammar', 'mechanics'] as const);
   const langLabel = rubric.language === 'filipino' ? 'Filipino' : 'English';
+  const [displayLanguage, setDisplayLanguage] = useState<'english' | 'filipino'>(rubric.language);
+
+  useEffect(() => {
+    setDisplayLanguage(rubric.language);
+  }, [rubric.language]);
 
   return (
     <div className="bg-white border border-gray-100 rounded-[24px] p-6 shadow-sm space-y-5">
       <div className="flex items-center justify-between">
-        <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
-          <IoStatsChartOutline className="text-indigo-400" />
-          DepEd Rubrik · {rubric.gradeLevel} · {langLabel}
-        </h4>
+        <div className="space-y-1">
+          <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+            <IoStatsChartOutline className="text-indigo-400" />
+            DepEd Rubric · {rubric.gradeLevel} · {langLabel}
+          </h4>
+          <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
+            <button
+              type="button"
+              onClick={() => setDisplayLanguage('filipino')}
+              className={`px-2 py-0.5 text-[10px] font-semibold rounded-md transition-colors ${
+                displayLanguage === 'filipino'
+                  ? 'bg-white text-teal-700 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Filipino
+            </button>
+            <button
+              type="button"
+              onClick={() => setDisplayLanguage('english')}
+              className={`px-2 py-0.5 text-[10px] font-semibold rounded-md transition-colors ${
+                displayLanguage === 'english'
+                  ? 'bg-white text-teal-700 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              English
+            </button>
+          </div>
+        </div>
         <div className="flex items-center gap-1.5">
           <span className="text-[10px] text-gray-500 font-medium">Kabuuan</span>
           <span className="text-lg font-black text-indigo-600">
@@ -101,15 +140,20 @@ function DepEdRubricPanel({ rubric }: { rubric: DepEdRubricScore }) {
         {dims.map(dim => {
           const meta = DIMENSION_META[dim];
           const d = rubric[dim];
+          const scoreLabel = SCORE_LABELS[displayLanguage][d.score] ?? '';
           return (
             <div key={dim}>
               <div className="flex items-center justify-between mb-1">
                 <div>
-                  <span className="text-xs font-bold text-gray-700">{meta.labelFil}</span>
-                  <span className="text-[10px] text-gray-400 ml-1">({meta.label})</span>
+                  <span className="text-xs font-bold text-gray-700">
+                    {displayLanguage === 'filipino' ? meta.labelFil : meta.label}
+                  </span>
+                  <span className="text-[10px] text-gray-400 ml-1">
+                    ({displayLanguage === 'filipino' ? meta.label : meta.labelFil})
+                  </span>
                 </div>
                 <span className="text-[10px] font-bold text-gray-500">
-                  {d.score}/4 · {SCORE_LABEL[d.score] ?? ''}
+                  {d.score}/4 · {scoreLabel}
                 </span>
               </div>
               <ScorePips score={d.score} />
@@ -455,33 +499,6 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
                       )}
                     </div>
                   </div>
-
-                  {[
-                  ].map((item, idx) => (
-                    <div
-                      key={idx}
-                      className={`p-4 rounded-2xl border ${item.meta?.border || 'border-gray-100'} ${item.meta?.bg || 'bg-gray-50'}`}
-                    >
-                      <div className="flex items-center gap-2 mb-2">
-                        <item.icon
-                          className={`text-xs ${item.meta?.color || 'text-gray-400'}`}
-                        />
-                        <span
-                          className={`text-[10px] font-bold uppercase tracking-widest ${item.meta?.color || 'text-gray-400'}`}
-                        >
-                          {item.label}
-                        </span>
-                      </div>
-                      <div
-                        className={`text-xl font-black ${item.meta?.color || 'text-gray-900'}`}
-                      >
-                        {item.value}
-                      </div>
-                      <p className="mt-2 text-[11px] text-gray-600 leading-relaxed">
-                        {item.definition}
-                      </p>
-                    </div>
-                  ))}
 
                   {/* Antas ng Kahusayan — predicted (AI) + actual (teacher) */}
                   {dr && (

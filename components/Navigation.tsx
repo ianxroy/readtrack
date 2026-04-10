@@ -6,7 +6,6 @@ import {
   IoGridOutline,
   IoSchoolOutline,
   IoLibraryOutline,
-  IoCheckmarkCircleOutline,
   IoLogOutOutline,
   IoPersonCircleOutline,
   IoTimeOutline,
@@ -105,7 +104,6 @@ const SidebarContent: React.FC<NavigationProps> = ({
           <NavItem to="/" icon={IoGridOutline} label="Dashboard" />
           <NavItem to="/student" icon={IoSchoolOutline} label="Student Grading" />
           <NavItem to="/material" icon={IoLibraryOutline} label="Material Library" />
-          <NavItem to="/checker" icon={IoCheckmarkCircleOutline} label="Material Checker" />
         </div>
 
         {/* History section */}
