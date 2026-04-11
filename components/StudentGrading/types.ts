@@ -1,4 +1,4 @@
-import { StudentDiagnosisResult, TextComplexityResult } from '../../types';
+import { StudentDiagnosisResult, TextComplexityResult, OriginalFile } from '../../types';
 
 export interface TeacherRubricScores {
   content: number;
@@ -33,7 +33,8 @@ export interface StudentEssay {
   teacherRating?: number;
   teacherComment?: string;
   teacherRubricScores?: TeacherRubricScores;
-  originalFile?: { base64: string; mimeType: string; name: string };
+  originalFile?: OriginalFile;
+  originalFiles?: OriginalFile[];
 }
 
 export interface Student {

@@ -134,6 +134,7 @@ export interface LibraryMaterial {
   uploadedAt: Date;
   complexityResult: TextComplexityResult;
   originalFile?: OriginalFile;
+  originalFiles?: OriginalFile[];
   teacherVerifiedLevel?: ComplexityLevel;
   teacherVerifiedAt?: string;
   verificationComment?: string;

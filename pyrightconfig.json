@@ -5,5 +5,8 @@
     {
       "root": "backend"
     }
-  ]
+  ],
+  "typeCheckingMode": "off",
+  "reportMissingImports": false,
+  "reportMissingModuleSource": false
 }

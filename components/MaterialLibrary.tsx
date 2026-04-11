@@ -10,9 +10,10 @@ import {
   IoBookOutline,
   IoFunnelOutline,
   IoChevronDownOutline,
+  IoChevronUpOutline,
   IoImageOutline,
 } from 'react-icons/io5';
-import { LibraryMaterial, TextComplexityResult, ComplexityLevel } from '../types';
+import { LibraryMaterial, TextComplexityResult, ComplexityLevel, OriginalFile } from '../types';
 import { classifyTextComplexityAPI, extractTextFromImageAPI, detectLanguageAPI, addTrainingSampleAPI, ingestReferenceAPI } from '../services/pythonService';
 import { saveMaterialUpload, loadMaterialUploads, deleteMaterialUpload, saveMaterialTeacherVerification } from '../services/supabaseService';
 import { useEffect } from 'react';
@@ -178,6 +179,9 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
     cr.reasoning, material.complexityResult.level
   );
 
+  const allImages = material.originalFiles?.length
+    ? material.originalFiles
+    : material.originalFile ? [material.originalFile] : [];
   const safeImageMime = material.originalFile?.mimeType && SAFE_IMAGE_TYPES.has(material.originalFile.mimeType)
     ? material.originalFile.mimeType
     : null;
@@ -295,12 +299,30 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
               <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4 flex items-center gap-2">
                 <IoBookOutline /> Original File
               </h4>
-              {material.originalFile ? (
+              {(allImages.length > 0 || material.originalFile) ? (
                 <div className="flex gap-4">
-                  {/* Left: original file */}
+                  {/* Left: original file(s) */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">Original File</p>
-                    {safeImageMime ? (
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">
+                      Original File{allImages.length > 1 ? `s (${allImages.length})` : ''}
+                    </p>
+                    {allImages.length > 1 ? (
+                      <div className="space-y-3">
+                        {allImages.map((img, i) => {
+                          const mime = SAFE_IMAGE_TYPES.has(img.mimeType) ? img.mimeType : null;
+                          return (
+                            <div key={i}>
+                              <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">Image {i + 1}</div>
+                              {mime ? (
+                                <img src={`data:${mime};base64,${img.base64}`} alt={`Image ${i+1}`} className="w-full rounded-lg border border-gray-200" />
+                              ) : (
+                                <div className="text-xs text-gray-400 italic p-4 bg-gray-50 rounded-lg border border-gray-200">No preview available.</div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : safeImageMime ? (
                       <img
                         src={`data:${safeImageMime};base64,${material.originalFile!.base64}`}
                         alt="Original uploaded material"
@@ -655,6 +677,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
   const [selected, setSelected] = useState<LibraryMaterial | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [stagedImages, setStagedImages] = useState<OriginalFile[]>([]);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [uploadFileName, setUploadFileName] = useState<string>('');
@@ -827,6 +850,20 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
     const isPdf = file.type === 'application/pdf';
     const isImage = file.type.startsWith('image/');
 
+    // Images are staged for ordering before analysis
+    if (isImage) {
+      const reader = new FileReader();
+      const b64 = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve((reader.result as string).split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      }).catch(() => null);
+      if (!b64) { setUploadError('Failed to read image file.'); return; }
+      setStagedImages(prev => [...prev, { base64: b64, mimeType: file.type, name: file.name }]);
+      setUploadFileName('');
+      return;
+    }
+
     if (isText) {
       text = await file.text();
     } else if (isPdf || isImage) {
@@ -937,9 +974,63 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
     }
   }, []);
 
+  const processStagedImages = useCallback(async () => {
+    if (stagedImages.length === 0) return;
+    setUploading(true);
+    setUploadError(null);
+    try {
+      // OCR all images in order, concatenate text
+      let combinedText = '';
+      for (const img of stagedImages) {
+        const ocrResult = await extractTextFromImageAPI(img.base64, img.mimeType);
+        const ocrError = (ocrResult as any)?.error;
+        if (ocrError === 'api_key_invalid') throw new Error('Gemini API key is expired or invalid. Please update GEMINI_API_KEY in .env.local and restart the backend.');
+        if (ocrError === 'no_api_key') throw new Error('No Gemini API key configured. Add GEMINI_API_KEY to .env.local.');
+        if (ocrError === 'ocr_timeout') throw new Error('OCR timed out. Try a smaller image or upload again.');
+        if (ocrResult?.text) combinedText += (combinedText ? '\n\n' : '') + ocrResult.text;
+      }
+      if (!combinedText.trim()) throw new Error('No text could be extracted from the images.');
+
+      const result: TextComplexityResult = await classifyTextComplexityAPI(combinedText);
+      let extractedText = normalizeMaterialText(result.analyzed_text || combinedText);
+
+      const fallbackTitle = stagedImages[0].name.replace(/\.[^.]+$/, '');
+      let autoTitle = fallbackTitle;
+      try {
+        const ingestResult = await ingestReferenceAPI({ text: extractedText });
+        if (ingestResult?.title?.trim()) autoTitle = ingestResult.title.trim();
+        if (ingestResult?.text?.trim()) extractedText = normalizeMaterialText(ingestResult.text.trim());
+      } catch { /* keep fallback */ }
+
+      let detectedLang: 'eng' | 'fil' = 'fil';
+      try { detectedLang = await detectLanguageAPI(extractedText); } catch { /* keep fallback */ }
+
+      const material: LibraryMaterial = {
+        id: Date.now().toString(),
+        name: autoTitle,
+        text: extractedText,
+        uploadedAt: new Date(),
+        complexityResult: result,
+        originalFile: stagedImages[0],
+        originalFiles: stagedImages,
+        language: detectedLang,
+      };
+      setStagedImages([]);
+      setPendingUploadMaterial(material);
+      setUploadModalLevel(material.complexityResult.level);
+      setUploadModalComment('');
+      setShowUploadModal(false);
+      setShowUploadVerifyModal(true);
+    } catch (e: any) {
+      setUploadError(e.message || 'Analysis failed.');
+    } finally {
+      setUploading(false);
+    }
+  }, [stagedImages]);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) processFile(file);
+    const files = Array.from(e.target.files || []);
+    files.forEach(f => processFile(f));
     e.target.value = '';
   };
 
@@ -950,8 +1041,8 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
     e.preventDefault();
     dragCount.current = 0;
     setIsDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (file) processFile(file);
+    const files = Array.from(e.dataTransfer.files);
+    files.forEach(file => processFile(file));
   };
 
   // Filtered + sorted + searched list
@@ -1032,6 +1123,50 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
                   </>
                 )}
               </div>
+
+              {/* Staged images queue */}
+              {stagedImages.length > 0 && (
+                <div className="space-y-1.5">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                    Images ({stagedImages.length}) — drag to reorder
+                  </div>
+                  {stagedImages.map((img, i) => (
+                    <div key={i} className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+                      <span className="w-5 text-[10px] font-bold text-gray-400 text-center shrink-0">{i + 1}</span>
+                      <img
+                        src={`data:${img.mimeType};base64,${img.base64}`}
+                        alt={img.name}
+                        className="w-9 h-9 object-cover rounded-lg border border-gray-200 shrink-0"
+                        onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                      <span className="text-xs text-gray-700 flex-1 truncate">{img.name}</span>
+                      <button
+                        onClick={() => setStagedImages(prev => { const n = [...prev]; if (i > 0) [n[i-1], n[i]] = [n[i], n[i-1]]; return n; })}
+                        disabled={i === 0}
+                        className="p-1 rounded-lg text-gray-400 hover:text-gray-700 disabled:opacity-25"
+                      ><IoChevronUpOutline className="text-sm" /></button>
+                      <button
+                        onClick={() => setStagedImages(prev => { const n = [...prev]; if (i < n.length-1) [n[i], n[i+1]] = [n[i+1], n[i]]; return n; })}
+                        disabled={i === stagedImages.length - 1}
+                        className="p-1 rounded-lg text-gray-400 hover:text-gray-700 disabled:opacity-25"
+                      ><IoChevronDownOutline className="text-sm" /></button>
+                      <button
+                        onClick={() => setStagedImages(prev => prev.filter((_, j) => j !== i))}
+                        className="p-1 rounded-lg text-red-400 hover:text-red-600"
+                      ><IoTrashOutline className="text-sm" /></button>
+                    </div>
+                  ))}
+                  <button
+                    onClick={processStagedImages}
+                    disabled={uploading}
+                    className="w-full py-2 rounded-xl bg-teal-500 hover:bg-teal-600 disabled:bg-gray-100 disabled:text-gray-400 text-white font-black text-xs transition-colors flex items-center justify-center gap-2"
+                  >
+                    {uploading
+                      ? <><div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Analyzing…</>
+                      : `Analyze ${stagedImages.length} Image${stagedImages.length > 1 ? 's' : ''} →`}
+                  </button>
+                </div>
+              )}
 
               {uploadError && (
                 <div className="bg-red-50 border border-red-200 text-red-600 text-xs rounded-xl px-4 py-3 flex items-center justify-between">

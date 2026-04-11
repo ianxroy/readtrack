@@ -286,9 +286,10 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
   };
 
   const SAFE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
-  const safeImageMime = essay.originalFile?.mimeType && SAFE_IMAGE_TYPES.has(essay.originalFile.mimeType)
-    ? essay.originalFile.mimeType
-    : null;
+  // Support both multi-image (originalFiles) and legacy single-image (originalFile)
+  const allImages = essay.originalFiles?.length
+    ? essay.originalFiles
+    : essay.originalFile ? [essay.originalFile] : [];
 
   const dr = essay.diagnosisResult;
   const pMeta = dr ? proficiencyMeta[dr.proficiency] : null;
@@ -364,22 +365,36 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
               <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4 flex items-center gap-2">
                 <IoBookOutline /> Orihinal na Isinumite {/* Original Submission */}
               </h4>
-              {essay.originalFile ? (
+              {allImages.length > 0 ? (
                 <div className="flex gap-4">
-                  {/* Left: original file */}
+                  {/* Left: original file(s) */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">Original File</p>
-                    {safeImageMime ? (
-                      <img
-                        src={`data:${safeImageMime};base64,${essay.originalFile!.base64}`}
-                        alt="Original submission"
-                        className="w-full rounded-lg border border-gray-200"
-                      />
-                    ) : (
-                      <div className="text-xs text-gray-400 italic p-4 bg-gray-50 rounded-lg border border-gray-200">
-                        No preview available for this file type.
-                      </div>
-                    )}
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">
+                      Original File{allImages.length > 1 ? `s (${allImages.length})` : ''}
+                    </p>
+                    <div className="space-y-3">
+                      {allImages.map((file, i) => {
+                        const mime = SAFE_IMAGE_TYPES.has(file.mimeType) ? file.mimeType : null;
+                        return (
+                          <div key={i}>
+                            {allImages.length > 1 && (
+                              <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">Image {i + 1}</div>
+                            )}
+                            {mime ? (
+                              <img
+                                src={`data:${mime};base64,${file.base64}`}
+                                alt={`Original submission ${i + 1}`}
+                                className="w-full rounded-lg border border-gray-200"
+                              />
+                            ) : (
+                              <div className="text-xs text-gray-400 italic p-4 bg-gray-50 rounded-lg border border-gray-200">
+                                No preview available for this file type.
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                   {/* Right: extracted text */}
                   <div className="flex-1 min-w-0">

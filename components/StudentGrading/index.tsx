@@ -19,7 +19,7 @@ import { UploadModal } from './UploadModal';
 import { EssayViewerModal } from './EssayViewerModal';
 import { ModelPerformancePage } from './ModelPerformancePage';
 
-import { ProficiencyLevel, CachedAnalysis, StudentDiagnosisResult, DepEdRubricScore } from '../../types';
+import { ProficiencyLevel, CachedAnalysis, StudentDiagnosisResult, DepEdRubricScore, OriginalFile } from '../../types';
 import { IoRefreshOutline } from 'react-icons/io5';
 import { analyzeStudentWorkAPI, classifyTextComplexityAPI, evaluateDepEdRubricAPI, getTrainStatusAPI, triggerRetrainAPI, TrainStatusResponse } from '../../services/pythonService';
 import { saveStudentGradingUpload, saveTeacherRubricScores, lookupEssayIdByText, deleteStudentUpload, deleteStudentAllUploads, updateStudentEssayText, deleteSection as deleteSectionRemote } from '../../services/supabaseService';
@@ -286,11 +286,12 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
   // ── Essay upload ──────────────────────────────────────
   const handleUpload = async (params: {
     studentId: string; subjectId: string; title: string; text: string;
-    originalFile?: { base64: string; mimeType: string; name: string };
+    originalFiles?: OriginalFile[];
   }) => {
+    const primaryImage = params.originalFiles?.[0];
     const [diagnosisResult, comp] = await Promise.all([
-      analyzeStudentWorkAPI(params.text, params.originalFile?.base64),
-      classifyTextComplexityAPI(params.text, params.originalFile?.base64),
+      analyzeStudentWorkAPI(params.text, primaryImage?.base64),
+      classifyTextComplexityAPI(params.text, primaryImage?.base64),
     ]);
 
     // Non-blocking rubric evaluation
@@ -323,7 +324,8 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
       uploadedAt: new Date(),
       diagnosisResult: diag,
       complexityResult: comp,
-      originalFile: params.originalFile,
+      originalFile: params.originalFiles?.[0],
+      originalFiles: params.originalFiles,
     };
 
     const next = students.map(s =>
@@ -347,7 +349,7 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
       section_name: sectionName,
       subject_name: selectedSubjectForUpload?.name,
       subject_language: selectedSubjectForUpload?.language === 'english' ? 'en' : 'tl',
-      original_file: essay.originalFile ?? null,
+      original_file: essay.originalFiles?.[0] ?? essay.originalFile ?? null,
     });
 
     if (error) {
@@ -739,6 +741,8 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
           prefilledSubjectId={selectedSubjectId ?? undefined}
           prefilledText={uploadPrefilledText}
           onUpload={handleUpload}
+          onAddSection={section => updateSections([...sections, section])}
+          onAddSubject={subject => updateSubjects([...subjects, subject])}
           onClose={() => { setShowUpload(false); setUploadPrefilledText(undefined); }}
         />
       )}
