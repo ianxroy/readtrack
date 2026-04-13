@@ -7,7 +7,7 @@ interface AboutProps {
 }
 
 const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-  <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+  <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
     <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-4">{title}</div>
     {children}
   </div>
@@ -64,7 +64,7 @@ export const About: React.FC<AboutProps> = ({ onMenuClick }) => {
     </header>
 
     <div className="flex-1 overflow-y-auto">
-      <div className="max-w-3xl mx-auto px-5 py-4 space-y-3">
+      <div className="max-w-3xl mx-auto px-5 py-2 space-y-2">
 
         {/* Overview */}
         <Section title="Overview">

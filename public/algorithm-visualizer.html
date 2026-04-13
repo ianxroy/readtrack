@@ -96,6 +96,12 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f4f6fb; colo
 .s6 .section-header { border-left: 4px solid #283593; }
 .s7 .section-number { background: #880e4f; }
 .s7 .section-header { border-left: 4px solid #880e4f; }
+.s8 .section-number { background: #37474f; }
+.s8 .section-header { border-left: 4px solid #37474f; }
+.s9 .section-number { background: #4527a0; }
+.s9 .section-header { border-left: 4px solid #4527a0; }
+.s10 .section-number { background: #00838f; }
+.s10 .section-header { border-left: 4px solid #00838f; }
 
 /* ── Error Banner ── */
 .error-banner { background: #ffebee; border: 1px solid #ef9a9a; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; display: none; font-size: 12px; color: #c62828; }
@@ -304,7 +310,7 @@ input[type=range] { width: 100%; accent-color: #1565c0; cursor: pointer; }
   <div class="header-top">
     <div>
       <h1>ReadTrack — Algorithm Visualizer</h1>
-      <div class="tagline">Step-by-step: how a student essay is analyzed, scored, and classified</div>
+      <div class="tagline">Student Essay Checker — step-by-step: analyze, score, and classify student writing</div>
     </div>
     <div class="backend-badge disconnected" id="backendBadge">⬤ Checking backend…</div>
   </div>
@@ -316,6 +322,9 @@ input[type=range] { width: 100%; accent-color: #1565c0; cursor: pointer; }
     <a class="jump-link" href="#sec5">⑤ Teacher Loop</a>
     <a class="jump-link" href="#sec6">⑥ Rubric Scorer</a>
     <a class="jump-link" href="#sec7">⑦ ML Code</a>
+    <a class="jump-link" href="#sec8">⑧ File Pipeline</a>
+    <a class="jump-link" href="#sec9">⑨ Grammar Service</a>
+    <a class="jump-link" href="material-visualizer.html" style="background:rgba(0,131,143,0.25);color:rgba(255,255,255,0.9);">⑩ Material Checker ↗</a>
   </div>
 </div>
 
@@ -1497,6 +1506,279 @@ async function runAnalysis() {
   }
 }
 
+function buildSection8() {
+  const steps = [
+    {
+      type: '.txt', color: '#1565c0', icon: '📄',
+      title: 'Plain Text (.txt)',
+      where: 'Client-side — UploadModal.tsx',
+      detail: '<code>FileReader.readAsText(file)</code> reads the raw UTF-8 string directly into the textarea. No server call needed.',
+      code: `<span class="c-kw">const</span> reader = <span class="c-kw">new</span> FileReader();
+reader.onload = e =&gt; setText(e.target.result);
+reader.readAsText(file);`
+    },
+    {
+      type: '.docx', color: '#2e7d32', icon: '📝',
+      title: 'Word Document (.docx)',
+      where: 'Client-side — mammoth.js',
+      detail: '<code>mammoth.extractRawText({ arrayBuffer })</code> parses the DOCX XML client-side and returns plain text. Never sent to the server.',
+      code: `<span class="c-kw">const</span> buf = <span class="c-kw">await</span> file.arrayBuffer();
+<span class="c-kw">const</span> result = <span class="c-kw">await</span> mammoth.<span class="c-fn">extractRawText</span>({ arrayBuffer: buf });
+setText(result.value.trim());`
+    },
+    {
+      type: 'Image ×N', color: '#e65100', icon: '🖼',
+      title: 'Multiple Images (ordered)',
+      where: 'Client → POST /ocr/extract (Gemini 2.5 Flash)',
+      detail: 'User stages N images and reorders them by drag-and-drop. Clicking <strong>Done — Scan</strong> calls <code>handleScanImages()</code> which iterates <code>imageFiles</code> in display order, OCR-ing each sequentially and concatenating extracted text.',
+      code: `<span class="c-cm">// handleScanImages() — UploadModal.tsx</span>
+<span class="c-kw">for</span> (<span class="c-kw">const</span> img <span class="c-kw">of</span> imageFiles) {          <span class="c-cm">// display order</span>
+  <span class="c-kw">const</span> r = <span class="c-kw">await</span> <span class="c-fn">extractTextFromImageAPI</span>(img.base64, img.mimeType);
+  <span class="c-kw">if</span> (r?.text) combinedText += <span class="c-str">'\n\n'</span> + r.text;
+}
+
+<span class="c-cm">// backend/ocr.py — 25s timeout via ThreadPoolExecutor</span>
+model = genai.<span class="c-fn">GenerativeModel</span>(<span class="c-str">"gemini-2.5-flash"</span>)
+response = model.<span class="c-fn">generate_content</span>([prompt, {<span class="c-str">"mime_type"</span>: mime, <span class="c-str">"data"</span>: b64}])`
+    },
+    {
+      type: '.pdf', color: '#6a1b9a', icon: '📋',
+      title: 'PDF Document',
+      where: 'Client → POST /ocr/extract (Gemini 2.5 Flash)',
+      detail: 'PDF is base64-encoded client-side and sent to the same OCR endpoint. Gemini Vision reads the visual layout of each page.',
+      code: `<span class="c-cm"># backend/ocr.py</span>
+<span class="c-kw">def</span> <span class="c-fn">extract_text_from_image</span>(base64_data, mime_type):
+    model = genai.<span class="c-fn">GenerativeModel</span>(<span class="c-str">"gemini-2.5-flash"</span>)
+    <span class="c-kw">with</span> ThreadPoolExecutor(max_workers=<span class="c-num">1</span>) <span class="c-kw">as</span> ex:
+        future = ex.<span class="c-fn">submit</span>(_call_gemini)
+        response = future.<span class="c-fn">result</span>(timeout=<span class="c-num">25</span>)  <span class="c-cm"># 25s hard limit</span>`
+    },
+  ];
+
+  const stepsHtml = steps.map((s, i) => `
+    <div style="display:flex;gap:14px;margin-bottom:18px;align-items:flex-start;">
+      <div style="width:64px;flex-shrink:0;text-align:center;">
+        <div style="font-size:22px;line-height:1">${s.icon}</div>
+        <div style="margin-top:4px;font-size:10px;font-weight:700;background:${s.color}22;color:${s.color};border-radius:6px;padding:2px 6px;">${s.type}</div>
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:700;font-size:13px;margin-bottom:2px;">${s.title}</div>
+        <div style="font-size:10px;font-family:monospace;color:#888;margin-bottom:5px;">${s.where}</div>
+        <div style="font-size:12px;color:#555;margin-bottom:8px;line-height:1.6;">${s.detail}</div>
+        <div class="ml-code">${s.code}</div>
+      </div>
+    </div>`).join('');
+
+  return `
+  <div class="section-card s8" id="sec8">
+    <div class="section-header">
+      <div class="section-number">8</div>
+      <div>
+        <div class="section-title">File Input Pipeline — Text Extraction</div>
+        <div class="section-subtitle">How each file type is converted to plain text before NLP analysis</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <div style="background:#f8f9ff;border:1px solid #e0e4ff;border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:12px;color:#555;line-height:1.7;">
+        After extraction, all paths converge at <code>POST /reference/ingest</code> — which uses Gemini to auto-detect a title and clean the body text — then the text enters the NLP pipeline (Sections 2–4).
+      </div>
+      ${stepsHtml}
+    </div>
+  </div>`;
+}
+
+function buildSection9() {
+  const rules = [
+    ['Subject–Verb Agreement', 'spaCy dependency parse detects nsubj → HEAD token mismatch in number/person.'],
+    ['Article Usage (a/an/the)', 'Rule-based pattern: determiner before vowel-initial noun triggers a→an check.'],
+    ['Tense Consistency', 'Verb token sequence analyzed for mixed past/present tense across clauses.'],
+    ['Run-on / Fragment Detection', 'Sentence boundary scoring using average dep-distance and missing root detection.'],
+    ['Spelling Errors', 'pyspellchecker library compares tokens against a dictionary; freq-based correction.'],
+    ['Punctuation Density', 'Flags comma splices, missing terminal punctuation, excessive punctuation.'],
+  ];
+
+  const rulesHtml = rules.map(([name, desc]) => `
+    <tr>
+      <td><strong>${name}</strong></td>
+      <td style="color:#555">${desc}</td>
+    </tr>`).join('');
+
+  return `
+  <div class="section-card s9" id="sec9">
+    <div class="section-header">
+      <div class="section-number">9</div>
+      <div>
+        <div class="section-title">Grammar &amp; Spell Check Service</div>
+        <div class="section-subtitle">Hybrid rule-based (spaCy) + Gemini AI explanations — grammar_service.py + grammar_router</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <div class="two-col" style="gap:20px;">
+        <div>
+          <div class="subsection-label">Layer 1 — Rule-Based Detection (spaCy)</div>
+          <table class="ml-table" style="margin-top:6px;">
+            <thead><tr><th>Check</th><th>Method</th></tr></thead>
+            <tbody>${rulesHtml}</tbody>
+          </table>
+        </div>
+        <div>
+          <div class="subsection-label">Layer 2 — Gemini AI Enhancement</div>
+          <p style="font-size:12px;color:#555;line-height:1.7;margin-bottom:10px;">
+            For each <code>GrammarIssue</code> found by Layer 1, the service calls Gemini 2.5 Flash to add:
+            <ul style="margin:6px 0 0 18px;font-size:12px;color:#555;">
+              <li><code>ai_suggestion</code> — corrected version of the flagged text</li>
+              <li><code>ai_explanation</code> — plain-English reason in EN or Filipino</li>
+            </ul>
+          </p>
+          <div class="ml-code"><span class="c-cm"># grammar_service.py (simplified)</span>
+<span class="c-kw">def</span> <span class="c-fn">enhance_with_ai</span>(issue: GrammarIssue, lang: str):
+    prompt = <span class="c-fn">build_prompt</span>(issue, lang)
+    model = genai.<span class="c-fn">GenerativeModel</span>(<span class="c-str">"gemini-2.5-flash"</span>)
+    resp = model.<span class="c-fn">generate_content</span>(prompt)
+    issue.ai_suggestion   = <span class="c-fn">parse_suggestion</span>(resp)
+    issue.ai_explanation  = <span class="c-fn">parse_explanation</span>(resp)</div>
+          <div class="subsection-label" style="margin-top:14px;">Language Handling</div>
+          <p style="font-size:12px;color:#555;line-height:1.7;">
+            <code>detect_language(text)</code> is called first. If Filipino (<code>"tl"</code>), the grammar router uses <strong>tagalog_service.py</strong> for Filipino-specific rules (particle/linker checks, po/opo usage). English essays use the standard spaCy EN pipeline.
+          </p>
+          <div class="ml-code"><span class="c-kw">if</span> lang == <span class="c-str">"tl"</span>:
+    issues = tagalog_service.<span class="c-fn">check_grammar</span>(text)
+<span class="c-kw">else</span>:
+    issues = grammar_service.<span class="c-fn">check_grammar</span>(text)
+<span class="c-kw">return</span> <span class="c-fn">enhance_with_ai</span>(issues, lang)</div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function _unused_buildSection10() {
+  // Moved to material-visualizer.html
+  const steps = [
+    {
+      num: 1,
+      color: '#00838f',
+      title: 'Teacher Uploads Reading Material',
+      where: 'MaterialLibrary.tsx → processFile() / processStagedImages()',
+      detail: 'Teacher selects one or more images, a DOCX, PDF, or TXT file in the Material Library. Images are staged in display order for review before OCR runs. Non-image files are processed immediately. The extracted text is then sent for analysis.',
+      code: `<span class="c-cm">// MaterialLibrary.tsx — deferred OCR for images</span>
+<span class="c-kw">if</span> (isImage) {
+  setStagedImages(prev => [...prev, { base64, mimeType, name }]);
+} <span class="c-kw">else</span> {
+  <span class="c-kw">const</span> text = <span class="c-kw">await</span> <span class="c-fn">extractText</span>(file);  <span class="c-cm">// TXT/DOCX/PDF</span>
+  <span class="c-fn">processMaterial</span>(text);
+}
+<span class="c-cm">// "Analyze N Images" button calls processStagedImages()</span>
+<span class="c-kw">for</span> (<span class="c-kw">const</span> img <span class="c-kw">of</span> stagedImages) {
+  body += <span class="c-kw">await</span> <span class="c-fn">extractTextFromImageAPI</span>(img.base64, img.mimeType);
+}`
+    },
+    {
+      num: 2,
+      color: '#00838f',
+      title: 'OCR — Image Text Extraction',
+      where: 'backend/ocr_router.py → POST /ocr/extract',
+      detail: 'Each image is sent as base64 to the OCR endpoint. Gemini 2.5 Flash reads the image and returns the plain text content. For multi-image materials, the frontend loops sequentially and concatenates results, preserving page order.',
+      code: `<span class="c-cm"># ocr_router.py</span>
+<span class="c-kw">def</span> <span class="c-fn">_call_gemini</span>():
+    model = genai.<span class="c-fn">GenerativeModel</span>(<span class="c-str">"gemini-2.5-flash"</span>)
+    img_part = {<span class="c-str">"mime_type"</span>: mime, <span class="c-str">"data"</span>: base64_data}
+    resp = model.<span class="c-fn">generate_content</span>([<span class="c-str">"Extract all text..."</span>, img_part])
+    <span class="c-kw">return</span> resp.text
+
+<span class="c-kw">with</span> ThreadPoolExecutor() <span class="c-kw">as</span> ex:
+    future = ex.<span class="c-fn">submit</span>(_call_gemini)
+    result = future.<span class="c-fn">result</span>(timeout=<span class="c-num">25</span>)  <span class="c-cm"># 25s hard limit</span>`
+    },
+    {
+      num: 3,
+      color: '#00838f',
+      title: 'Auto Title + Body Cleaning',
+      where: 'backend/reference_router.py → POST /reference/ingest',
+      detail: 'The raw extracted text is sent to /reference/ingest. Gemini detects the title from the first lines, cleans the body (removes headers/footers/artifacts), and returns a structured { title, body } object. This is the same pipeline used for student reference materials.',
+      code: `<span class="c-cm"># reference_router.py</span>
+prompt = <span class="c-fn">f</span>(<span class="c-str">"""Extract title and clean body from:
+{raw_text}
+Return JSON: {{"title": "...", "body": "..."}}"""</span>)
+resp = model.<span class="c-fn">generate_content</span>(prompt)
+data = json.<span class="c-fn">loads</span>(resp.text)
+<span class="c-kw">return</span> {<span class="c-str">"title"</span>: data[<span class="c-str">"title"</span>], <span class="c-str">"body"</span>: data[<span class="c-str">"body"</span>]}`
+    },
+    {
+      num: 4,
+      color: '#00838f',
+      title: 'Complexity Classification (Same NLP Pipeline)',
+      where: 'backend/analysis_router.py → POST /analyze/complexity',
+      detail: 'The cleaned material text is analyzed with the same NLP feature extraction used for student essays (Sections 2–3). The SVM classifier then maps the feature vector to one of three DepEd reading levels: Literal, Inferential, or Evaluative.',
+      code: `<span class="c-cm"># analysis_router.py — reuses student essay pipeline</span>
+features = <span class="c-fn">extract_features</span>(body)
+<span class="c-cm"># features: avg_word_len, avg_sent_len, ttr, fkgl,</span>
+<span class="c-cm">#           gunning_fog, cefr_ratio, dependency_depth …</span>
+verdict = svm_model.<span class="c-fn">predict</span>([features])[<span class="c-num">0</span>]
+<span class="c-cm"># verdict → "Literal" | "Inferential" | "Evaluative"</span>
+confidence = svm_model.<span class="c-fn">predict_proba</span>([features]).<span class="c-fn">max</span>()`
+    },
+    {
+      num: 5,
+      color: '#00838f',
+      title: 'Teacher Reviews & Saves',
+      where: 'MaterialLibrary.tsx → handleSaveMaterial() → Supabase',
+      detail: 'The classification result is shown to the teacher with the confidence score. The teacher can accept or override the detected level. On save, the material record is written to Supabase with: title, body, complexity level, original images (originalFiles[]), and metadata. The material is then available for student assignments.',
+      code: `<span class="c-cm">// MaterialLibrary.tsx</span>
+<span class="c-kw">const</span> { error } = <span class="c-kw">await</span> supabase
+  .<span class="c-fn">from</span>(<span class="c-str">'materials'</span>)
+  .<span class="c-fn">insert</span>({
+    title,
+    body,
+    complexity_level: verifiedLevel,   <span class="c-cm">// teacher-confirmed</span>
+    original_file:  stagedImages[<span class="c-num">0</span>] ?? <span class="c-kw">null</span>,
+    original_files: stagedImages,       <span class="c-cm">// ordered image array</span>
+    subject_id, section_id,
+  });`
+    },
+  ];
+
+  const stepsHtml = steps.map(s => `
+    <div style="display:flex;gap:16px;margin-bottom:22px;align-items:flex-start;position:relative;">
+      <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;">
+        <div style="width:32px;height:32px;border-radius:50%;background:${s.color};color:white;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;">${s.num}</div>
+        ${s.num < steps.length ? `<div style="width:2px;flex:1;min-height:20px;background:#e0e0e0;margin-top:4px;"></div>` : ''}
+      </div>
+      <div style="flex:1;min-width:0;padding-bottom:${s.num < steps.length ? '0' : '0'}px;">
+        <div style="font-weight:700;font-size:13px;margin-bottom:2px;">${s.title}</div>
+        <div style="font-size:10px;font-family:monospace;color:#888;margin-bottom:5px;">${s.where}</div>
+        <div style="font-size:12px;color:#555;margin-bottom:8px;line-height:1.6;">${s.detail}</div>
+        <div class="ml-code">${s.code}</div>
+      </div>
+    </div>`).join('');
+
+  return `
+  <div class="section-card s10" id="sec10">
+    <div class="section-header">
+      <div class="section-number">10</div>
+      <div>
+        <div class="section-title">Material Complexity Checker — Full Pipeline</div>
+        <div class="section-subtitle">Teacher uploads reading material → OCR → NLP → SVM → Literal / Inferential / Evaluative</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <div style="background:#e0f7fa;border:1px solid #80deea;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:12px;color:#006064;line-height:1.7;">
+        The Material Checker reuses the <strong>same NLP feature extraction and SVM classifier</strong> as the Student Essay Checker (Sections 2–3). The key difference is the input source: a teacher-uploaded document instead of a student essay. Both converge on <code>POST /analyze/complexity</code>.
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;">
+        <span class="ml-badge green">POST /ocr/extract</span>
+        <span style="color:#aaa;font-size:12px;align-self:center;">→</span>
+        <span class="ml-badge blue">POST /reference/ingest</span>
+        <span style="color:#aaa;font-size:12px;align-self:center;">→</span>
+        <span class="ml-badge purple">POST /analyze/complexity</span>
+        <span style="color:#aaa;font-size:12px;align-self:center;">→</span>
+        <span class="ml-badge orange">Supabase materials</span>
+      </div>
+      ${stepsHtml}
+    </div>
+  </div>`;
+}
+
 function renderSections() {
   const main = document.getElementById('main');
   main.insertAdjacentHTML('beforeend', buildSection1());
@@ -1507,6 +1789,8 @@ document.addEventListener('DOMContentLoaded', () => {
   renderSections();
   // Section 7 is static — render immediately, no API data needed
   document.getElementById('main').insertAdjacentHTML('beforeend', buildSection7());
+  document.getElementById('main').insertAdjacentHTML('beforeend', buildSection8());
+  document.getElementById('main').insertAdjacentHTML('beforeend', buildSection9());
 });
 </script>
 </body>

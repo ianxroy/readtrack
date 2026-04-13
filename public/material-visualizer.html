@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ReadTrack — Material Complexity Checker</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f4f6fb; color: #1a1a2e; font-size: 13px; line-height: 1.5; }
+
+.page-header {
+  background: linear-gradient(135deg, #004d40 0%, #00838f 100%);
+  color: white; padding: 20px 32px;
+  display: flex; flex-direction: column;
+  position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.header-top { display: flex; align-items: center; justify-content: space-between; }
+.page-header h1 { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
+.page-header .tagline { font-size: 11px; opacity: 0.75; margin-top: 2px; }
+.backend-badge {
+  padding: 5px 14px; border-radius: 20px; font-size: 11px; font-weight: 600;
+  border: 1px solid rgba(255,255,255,0.4);
+}
+.backend-badge.connected { background: rgba(76,175,80,0.25); }
+.backend-badge.disconnected { background: rgba(244,67,54,0.25); }
+.jump-links { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.jump-link {
+  font-size: 10px; color: rgba(255,255,255,0.7); text-decoration: none;
+  background: rgba(255,255,255,0.1); border-radius: 10px; padding: 2px 10px;
+  transition: background 0.15s;
+}
+.jump-link:hover { background: rgba(255,255,255,0.25); color: white; }
+
+.container { max-width: 1100px; margin: 0 auto; padding: 24px 20px; display: flex; flex-direction: column; gap: 20px; }
+
+/* ── Section Cards ── */
+.section-card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); overflow: hidden; }
+.section-header { padding: 13px 20px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #eef0f5; }
+.section-number { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; color: white; }
+.section-title { font-size: 14px; font-weight: 600; }
+.section-subtitle { font-size: 11px; color: #666; margin-top: 1px; }
+.section-body { padding: 18px 20px; }
+
+.s1 .section-number { background: #00838f; }
+.s1 .section-header { border-left: 4px solid #00838f; }
+.s2 .section-number { background: #00695c; }
+.s2 .section-header { border-left: 4px solid #00695c; }
+.s3 .section-number { background: #37474f; }
+.s3 .section-header { border-left: 4px solid #37474f; }
+.s4 .section-number { background: #6a1b9a; }
+.s4 .section-header { border-left: 4px solid #6a1b9a; }
+.s5 .section-number { background: #e65100; }
+.s5 .section-header { border-left: 4px solid #e65100; }
+.s6 .section-number { background: #1565c0; }
+.s6 .section-header { border-left: 4px solid #1565c0; }
+.s7 .section-number { background: #2e7d32; }
+.s7 .section-header { border-left: 4px solid #2e7d32; }
+
+/* ── Code blocks ── */
+.ml-code { background: #1e1e2e; color: #cdd6f4; font-family: 'Consolas','Fira Code',monospace; font-size: 11.5px; border-radius: 8px; padding: 14px 16px; overflow-x: auto; line-height: 1.7; white-space: pre; margin-top: 6px; }
+.ml-code .c-kw  { color: #cba6f7; }
+.ml-code .c-fn  { color: #89b4fa; }
+.ml-code .c-str { color: #a6e3a1; }
+.ml-code .c-num { color: #fab387; }
+.ml-code .c-cm  { color: #6c7086; font-style: italic; }
+.ml-file-badge { display: inline-block; font-size: 10px; font-weight: 600; background: #e0f7fa; color: #006064; border-radius: 4px; padding: 2px 8px; margin-bottom: 6px; font-family: monospace; }
+
+/* ── Tables ── */
+.ml-table { width: 100%; border-collapse: collapse; font-size: 11.5px; margin-top: 10px; }
+.ml-table th { background: #00838f; color: white; padding: 7px 10px; text-align: left; font-weight: 600; }
+.ml-table td { padding: 6px 10px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+.ml-table tr:nth-child(even) td { background: #fafafa; }
+
+/* ── Badges ── */
+.ml-badge { display: inline-block; font-size: 10px; font-weight: 700; border-radius: 4px; padding: 1px 6px; }
+.ml-badge.green  { background: #e8f5e9; color: #2e7d32; }
+.ml-badge.blue   { background: #e3f2fd; color: #1565c0; }
+.ml-badge.purple { background: #f3e5f5; color: #6a1b9a; }
+.ml-badge.orange { background: #fff3e0; color: #e65100; }
+.ml-badge.teal   { background: #e0f7fa; color: #006064; }
+
+/* ── Feature grid ── */
+.feature-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+@media (max-width: 800px) { .feature-grid { grid-template-columns: repeat(2, 1fr); } }
+.feature-chip { border-radius: 8px; padding: 9px 11px; border: 1px solid #e0e4f0; }
+.feature-chip .fname { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #555; }
+.feature-chip .fval  { font-size: 17px; font-weight: 800; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.feature-chip .fdesc { font-size: 10px; color: #888; margin-top: 1px; }
+.fc-teal  { background: #e0f7fa; border-color: #80deea; }
+.fc-teal  .fval { color: #006064; }
+.fc-green { background: #e8f5e9; border-color: #a5d6a7; }
+.fc-green .fval { color: #2e7d32; }
+.fc-purple { background: #f3e5f5; border-color: #ce93d8; }
+.fc-purple .fval { color: #6a1b9a; }
+.fc-orange { background: #fff3e0; border-color: #ffcc80; }
+.fc-orange .fval { color: #e65100; }
+
+/* ── DepEd verdict bands ── */
+.verdict-band { border-radius: 10px; padding: 13px 15px; margin-bottom: 8px; border: 2px solid transparent; }
+.verdict-band-label { font-size: 15px; font-weight: 700; }
+.verdict-band-sub   { font-size: 11px; margin-top: 3px; color: #555; }
+.verdict-badge { float: right; display: inline-block; border-radius: 12px; padding: 3px 12px; font-size: 10px; font-weight: 700; color: white; }
+.vb-literal     { background: #e8f5e9; border-color: #c8e6c9; }
+.vb-literal     .verdict-band-label { color: #2e7d32; }
+.vb-literal     .verdict-badge      { background: #2e7d32; }
+.vb-inferential { background: #fff8e1; border-color: #ffecb3; }
+.vb-inferential .verdict-band-label { color: #f57f17; }
+.vb-inferential .verdict-badge      { background: #f57f17; }
+.vb-evaluative  { background: #fce4ec; border-color: #f8bbd0; }
+.vb-evaluative  .verdict-band-label { color: #c62828; }
+.vb-evaluative  .verdict-badge      { background: #c62828; }
+
+/* ── SVM box ── */
+.svm-box { background: #f3e5f5; border: 1px solid #ce93d8; border-radius: 10px; padding: 14px 16px; margin-top: 12px; }
+.svm-box-title { font-weight: 700; color: #6a1b9a; margin-bottom: 6px; font-size: 13px; }
+.confidence-tag { display: inline-block; background: #e3f2fd; color: #1565c0; border-radius: 10px; padding: 2px 10px; font-size: 11px; margin-left: 8px; font-weight: 600; }
+
+/* ── Layout helpers ── */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+.subsection-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #555; margin-bottom: 10px; }
+
+/* ── Input area ── */
+.material-textarea { width: 100%; border: 1px solid #b2dfdb; border-radius: 8px; padding: 12px; font-size: 13px; font-family: inherit; resize: vertical; min-height: 110px; background: #f0fdfc; transition: border-color 0.2s; }
+.material-textarea:focus { outline: none; border-color: #00838f; box-shadow: 0 0 0 3px rgba(0,131,143,0.1); }
+.input-row { display: flex; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+.btn-primary { background: #00838f; color: white; border: none; border-radius: 8px; padding: 10px 24px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; transition: background 0.2s; }
+.btn-primary:hover { background: #0097a7; }
+.btn-primary:disabled { background: #90a4ae; cursor: not-allowed; }
+.api-note { font-size: 10px; color: #aaa; font-family: monospace; }
+.section-error { background: #ffebee; color: #c62828; border-radius: 6px; padding: 8px 12px; font-size: 12px; margin-top: 10px; display: none; }
+.section-error.visible { display: block; }
+
+.spinner { display: inline-block; width: 16px; height: 16px; vertical-align: middle; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 6px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.page-footer { text-align: center; padding: 20px; color: #aaa; font-size: 11px; }
+
+@media print {
+  .page-header { position: static; box-shadow: none; }
+  .jump-links, .backend-badge, .btn-primary { display: none !important; }
+  .section-card { box-shadow: none; border: 1px solid #ddd; break-inside: avoid; }
+  body { background: white; }
+}
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <div class="header-top">
+    <div>
+      <h1>ReadTrack — Material Complexity Checker</h1>
+      <div class="tagline">How a teacher-uploaded reading material is classified as Literal / Inferential / Evaluative</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <div class="backend-badge disconnected" id="backendBadge">⬤ Checking backend…</div>
+    </div>
+  </div>
+  <div class="jump-links">
+    <a class="jump-link" href="#sec1">① Upload</a>
+    <a class="jump-link" href="#sec2">② File Input &amp; OCR</a>
+    <a class="jump-link" href="#sec3">③ Title Extraction</a>
+    <a class="jump-link" href="#sec4">④ NLP Features</a>
+    <a class="jump-link" href="#sec5">⑤ SVM Classifier</a>
+    <a class="jump-link" href="#sec6">⑥ DepEd Scale</a>
+    <a class="jump-link" href="#sec7">⑦ Verify &amp; Save</a>
+    <a class="jump-link" href="algorithm-visualizer.html" style="background:rgba(21,101,192,0.3);color:rgba(255,255,255,0.9);">Essay Checker ↗</a>
+  </div>
+</div>
+
+<div class="container" id="main">
+  <div id="globalError" style="display:none;background:#ffebee;border:1px solid #ef9a9a;border-radius:8px;padding:12px 16px;font-size:12px;color:#c62828;"></div>
+</div>
+
+<div class="page-footer">ReadTrack Algorithm Visualizer · Material Checker · Thesis Defense Reference · 2026</div>
+
+<script>
+const API = 'http://localhost:8000';
+let complexityResult = null;
+
+async function checkBackend() {
+  const badge = document.getElementById('backendBadge');
+  try {
+    const r = await fetch(API + '/health', { signal: AbortSignal.timeout(4000) });
+    if (r.ok) { badge.textContent = '⬤ Backend connected'; badge.className = 'backend-badge connected'; }
+    else throw new Error();
+  } catch {
+    badge.textContent = '⬤ Backend offline'; badge.className = 'backend-badge disconnected';
+  }
+}
+
+async function runAnalysis() {
+  const text = document.getElementById('materialInput').value.trim();
+  if (!text) return;
+  const btn = document.getElementById('analyzeBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Analyzing…';
+  document.getElementById('sec1Error').classList.remove('visible');
+
+  try {
+    const res = await fetch(API + '/analyze/complexity', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    complexityResult = await res.json();
+    renderResults();
+  } catch (e) {
+    const err = document.getElementById('sec1Error');
+    err.textContent = 'Analysis failed: ' + e.message;
+    err.classList.add('visible');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '▶ Analyze Material';
+  }
+}
+
+function renderResults() {
+  ['sec2r','sec3r','sec4r','sec5r','sec6r'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.remove();
+  });
+  if (!complexityResult) return;
+  const main = document.getElementById('main');
+  main.insertAdjacentHTML('beforeend', buildFeaturesResult());
+  main.insertAdjacentHTML('beforeend', buildSVMResult());
+  main.insertAdjacentHTML('beforeend', buildVerdictResult());
+}
+
+function fmt(v, d=2) { return (typeof v === 'number') ? v.toFixed(d) : (v ?? '—'); }
+
+function buildFeaturesResult() {
+  const f = complexityResult?.features ?? {};
+  const chips = [
+    { cls:'fc-teal',   name:'Avg Word Len',    val: fmt(f.avg_word_length,1),   desc:'chars per word' },
+    { cls:'fc-teal',   name:'Avg Sent Len',    val: fmt(f.avg_sentence_length,1),desc:'words per sentence' },
+    { cls:'fc-green',  name:'TTR',             val: fmt(f.ttr,3),               desc:'type-token ratio' },
+    { cls:'fc-green',  name:'CEFR Ratio',      val: fmt(f.cefr_ratio,3),        desc:'B2+ vocab fraction' },
+    { cls:'fc-orange', name:'FKGL',            val: fmt(f.fkgl,1),              desc:'Flesch-Kincaid grade' },
+    { cls:'fc-orange', name:'Gunning Fog',     val: fmt(f.gunning_fog,1),       desc:'fog index' },
+    { cls:'fc-purple', name:'Dep Depth',       val: fmt(f.dependency_depth,1),  desc:'avg parse depth' },
+    { cls:'fc-purple', name:'Subordination',   val: fmt(f.subordination_ratio,3),desc:'complex clauses' },
+  ];
+  return `<div id="sec2r" style="background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06);padding:18px 20px;">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#00838f;margin-bottom:12px;">Extracted NLP Features (from /analyze/complexity)</div>
+    <div class="feature-grid">${chips.map(c=>`<div class="feature-chip ${c.cls}"><div class="fname">${c.name}</div><div class="fval">${c.val}</div><div class="fdesc">${c.desc}</div></div>`).join('')}</div>
+  </div>`;
+}
+
+function buildSVMResult() {
+  const verdict = complexityResult?.complexity ?? complexityResult?.verdict ?? '—';
+  const conf = complexityResult?.confidence;
+  const confPct = conf != null ? (conf * 100).toFixed(1) + '%' : '—';
+  return `<div id="sec3r" style="background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06);padding:18px 20px;">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#6a1b9a;margin-bottom:12px;">SVM Classification Result</div>
+    <div class="svm-box">
+      <div class="svm-box-title">Prediction</div>
+      <div style="font-size:22px;font-weight:800;color:#1a1a2e;">${verdict} <span class="confidence-tag">confidence ${confPct}</span></div>
+      <div style="font-size:11px;color:#666;margin-top:6px;">SVM trained on DepEd-aligned sample materials · RBF kernel · StandardScaler normalized</div>
+    </div>
+  </div>`;
+}
+
+function buildVerdictResult() {
+  const verdict = complexityResult?.complexity ?? complexityResult?.verdict ?? '';
+  const bands = [
+    { key:'Literal',      cls:'vb-literal',      grade:'Grade 1–3',    desc:'Concrete facts, directly stated. Surface-level recall.' },
+    { key:'Inferential',  cls:'vb-inferential',  grade:'Grade 4–6',    desc:'Implied meaning, cause-effect, prediction.' },
+    { key:'Evaluative',   cls:'vb-evaluative',   grade:'Grade 7–10',   desc:'Critical thinking, author purpose, judgment.' },
+  ];
+  const bandsHtml = bands.map(b => `
+    <div class="verdict-band ${b.cls}${verdict===b.key?' active':''}" style="${verdict===b.key?'border-color:#1565c0;':''}" >
+      <span class="verdict-badge">${b.grade}</span>
+      <div class="verdict-band-label">${b.key}${verdict===b.key?' ✓':''}</div>
+      <div class="verdict-band-sub">${b.desc}</div>
+    </div>`).join('');
+  return `<div id="sec4r" style="background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06);padding:18px 20px;">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#e65100;margin-bottom:12px;">DepEd Reading Level</div>
+    ${bandsHtml}
+  </div>`;
+}
+
+/* ────────────── Static sections ────────────── */
+
+function buildSection1() {
+  return `
+  <div class="section-card s1" id="sec1">
+    <div class="section-header">
+      <div class="section-number">1</div>
+      <div>
+        <div class="section-title">Teacher Uploads Reading Material</div>
+        <div class="section-subtitle">MaterialLibrary.tsx — images staged for reorder before OCR, DOCX/TXT/PDF processed immediately</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <div class="two-col" style="margin-bottom:18px;">
+        <div>
+          <div class="subsection-label">Supported Input Types</div>
+          <table class="ml-table" style="margin-top:6px;">
+            <thead><tr><th>File Type</th><th>How It's Handled</th></tr></thead>
+            <tbody>
+              <tr><td>📷 Images (JPG/PNG/WEBP)</td><td>Staged in display order. Teacher can reorder drag-and-drop. OCR runs only after "Analyze N Images" is clicked.</td></tr>
+              <tr><td>📄 TXT</td><td>FileReader reads text directly — no server call needed.</td></tr>
+              <tr><td>📝 DOCX</td><td>mammoth.js extracts plain text client-side, preserving paragraphs.</td></tr>
+              <tr><td>📕 PDF</td><td>Sent to <code>POST /ocr/extract</code> — Gemini reads PDF pages.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <div class="subsection-label">Live Demo — Paste Material Text</div>
+          <textarea class="material-textarea" id="materialInput" placeholder="Paste or type reading material text here…">The water cycle is the continuous movement of water on, above and below the surface of the Earth. Water evaporates from the oceans and lakes, rises into the atmosphere, condenses into clouds, and falls back as precipitation. This process maintains Earth's water supply and affects climate patterns worldwide.</textarea>
+          <div class="input-row">
+            <button class="btn-primary" id="analyzeBtn" onclick="runAnalysis()">▶ Analyze Material</button>
+            <span class="api-note">POST /analyze/complexity</span>
+          </div>
+          <div class="section-error" id="sec1Error"></div>
+        </div>
+      </div>
+      <div class="ml-file-badge">MaterialLibrary.tsx</div>
+      <div class="ml-code"><span class="c-cm">// Deferred OCR — images staged, not immediately scanned</span>
+<span class="c-kw">const</span> processFile = <span class="c-kw">async</span> (file: File) => {
+  <span class="c-kw">const</span> isImage = file.type.<span class="c-fn">startsWith</span>(<span class="c-str">'image/'</span>);
+  <span class="c-kw">if</span> (isImage) {
+    <span class="c-kw">const</span> base64 = <span class="c-kw">await</span> <span class="c-fn">fileToBase64</span>(file);
+    <span class="c-fn">setStagedImages</span>(prev => [...prev, { base64, mimeType: file.type, name: file.name }]);
+  } <span class="c-kw">else</span> {
+    <span class="c-kw">const</span> text = <span class="c-kw">await</span> <span class="c-fn">extractText</span>(file);  <span class="c-cm">// TXT / DOCX / PDF</span>
+    <span class="c-fn">processMaterial</span>(text);
+  }
+};
+
+<span class="c-cm">// "Analyze N Images" button — sequential OCR preserving page order</span>
+<span class="c-kw">const</span> processStagedImages = <span class="c-kw">async</span> () => {
+  <span class="c-kw">let</span> body = <span class="c-str">''</span>;
+  <span class="c-kw">for</span> (<span class="c-kw">const</span> img <span class="c-kw">of</span> stagedImages) {
+    body += <span class="c-kw">await</span> <span class="c-fn">extractTextFromImageAPI</span>(img.base64, img.mimeType);
+  }
+  <span class="c-fn">processMaterial</span>(body);
+};</div>
+    </div>
+  </div>`;
+}
+
+function buildSection2() {
+  return `
+  <div class="section-card s2" id="sec2">
+    <div class="section-header">
+      <div class="section-number">2</div>
+      <div>
+        <div class="section-title">File Input &amp; OCR Pipeline</div>
+        <div class="section-subtitle">ocr_router.py — Gemini 2.5 Flash reads images/PDFs, 25s timeout via ThreadPoolExecutor</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <div class="two-col">
+        <div>
+          <div class="subsection-label">Image / PDF → Text (Server-side)</div>
+          <div class="ml-file-badge">backend/ocr_router.py</div>
+          <div class="ml-code"><span class="c-cm"># POST /ocr/extract</span>
+<span class="c-kw">def</span> <span class="c-fn">_call_gemini</span>():
+    model = genai.<span class="c-fn">GenerativeModel</span>(
+        <span class="c-str">"gemini-2.5-flash"</span>)
+    img_part = {
+        <span class="c-str">"mime_type"</span>: mime_type,
+        <span class="c-str">"data"</span>:      base64_data,
+    }
+    prompt = <span class="c-str">"Extract all readable text..."</span>
+    resp = model.<span class="c-fn">generate_content</span>([prompt, img_part])
+    <span class="c-kw">return</span> resp.text
+
+<span class="c-kw">with</span> ThreadPoolExecutor() <span class="c-kw">as</span> ex:
+    future = ex.<span class="c-fn">submit</span>(_call_gemini)
+    text = future.<span class="c-fn">result</span>(timeout=<span class="c-num">25</span>)</div>
+        </div>
+        <div>
+          <div class="subsection-label">Client-side Extraction (No Server)</div>
+          <div class="ml-file-badge">MaterialLibrary.tsx (frontend)</div>
+          <div class="ml-code"><span class="c-cm">// TXT — FileReader API</span>
+reader.<span class="c-fn">readAsText</span>(file);
+
+<span class="c-cm">// DOCX — mammoth.js</span>
+<span class="c-kw">const</span> result = <span class="c-kw">await</span> mammoth.<span class="c-fn">extractRawText</span>(
+    { arrayBuffer: <span class="c-kw">await</span> file.<span class="c-fn">arrayBuffer</span>() });
+<span class="c-kw">const</span> text = result.value;</div>
+          <div style="margin-top:14px;background:#fff8e1;border:1px solid #ffecb3;border-radius:8px;padding:10px 13px;font-size:11px;color:#e65100;line-height:1.7;">
+            <strong>Multi-image order guarantee:</strong> The frontend loops over <code>stagedImages[]</code> sequentially with <code>await</code> — each OCR call completes before the next starts, so pages concatenate in the teacher's chosen order.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function buildSection3() {
+  return `
+  <div class="section-card s3" id="sec3">
+    <div class="section-header">
+      <div class="section-number">3</div>
+      <div>
+        <div class="section-title">Auto Title + Body Extraction</div>
+        <div class="section-subtitle">reference_router.py → POST /reference/ingest — Gemini cleans raw OCR output into structured title + body</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;padding:11px 14px;font-size:12px;color:#1b5e20;margin-bottom:16px;line-height:1.7;">
+        Raw OCR text often contains artifacts (headers, page numbers, watermarks). This step uses Gemini to identify the actual title and produce a clean body before NLP analysis begins.
+      </div>
+      <div class="two-col">
+        <div>
+          <div class="ml-file-badge">backend/reference_router.py</div>
+          <div class="ml-code"><span class="c-cm"># POST /reference/ingest</span>
+prompt = <span class="c-fn">f</span><span class="c-str">"""You are a reading material parser.
+Extract the title and clean body text from:
+
+{raw_text}
+
+Return valid JSON:
+{{"title": "...", "body": "..."}}"""</span>
+
+model = genai.<span class="c-fn">GenerativeModel</span>(<span class="c-str">"gemini-2.5-flash"</span>)
+resp  = model.<span class="c-fn">generate_content</span>(prompt)
+data  = json.<span class="c-fn">loads</span>(<span class="c-fn">strip_markdown_fence</span>(resp.text))
+
+<span class="c-kw">return</span> {
+    <span class="c-str">"title"</span>: data[<span class="c-str">"title"</span>],
+    <span class="c-str">"body"</span>:  data[<span class="c-str">"body"</span>],
+}</div>
+        </div>
+        <div>
+          <div class="subsection-label">What Gets Cleaned</div>
+          <table class="ml-table">
+            <thead><tr><th>Artifact</th><th>Action</th></tr></thead>
+            <tbody>
+              <tr><td>Page headers / footers</td><td>Removed</td></tr>
+              <tr><td>Page numbers</td><td>Removed</td></tr>
+              <tr><td>Watermarks / stamps</td><td>Removed</td></tr>
+              <tr><td>Reading title / heading</td><td>Extracted as <code>title</code></td></tr>
+              <tr><td>Main passage text</td><td>Preserved as <code>body</code></td></tr>
+              <tr><td>Questions / answer keys</td><td>Stripped (body only)</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function buildSection4() {
+  return `
+  <div class="section-card s4" id="sec4">
+    <div class="section-header">
+      <div class="section-number">4</div>
+      <div>
+        <div class="section-title">NLP Feature Extraction</div>
+        <div class="section-subtitle">analysis_router.py → POST /analyze/complexity — same pipeline as student essay checker</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <div style="background:#e0f7fa;border:1px solid #80deea;border-radius:8px;padding:11px 14px;font-size:12px;color:#006064;margin-bottom:16px;line-height:1.7;">
+        The Material Checker reuses the <strong>exact same feature extraction function</strong> as the Student Essay Checker. Both call <code>extract_features(text)</code> — the difference is only in what happens to the output (SVM verdict for material vs rubric + proficiency for essays).
+      </div>
+      <div class="two-col">
+        <div>
+          <div class="ml-file-badge">backend/analysis_router.py</div>
+          <div class="ml-code"><span class="c-cm"># POST /analyze/complexity</span>
+<span class="c-kw">def</span> <span class="c-fn">extract_features</span>(text: str) -> list:
+    doc = nlp(text)            <span class="c-cm"># spaCy en_core_web_sm</span>
+
+    avg_word_len  = <span class="c-fn">mean</span>([<span class="c-fn">len</span>(t.text) <span class="c-kw">for</span> t <span class="c-kw">in</span> doc
+                              <span class="c-kw">if not</span> t.is_punct])
+    avg_sent_len  = <span class="c-fn">mean</span>([<span class="c-fn">len</span>(list(s)) <span class="c-kw">for</span> s <span class="c-kw">in</span> doc.sents])
+    ttr           = <span class="c-fn">len</span>(<span class="c-fn">set</span>(t.lemma_ <span class="c-kw">for</span> t <span class="c-kw">in</span> doc)) / <span class="c-fn">len</span>(doc)
+    fkgl          = <span class="c-fn">flesch_kincaid_grade</span>(text)
+    gunning_fog   = <span class="c-fn">gunning_fog_index</span>(text)
+    cefr_ratio    = <span class="c-fn">count_b2_plus_words</span>(doc) / <span class="c-fn">len</span>(doc)
+    dep_depth     = <span class="c-fn">mean_dependency_depth</span>(doc)
+    sub_ratio     = <span class="c-fn">subordination_ratio</span>(doc)
+
+    <span class="c-kw">return</span> [avg_word_len, avg_sent_len, ttr, fkgl,
+            gunning_fog, cefr_ratio, dep_depth, sub_ratio]</div>
+        </div>
+        <div>
+          <div class="subsection-label">Feature Descriptions</div>
+          <table class="ml-table">
+            <thead><tr><th>Feature</th><th>What It Measures</th></tr></thead>
+            <tbody>
+              <tr><td><strong>avg_word_length</strong></td><td>Average characters per word — longer words indicate academic vocabulary</td></tr>
+              <tr><td><strong>avg_sentence_length</strong></td><td>Words per sentence — longer sentences = more complex syntax</td></tr>
+              <tr><td><strong>ttr</strong></td><td>Type-Token Ratio — lexical diversity (unique lemmas / total tokens)</td></tr>
+              <tr><td><strong>fkgl</strong></td><td>Flesch-Kincaid Grade Level — US grade reading equivalent</td></tr>
+              <tr><td><strong>gunning_fog</strong></td><td>Fog Index — complex word density</td></tr>
+              <tr><td><strong>cefr_ratio</strong></td><td>Fraction of B2+ CEFR vocabulary words</td></tr>
+              <tr><td><strong>dependency_depth</strong></td><td>Average parse tree depth — deeper = more complex clauses</td></tr>
+              <tr><td><strong>subordination_ratio</strong></td><td>Fraction of clauses that are subordinate (because, although, when…)</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function buildSection5() {
+  return `
+  <div class="section-card s5" id="sec5">
+    <div class="section-header">
+      <div class="section-number">5</div>
+      <div>
+        <div class="section-title">SVM Classifier</div>
+        <div class="section-subtitle">sklearn SVC with RBF kernel — trained on DepEd-aligned reading samples</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <div class="two-col">
+        <div>
+          <div class="ml-file-badge">backend/analysis_router.py</div>
+          <div class="ml-code"><span class="c-cm"># Classification step</span>
+features = <span class="c-fn">extract_features</span>(body)
+X = scaler.<span class="c-fn">transform</span>([features])  <span class="c-cm"># StandardScaler</span>
+
+verdict    = svm_model.<span class="c-fn">predict</span>(X)[<span class="c-num">0</span>]
+confidence = svm_model.<span class="c-fn">predict_proba</span>(X).<span class="c-fn">max</span>()
+
+<span class="c-cm"># verdict → "Literal" | "Inferential" | "Evaluative"</span>
+<span class="c-kw">return</span> {
+    <span class="c-str">"complexity"</span>:  verdict,
+    <span class="c-str">"confidence"</span>: <span class="c-fn">float</span>(confidence),
+    <span class="c-str">"features"</span>:   dict(<span class="c-fn">zip</span>(FEATURE_NAMES, features)),
+}</div>
+          <div style="margin-top:12px;background:#f3e5f5;border:1px solid #ce93d8;border-radius:8px;padding:10px 13px;font-size:11px;color:#4a148c;line-height:1.7;">
+            <strong>Model:</strong> SVC (RBF kernel, C=10, gamma=0.1)<br>
+            <strong>Scaler:</strong> StandardScaler (fitted on training corpus)<br>
+            <strong>Classes:</strong> Literal · Inferential · Evaluative<br>
+            <strong>Training:</strong> DepEd-graded Philippine reading passages
+          </div>
+        </div>
+        <div>
+          <div class="subsection-label">Decision Boundary (Conceptual)</div>
+          <table class="ml-table">
+            <thead><tr><th>Feature Range</th><th>Typical Class</th></tr></thead>
+            <tbody>
+              <tr><td>FKGL &lt; 4, short sentences, simple vocab</td><td><span class="ml-badge green">Literal</span></td></tr>
+              <tr><td>FKGL 4–7, moderate TTR, mixed clause types</td><td><span class="ml-badge orange">Inferential</span></td></tr>
+              <tr><td>FKGL &gt; 7, high dep_depth, B2+ heavy vocab</td><td><span class="ml-badge purple">Evaluative</span></td></tr>
+            </tbody>
+          </table>
+          <div style="margin-top:14px;" class="subsection-label">Retraining (Teacher Feedback Loop)</div>
+          <p style="font-size:12px;color:#555;line-height:1.7;margin-top:4px;">
+            When a teacher overrides the detected complexity level, the corrected label is stored in Supabase. The <strong>Retrain Model</strong> button in the Student Essay Checker triggers <code>POST /train</code> which rebuilds the SVM using all accumulated teacher corrections — so both the essay checker and material checker improve together.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function buildSection6() {
+  return `
+  <div class="section-card s6" id="sec6">
+    <div class="section-header">
+      <div class="section-number">6</div>
+      <div>
+        <div class="section-title">DepEd Reading Complexity Scale</div>
+        <div class="section-subtitle">Philippine curriculum levels — Literal → Inferential → Evaluative</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <div class="two-col">
+        <div>
+          <div class="verdict-band vb-literal">
+            <span class="verdict-badge">Grade 1–3</span>
+            <div class="verdict-band-label">Literal</div>
+            <div class="verdict-band-sub">Directly stated facts. Students recall what the text explicitly says. Simple vocabulary, short sentences.</div>
+          </div>
+          <div class="verdict-band vb-inferential">
+            <span class="verdict-badge">Grade 4–6</span>
+            <div class="verdict-band-label">Inferential</div>
+            <div class="verdict-band-sub">Implied meaning, cause and effect, prediction. Students read between the lines. Moderate complexity.</div>
+          </div>
+          <div class="verdict-band vb-evaluative">
+            <span class="verdict-badge">Grade 7–10</span>
+            <div class="verdict-band-label">Evaluative</div>
+            <div class="verdict-band-sub">Critical thinking, author's purpose, judgment. Students evaluate and form opinions. Academic vocabulary, complex syntax.</div>
+          </div>
+        </div>
+        <div>
+          <div class="subsection-label">How the SVM Maps to DepEd Levels</div>
+          <table class="ml-table" style="margin-top:6px;">
+            <thead><tr><th>SVM Output</th><th>DepEd Level</th><th>Matching Signal</th></tr></thead>
+            <tbody>
+              <tr><td><span class="ml-badge green">Literal</span></td><td>Beginning / Nagsisimula</td><td>Low FKGL, short sentences, common words</td></tr>
+              <tr><td><span class="ml-badge orange">Inferential</span></td><td>Developing / Papaunlad</td><td>Mid FKGL, moderate TTR, some complex clauses</td></tr>
+              <tr><td><span class="ml-badge purple">Evaluative</span></td><td>Proficient / Mahusay</td><td>High FKGL, deep parse trees, B2+ vocabulary</td></tr>
+            </tbody>
+          </table>
+          <div style="margin-top:14px;background:#e3f2fd;border:1px solid #90caf9;border-radius:8px;padding:10px 13px;font-size:11px;color:#0d47a1;line-height:1.7;">
+            This scale is used for <em>both</em> the material complexity checker (classifying the text difficulty) and the student essay proficiency checker (measuring the student's writing level against the same scale). A student essay scored "Mahusay" is at the Evaluative level.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function buildSection7() {
+  return `
+  <div class="section-card s7" id="sec7">
+    <div class="section-header">
+      <div class="section-number">7</div>
+      <div>
+        <div class="section-title">Teacher Verify &amp; Save to Supabase</div>
+        <div class="section-subtitle">MaterialLibrary.tsx → handleSaveMaterial() — teacher confirms or overrides, then persists</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <div class="two-col">
+        <div>
+          <div class="ml-file-badge">components/MaterialLibrary.tsx</div>
+          <div class="ml-code"><span class="c-cm">// Teacher confirms or overrides the detected level</span>
+<span class="c-kw">const</span> handleSaveMaterial = <span class="c-kw">async</span> () => {
+  <span class="c-kw">const</span> { error } = <span class="c-kw">await</span> supabase
+    .<span class="c-fn">from</span>(<span class="c-str">'materials'</span>)
+    .<span class="c-fn">insert</span>({
+      title,
+      body,
+      complexity_level: verifiedLevel,  <span class="c-cm">// teacher-confirmed</span>
+      original_file:  stagedImages[<span class="c-num">0</span>] ?? <span class="c-kw">null</span>,
+      original_files: stagedImages,      <span class="c-cm">// ordered image array</span>
+      subject_id,
+      section_id,
+      created_by:     user.id,
+    });
+  <span class="c-kw">if</span> (error) <span class="c-kw">throw</span> error;
+};</div>
+        </div>
+        <div>
+          <div class="subsection-label">Save Flow</div>
+          <div style="display:flex;flex-direction:column;gap:0;">
+            ${[
+              ['#2e7d32','AI detects complexity level + confidence score'],
+              ['#2e7d32','Detected level shown to teacher for review'],
+              ['#2e7d32','Teacher can override if classification is wrong'],
+              ['#2e7d32','Override label stored → used in next retrain'],
+              ['#2e7d32','Material saved with original images + metadata'],
+              ['#2e7d32','Material available for assignment to students'],
+            ].map(([c,t],i,arr)=>`
+              <div style="display:flex;gap:10px;align-items:flex-start;padding:6px 0;">
+                <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;">
+                  <div style="width:26px;height:26px;border-radius:50%;background:${c};color:white;font-weight:700;font-size:11px;display:flex;align-items:center;justify-content:center;">${i+1}</div>
+                  ${i<arr.length-1?`<div style="width:2px;height:14px;background:#e0e0e0;margin-top:2px;"></div>`:''}
+                </div>
+                <div style="font-size:12px;color:#444;padding-top:4px;">${t}</div>
+              </div>`).join('')}
+          </div>
+          <div style="margin-top:10px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;padding:10px 13px;font-size:11px;color:#1b5e20;line-height:1.7;">
+            <strong>Feedback loop:</strong> Teacher overrides accumulate in Supabase. When <strong>Retrain Model</strong> is triggered from the Essay Checker, those corrections are included in the new SVM training set — improving both checkers simultaneously.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  checkBackend();
+  const main = document.getElementById('main');
+  main.insertAdjacentHTML('beforeend', buildSection1());
+  main.insertAdjacentHTML('beforeend', buildSection2());
+  main.insertAdjacentHTML('beforeend', buildSection3());
+  main.insertAdjacentHTML('beforeend', buildSection4());
+  main.insertAdjacentHTML('beforeend', buildSection5());
+  main.insertAdjacentHTML('beforeend', buildSection6());
+  main.insertAdjacentHTML('beforeend', buildSection7());
+});
+</script>
+</body>
+</html>
