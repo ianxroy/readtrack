@@ -913,9 +913,10 @@ const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = (
 
 interface MaterialLibraryProps {
   onMenuClick?: () => void;
+  onDataChanged?: () => void;
 }
 
-export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick }) => {
+export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, onDataChanged }) => {
   const [materials, setMaterials] = useState<LibraryMaterial[]>([]);
   const [materialsLoading, setMaterialsLoading] = useState(true);
   const [filter, setFilter] = useState<ComplexityLevel | 'all'>('all');
@@ -1024,6 +1025,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
 
     setMaterials(prev => prev.map(m => (m.id === material.id ? updated : m)));
     await refreshMaterials();
+    onDataChanged?.();
     return { ok, message };
   };
 
@@ -1078,6 +1080,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
         setUploadError(`Saved material, but model training failed: ${e?.message || 'unknown error'}`);
       }
       await refreshMaterials();
+      onDataChanged?.();
     }
 
     setShowUploadCompareModal(false);

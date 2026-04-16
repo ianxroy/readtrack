@@ -205,8 +205,13 @@ class StudentProficiencySVM(BaseModel):
                 f"Para sa detalyadong rubrik ng DepEd, tingnan ang Analysis tab."
             )
         else:
+            english_level = {
+                "Nagsisimula": "Beginning",
+                "Papaunlad": "Developing",
+                "Mahusay": "Proficient",
+            }.get(proficiency, proficiency)
             feedback = (
-                f"Level: {proficiency}. "
+                f"Level: {english_level}. "
                 f"Grammar Accuracy: {round(grammar_score, 1)}%. "
                 f"Vocabulary Richness: {round(vocab_rich, 1)}%. "
                 f"Structure & Cohesion: {round(struct_coh, 1)}%. "

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   IoPersonCircleOutline,
   IoCloseOutline,
@@ -67,6 +67,32 @@ const SCORE_LABELS: Record<'english' | 'filipino', Record<number, string>> = {
     2: 'Papaunlad',
     3: 'Papalapit sa Kahusayan',
     4: 'Mahusay',
+  },
+};
+
+const PROFICIENCY_LABELS: Record<'english' | 'filipino', Record<ProficiencyLevel, string>> = {
+  english: {
+    [ProficiencyLevel.NAGSISIMULA]: 'Beginning',
+    [ProficiencyLevel.PAPAUNLAD]: 'Developing',
+    [ProficiencyLevel.MAHUSAY]: 'Proficient',
+  },
+  filipino: {
+    [ProficiencyLevel.NAGSISIMULA]: 'Nagsisimula',
+    [ProficiencyLevel.PAPAUNLAD]: 'Papaunlad',
+    [ProficiencyLevel.MAHUSAY]: 'Mahusay',
+  },
+};
+
+const PROFICIENCY_DESCRIPTION: Record<'english' | 'filipino', Record<ProficiencyLevel, string>> = {
+  english: {
+    [ProficiencyLevel.NAGSISIMULA]: 'Needs intensive teacher support and close guidance.',
+    [ProficiencyLevel.PAPAUNLAD]: 'Can progress with guided practice and teacher support.',
+    [ProficiencyLevel.MAHUSAY]: 'Can work independently on tasks aligned to the target level.',
+  },
+  filipino: {
+    [ProficiencyLevel.NAGSISIMULA]: 'Nangangailangan ng matinding suporta at gabay ng guro.',
+    [ProficiencyLevel.PAPAUNLAD]: 'Maaaring sumulong sa tulong ng guro at pagsasanay.',
+    [ProficiencyLevel.MAHUSAY]: 'Kaya niyang magtrabaho nang mag-isa sa mga gawaing angkop sa kanyang antas.',
   },
 };
 
@@ -206,6 +232,7 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
   const [isSavingText, setIsSavingText] = useState(false);
   const [textMessage, setTextMessage] = useState<string | null>(null);
   const [textError, setTextError] = useState(false);
+  const modalBodyRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setTeacherDims(
@@ -226,6 +253,10 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
     setTextMessage(null);
     setTextError(false);
   }, [essay.id]);
+
+  useEffect(() => {
+    modalBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [activeTab]);
 
   const handleSaveEditedText = async () => {
     const next = editableText.trim();
@@ -292,6 +323,57 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
     : essay.originalFile ? [essay.originalFile] : [];
 
   const dr = essay.diagnosisResult;
+  const uiLanguage: 'english' | 'filipino' =
+    subject?.language ?? dr?.rubricScore?.language ?? 'filipino';
+
+  const displayProficiency = (level: ProficiencyLevel) => PROFICIENCY_LABELS[uiLanguage][level] ?? level;
+  const proficiencyDescription = (level: ProficiencyLevel) => PROFICIENCY_DESCRIPTION[uiLanguage][level] ?? '';
+
+  const localized = {
+    analyzedOn: uiLanguage === 'english' ? 'Analyzed on' : 'Sinuri noong',
+    predictedScore: uiLanguage === 'english' ? 'Suggested Score' : 'Mungkahing Marka',
+    proficiencyLevel: uiLanguage === 'english' ? 'Proficiency Level' : 'Antas ng Kahusayan',
+    predictedAi: uiLanguage === 'english' ? 'Predicted (AI)' : 'Hinulaang (AI)',
+    actualTeacher: uiLanguage === 'english' ? 'Actual (Teacher)' : 'Aktwal (Guro)',
+    numericalSkill: uiLanguage === 'english'
+      ? 'Numeric proficiency estimate based on vocabulary richness and structural cohesion.'
+      : 'Numerikong antas ng kasanayan batay sa kayamanan ng wika at istrukturang pagkakaisa.',
+    teacherRubricScore: uiLanguage === 'english'
+      ? 'Teacher score based on the 5-dimension DepEd rubric.'
+      : 'Marka ng guro batay sa 5-dimensyong rubrik ng DepEd.',
+    rateToSeeScore: uiLanguage === 'english'
+      ? 'Rate the essay to reveal the actual teacher score.'
+      : 'I-rate ang sanaysay para makita ang aktwal na marka.',
+    rateToSeeLevel: uiLanguage === 'english'
+      ? 'Rate the essay to reveal the actual proficiency level.'
+      : 'I-rate ang sanaysay para makita ang aktwal na antas.',
+    compareFirstHint: uiLanguage === 'english'
+      ? 'Compare the AI prediction and teacher rating first, then open Analysis for a detailed breakdown.'
+      : 'Ihambing muna ang Hinulaang (AI) at Aktwal (Guro), pagkatapos buksan ang Analysis para sa detalyadong breakdown.',
+    compareStepTitle: uiLanguage === 'english'
+      ? 'Step 1 · Compare first'
+      : 'Hakbang 1 · Ihambing muna',
+    compareStepCopy: uiLanguage === 'english'
+      ? 'Review the AI prediction and any saved teacher rating, then continue to the rubric panel.'
+      : 'Suriin ang hula ng AI at ang na-save na marka ng guro, pagkatapos magpatuloy sa rubric panel.',
+    proceedToRating: uiLanguage === 'english'
+      ? 'Continue to Teacher Rating'
+      : 'Magpatuloy sa Marka ng Guro',
+    ratingStepTitle: uiLanguage === 'english'
+      ? 'Step 2 · Rate the essay'
+      : 'Hakbang 2 · I-rate ang sanaysay',
+    backToCompare: uiLanguage === 'english'
+      ? 'Back to Comparison'
+      : 'Bumalik sa Paghahambing',
+    teacherFeedback: uiLanguage === 'english' ? 'Teacher Feedback' : 'Feedback ng Guro',
+    teacherRubric: uiLanguage === 'english' ? 'Teacher Rating — DepEd Rubric' : 'Marka ng Guro — DepEd Rubrik',
+    system: uiLanguage === 'english' ? 'System' : 'Sistema',
+    teacher: uiLanguage === 'english' ? 'Teacher' : 'Guro',
+    overall: uiLanguage === 'english' ? 'Overall' : 'Kabuuan',
+    optionalComment: uiLanguage === 'english' ? 'Optional teacher comment...' : 'Opsyonal na komento ng guro...',
+    saveTeacherRating: uiLanguage === 'english' ? 'Save Teacher Rating' : 'I-save ang Marka ng Guro',
+    saving: uiLanguage === 'english' ? 'Saving...' : 'Nag-iimbak…',
+  };
   const pMeta = dr ? proficiencyMeta[dr.proficiency] : null;
 
   const teacherProficiency = essay.teacherRubricScores
@@ -320,7 +402,7 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
                 <span
                   className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${pMeta?.bg} ${pMeta?.color} ${pMeta?.border}`}
                 >
-                  {dr.proficiency}
+                  {displayProficiency(dr.proficiency)}
                 </span>
               )}
             </div>
@@ -328,7 +410,7 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
               {essay.title}
             </h2>
             <p className="text-sm text-gray-400 font-medium mt-1">
-              Sinuri noong {(essay.uploadedAt instanceof Date ? essay.uploadedAt : new Date(essay.uploadedAt as unknown as string)).toLocaleString()} {/* Analyzed on */}
+              {localized.analyzedOn} {(essay.uploadedAt instanceof Date ? essay.uploadedAt : new Date(essay.uploadedAt as unknown as string)).toLocaleString()}
             </p>
           </div>
           <div className="flex items-center gap-3 shrink-0">
@@ -358,7 +440,7 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
           ))}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-8 space-y-8">
+        <div ref={modalBodyRef} className="flex-1 overflow-y-auto p-8 space-y-8">
           {/* Original Submission Tab */}
           {activeTab === 'original' && (
             <div>
@@ -463,23 +545,23 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
                   <div className="p-4 rounded-2xl border border-blue-100 bg-blue-50 md:col-span-2">
                     <div className="flex items-center gap-2 mb-3">
                       <IoStatsChartOutline className="text-xs text-blue-600" />
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-blue-600">Mungkahing Marka</span>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-blue-600">{localized.predictedScore}</span>
                     </div>
                     <div className="flex items-start gap-6">
                       <div className="flex-1">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Hinulaang (AI)</p>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{localized.predictedAi}</p>
                         <p className="text-xl font-black text-blue-600">
                           {dr.rubricScore ? `${dr.rubricScore.overallScore.toFixed(1)}/4` : `${dr.natScore}%`}
                         </p>
                         <p className="mt-1 text-[11px] text-gray-500 leading-relaxed">
-                          Numerikong antas ng kasanayan batay sa kayamanan ng wika at istrukturang pagkakaisa.
+                          {localized.numericalSkill}
                         </p>
                       </div>
                       {essay.teacherRubricScores ? (
                         <>
                           <div className="w-px self-stretch bg-blue-200" />
                           <div className="flex-1">
-                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Aktwal (Guro)</p>
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{localized.actualTeacher}</p>
                             <p className="text-xl font-black text-blue-600">
                               {essay.teacherRubricScores.overall.toFixed(1)}/4
                               <span className="text-xs font-normal text-gray-400 ml-2">
@@ -488,13 +570,13 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
                               </span>
                             </p>
                             <p className="mt-1 text-[11px] text-gray-500 leading-relaxed">
-                              Marka ng guro batay sa 5-dimensyong rubrik ng DepEd.
+                              {localized.teacherRubricScore}
                             </p>
                           </div>
                         </>
                       ) : (
                         <div className="flex-1 flex items-center justify-center">
-                          <p className="text-[10px] text-gray-400 italic">I-rate ang sanaysay para makita ang aktwal na marka.</p>
+                          <p className="text-[10px] text-gray-400 italic">{localized.rateToSeeScore}</p>
                         </div>
                       )}
                     </div>
@@ -505,39 +587,31 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
                     <div className="flex items-center gap-2 mb-3">
                       <IoCheckmarkCircleOutline className={`text-xs ${pMeta?.color || 'text-gray-400'}`} />
                       <span className={`text-[10px] font-bold uppercase tracking-widest ${pMeta?.color || 'text-gray-400'}`}>
-                        Antas ng Kahusayan
+                        {localized.proficiencyLevel}
                       </span>
                     </div>
                     <div className="flex items-start gap-6">
                       <div className="flex-1">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Hinulaang (AI)</p>
-                        <p className={`text-xl font-black ${pMeta?.color || 'text-gray-900'}`}>{dr.proficiency}</p>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{localized.predictedAi}</p>
+                        <p className={`text-xl font-black ${pMeta?.color || 'text-gray-900'}`}>{displayProficiency(dr.proficiency)}</p>
                         <p className="mt-1 text-[11px] text-gray-500 leading-relaxed">
-                          {dr.proficiency === ProficiencyLevel.NAGSISIMULA
-                            ? 'Nangangailangan ng matinding suporta at gabay ng guro.'
-                            : dr.proficiency === ProficiencyLevel.PAPAUNLAD
-                              ? 'Maaaring sumulong sa tulong ng guro at pagsasanay.'
-                              : 'Kaya niyang magtrabaho nang mag-isa sa mga gawaing angkop sa kanyang antas.'}
+                          {proficiencyDescription(dr.proficiency)}
                         </p>
                       </div>
                       {teacherProficiency && teacherPMeta ? (
                         <>
                           <div className="w-px self-stretch bg-gray-200" />
                           <div className="flex-1">
-                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Aktwal (Guro)</p>
-                            <p className={`text-xl font-black ${teacherPMeta.color}`}>{teacherProficiency}</p>
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{localized.actualTeacher}</p>
+                            <p className={`text-xl font-black ${teacherPMeta.color}`}>{displayProficiency(teacherProficiency)}</p>
                             <p className="mt-1 text-[11px] text-gray-500 leading-relaxed">
-                              {teacherProficiency === ProficiencyLevel.NAGSISIMULA
-                                ? 'Nangangailangan ng matinding suporta at gabay ng guro.'
-                                : teacherProficiency === ProficiencyLevel.PAPAUNLAD
-                                  ? 'Maaaring sumulong sa tulong ng guro at pagsasanay.'
-                                  : 'Kaya niyang magtrabaho nang mag-isa sa mga gawaing angkop sa kanyang antas.'}
+                              {proficiencyDescription(teacherProficiency)}
                             </p>
                           </div>
                         </>
                       ) : (
                         <div className="flex-1 flex items-center justify-center">
-                          <p className="text-[10px] text-gray-400 italic">I-rate ang sanaysay para makita ang aktwal na antas.</p>
+                          <p className="text-[10px] text-gray-400 italic">{localized.rateToSeeLevel}</p>
                         </div>
                       )}
                     </div>
@@ -545,9 +619,27 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
                 </div>
               )}
 
+              <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4 flex items-center justify-between gap-4">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-widest text-indigo-600 mb-1">
+                    {localized.compareStepTitle}
+                  </div>
+                  <p className="text-xs text-indigo-900 leading-relaxed">
+                    {localized.compareStepCopy}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('analysis')}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors shrink-0"
+                >
+                  {essay.teacherRubricScores ? localized.backToCompare : localized.proceedToRating}
+                </button>
+              </div>
+
               <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3">
                 <p className="text-[11px] text-indigo-800 leading-relaxed">
-                  Ihambing muna ang <span className="font-bold">Hinulaang (AI)</span> at <span className="font-bold">Aktwal (Guro)</span>, pagkatapos buksan ang <span className="font-bold">Analysis</span> para sa detalyadong breakdown.
+                  {localized.compareFirstHint}
                 </p>
               </div>
             </div>
@@ -556,6 +648,24 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
           {/* Analysis Tab */}
           {activeTab === 'analysis' && (
             <div className="space-y-8">
+              <div className="rounded-2xl border border-teal-100 bg-teal-50/70 p-4 flex items-center justify-between gap-4">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-widest text-teal-700 mb-1">
+                    {localized.ratingStepTitle}
+                  </div>
+                  <p className="text-xs text-teal-900 leading-relaxed">
+                    Use the rubric below to score all five dimensions, then save the teacher rating.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('compare')}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-white text-teal-700 border border-teal-200 hover:bg-teal-50 transition-colors shrink-0"
+                >
+                  {localized.backToCompare}
+                </button>
+              </div>
+
               <div className="w-full">
                 <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">
                   Highlighted Preview
@@ -578,7 +688,7 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
                   {dr?.feedback && (
                     <div className="bg-teal-50 border border-teal-100 rounded-[24px] p-6">
                       <h4 className="text-[10px] font-black uppercase tracking-widest text-teal-600 mb-2 flex items-center gap-2">
-                        <IoCheckmarkCircleOutline /> Feedback ng Guro {/* Teacher Feedback */}
+                        <IoCheckmarkCircleOutline /> {localized.teacherFeedback}
                       </h4>
                       <p className="text-xs text-teal-900 leading-relaxed font-medium">
                         {dr.feedback}
@@ -590,14 +700,14 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
                 {/* Teacher Rubric Rating */}
                 <div className="bg-white border border-gray-100 rounded-[24px] p-6 space-y-4">
                   <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                    Marka ng Guro — DepEd Rubrik
+                    {localized.teacherRubric}
                   </h4>
 
                   {/* Column headers */}
                   <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 items-center mb-1">
                     <span />
-                    <span className="text-[9px] font-bold text-gray-400 text-center">Sistema</span>
-                    <span className="text-[9px] font-bold text-gray-400 text-center">Guro</span>
+                    <span className="text-[9px] font-bold text-gray-400 text-center">{localized.system}</span>
+                    <span className="text-[9px] font-bold text-gray-400 text-center">{localized.teacher}</span>
                   </div>
 
                   {/* 5 dimension rows */}
@@ -609,8 +719,12 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
                     return (
                       <div key={dim} className="grid grid-cols-[1fr_auto_auto] gap-x-4 items-center">
                         <div>
-                          <span className="text-xs font-semibold text-gray-700">{meta.labelFil}</span>
-                          <span className="text-[9px] text-gray-400 ml-1">({meta.label})</span>
+                          <span className="text-xs font-semibold text-gray-700">
+                            {uiLanguage === 'english' ? meta.label : meta.labelFil}
+                          </span>
+                          <span className="text-[9px] text-gray-400 ml-1">
+                            ({uiLanguage === 'english' ? meta.labelFil : meta.label})
+                          </span>
                         </div>
                         <div className="flex gap-0.5">
                           {[1, 2, 3, 4].map(n => (
@@ -628,7 +742,7 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
                               className={`text-base transition-colors ${
                                 n <= teacherScore ? 'text-amber-400' : 'text-gray-200 hover:text-amber-300'
                               }`}
-                              aria-label={`${meta.labelFil} ${n}/4`}
+                              aria-label={`${uiLanguage === 'english' ? meta.label : meta.labelFil} ${n}/4`}
                             >
                               {n <= teacherScore ? <IoStar /> : <IoStarOutline />}
                             </button>
@@ -651,7 +765,7 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
                       : null;
                     return (
                       <div className="pt-2 border-t border-gray-100 grid grid-cols-[1fr_auto_auto] gap-x-4 items-center">
-                        <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Kabuuan</span>
+                        <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{localized.overall}</span>
                         <span className="text-xs font-bold text-teal-600 text-center">
                           {sysAvg !== null ? `${sysAvg}/4` : '—'}
                         </span>
@@ -665,7 +779,7 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
                   {/* Comment */}
                   <textarea
                     className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs text-gray-700 leading-relaxed min-h-[70px] outline-none focus:ring-1 focus:ring-teal-500"
-                    placeholder="Opsyonal na komento ng guro…"
+                    placeholder={localized.optionalComment}
                     value={teacherComment}
                     onChange={e => setTeacherComment(e.target.value)}
                   />
@@ -681,7 +795,7 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
                           : 'bg-teal-600 text-white hover:bg-teal-700'
                       }`}
                     >
-                      {isSavingEvaluation ? 'Nag-iimbak…' : 'I-save ang Marka ng Guro'}
+                      {isSavingEvaluation ? localized.saving : localized.saveTeacherRating}
                     </button>
                     {evaluationMessage && (
                       <p className={`text-[10px] font-medium ${evaluationError ? 'text-red-500' : 'text-green-600'}`}>

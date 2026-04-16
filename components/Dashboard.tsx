@@ -60,9 +60,10 @@ const DistributionChart: React.FC<{
 interface DashboardProps {
   view: 'welcome' | 'analyzer';
   onMenuClick?: () => void;
+  refreshToken?: number;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ view: _view }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ view: _view, refreshToken }) => {
   const navigate = useNavigate();
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [analytics, setAnalytics] = useState({
@@ -122,7 +123,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ view: _view }) => {
       }
     });
     return () => { cancelled = true; };
-  }, []);
+  }, [refreshToken]);
 
   const proficiencyRows: DistributionRow[] = [
     {

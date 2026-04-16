@@ -27,11 +27,12 @@ import { saveStudentGradingUpload, saveTeacherRubricScores, lookupEssayIdByText,
 interface StudentGradingProps {
   onMenuClick?: () => void;
   onSaveAnalysis?: (analysis: CachedAnalysis) => void;
+  onDataChanged?: () => void;
   selectedAnalysis?: CachedAnalysis | null;
 }
 
 export const StudentGrading: React.FC<StudentGradingProps> = ({
-  onMenuClick, onSaveAnalysis, selectedAnalysis,
+  onMenuClick, onSaveAnalysis, onDataChanged, selectedAnalysis,
 }) => {
   // ── Data ──────────────────────────────────────────────
   const [sections, setSections] = useState<Section[]>(loadSections);
@@ -413,6 +414,8 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
         complexityResult: comp,
       });
     }
+
+    onDataChanged?.();
   };
 
   // ── Retrain action ────────────────────────────────────
@@ -522,6 +525,7 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
       console.error('saveTeacherRubricScores failed:', error, 'id:', idToUse);
       throw new Error(error);
     }
+    onDataChanged?.();
     getTrainStatusAPI().then(setTrainStatus).catch(() => {});
   };
 

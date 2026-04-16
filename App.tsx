@@ -36,6 +36,7 @@ const AppRoutes: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [history, setHistory] = useState<CachedAnalysis[]>([]);
   const [selectedAnalysis, setSelectedAnalysis] = useState<CachedAnalysis | null>(null);
+  const [dashboardRefreshToken, setDashboardRefreshToken] = useState(0);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -62,6 +63,11 @@ const AppRoutes: React.FC = () => {
 
   const handleSaveAnalysis = (analysis: CachedAnalysis) => {
     setHistory(prev => [analysis, ...prev].slice(0, 30));
+    setDashboardRefreshToken(prev => prev + 1);
+  };
+
+  const handleDashboardDataChange = () => {
+    setDashboardRefreshToken(prev => prev + 1);
   };
 
   const handleSelectHistory = (analysis: CachedAnalysis) => {
@@ -111,17 +117,18 @@ const AppRoutes: React.FC = () => {
                   </Routes>
 
                   <div className={`h-full ${location.pathname === '/' ? 'block' : 'hidden'}`}>
-                    <Dashboard view="welcome" onMenuClick={toggleMenu} />
+                    <Dashboard view="welcome" onMenuClick={toggleMenu} refreshToken={dashboardRefreshToken} />
                   </div>
                   <div className={`h-full ${location.pathname === '/student' ? 'block' : 'hidden'}`}>
                     <StudentGrading
                       onMenuClick={() => setIsMobileMenuOpen(true)}
                       onSaveAnalysis={handleSaveAnalysis}
+                      onDataChanged={handleDashboardDataChange}
                       selectedAnalysis={selectedAnalysis}
                     />
                   </div>
                   <div className={`h-full ${location.pathname === '/material' ? 'block' : 'hidden'}`}>
-                    <MaterialLibrary onMenuClick={() => setIsMobileMenuOpen(true)} />
+                    <MaterialLibrary onMenuClick={() => setIsMobileMenuOpen(true)} onDataChanged={handleDashboardDataChange} />
                   </div>
                   <div className={`h-full ${location.pathname === '/grammar' ? 'block' : 'hidden'}`}>
                     <GrammarChecker />

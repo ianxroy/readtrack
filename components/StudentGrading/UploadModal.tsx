@@ -63,6 +63,14 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   // Inline student creation
   const [showNewStudent, setShowNewStudent] = useState(false);
   const [newStudentName, setNewStudentName] = useState('');
+  const [analyzeStepIndex, setAnalyzeStepIndex] = useState(0);
+
+  const analyzeSteps = [
+    'Reading essay text and preparing payload...',
+    'Running grammar and proficiency analysis...',
+    'Computing text complexity features...',
+    'Scoring rubric and saving results...',
+  ];
 
   const handleCreateSection = () => {
     const name = newSectionName.trim();
@@ -107,6 +115,18 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   }, [prefilledSectionId, prefilledStudentId, students]);
   useEffect(() => { setSubjectId(prefilledSubjectId ?? ''); }, [prefilledSubjectId]);
   useEffect(() => { if (prefilledText) setText(prefilledText); }, [prefilledText]);
+  useEffect(() => {
+    if (!isUploading) {
+      setAnalyzeStepIndex(0);
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setAnalyzeStepIndex(prev => (prev + 1) % analyzeSteps.length);
+    }, 1700);
+
+    return () => window.clearInterval(timer);
+  }, [isUploading]);
 
   const canSubmit = !!studentId && !!subjectId && (!!text.trim() || imageFiles.length > 0) && !isUploading && !isExtracting;
 
@@ -301,7 +321,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh] relative" aria-busy={isUploading}>
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-100 flex-shrink-0">
           <div>
             <h2 className="text-base font-black text-gray-900">Grade Essay (Markahan ang Sanaysay)</h2>
@@ -667,6 +687,30 @@ export const UploadModal: React.FC<UploadModalProps> = ({
             ) : 'Analyze & Grade →'}
           </button>
         </div>
+
+        {isUploading && (
+          <div className="absolute inset-0 z-10 bg-white/95 backdrop-blur-[1px] rounded-2xl p-6 flex flex-col">
+            <div className="border border-teal-100 bg-teal-50 rounded-xl px-4 py-3 mb-4">
+              <div className="text-[11px] font-black text-teal-700 uppercase tracking-widest">Analyzing Essay</div>
+              <div className="text-xs text-teal-800 mt-1">{analyzeSteps[analyzeStepIndex]}</div>
+              <div className="text-[10px] text-teal-600 mt-1">This can take longer for longer essays and OCR-heavy uploads.</div>
+            </div>
+
+            <div className="space-y-3 animate-pulse">
+              <div className="h-4 w-40 bg-gray-200 rounded" />
+              <div className="h-10 w-full bg-gray-100 rounded-xl" />
+              <div className="h-4 w-32 bg-gray-200 rounded mt-2" />
+              <div className="h-10 w-full bg-gray-100 rounded-xl" />
+              <div className="h-4 w-36 bg-gray-200 rounded mt-2" />
+              <div className="h-24 w-full bg-gray-100 rounded-xl" />
+            </div>
+
+            <div className="mt-auto flex items-center gap-2 text-[11px] text-gray-500">
+              <div className="w-3 h-3 rounded-full border-2 border-teal-400 border-t-transparent animate-spin" />
+              Please wait while we compute your results.
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
