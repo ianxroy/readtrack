@@ -207,6 +207,41 @@ def extract_features(text, language="en"):
     sent_lengths = [len(s.text.split()) for s in sentences]
     sent_len_std = np.std(sent_lengths) if sent_lengths else 0
 
+    # ── New discriminating features for Literal / Inferential / Evaluative ──
+
+    # 1. Discourse connectors — "however", "therefore", "because", etc.
+    #    Signal inferential/evaluative reasoning; rare in literal passages.
+    DISCOURSE_CONNECTORS = {
+        "however", "therefore", "thus", "hence", "consequently", "furthermore",
+        "moreover", "nevertheless", "although", "though", "whereas", "because",
+        "since", "unless", "despite", "regardless", "accordingly", "otherwise",
+    }
+    discourse_count = sum(1 for t in doc if t.lower_ in DISCOURSE_CONNECTORS)
+    discourse_connector_ratio = discourse_count / word_count if word_count > 0 else 0
+
+    # 2. Passive voice ratio — complex texts use more passive constructions.
+    passive_count = sum(1 for t in doc if t.dep_ in ("nsubjpass", "auxpass"))
+    passive_ratio = passive_count / sentence_count if sentence_count > 0 else 0
+
+    # 3. Modal verb ratio — evaluative texts hedge with "can", "should", "might".
+    modal_count = sum(1 for t in doc if t.tag_ == "MD")
+    modal_ratio = modal_count / word_count if word_count > 0 else 0
+
+    # 4. Subordination ratio — SCONJ density reflects embedded clause complexity.
+    sconj_count = sum(1 for t in doc if t.pos_ == "SCONJ")
+    subordination_ratio = sconj_count / sentence_count if sentence_count > 0 else 0
+
+    # 5. Negation ratio — nuanced/evaluative arguments use more negation.
+    negation_count = sum(1 for t in doc if t.dep_ == "neg")
+    negation_ratio = negation_count / word_count if word_count > 0 else 0
+
+    # 6. Abstract noun ratio — -tion/-ness/-ity/-ment/-ance/-ence suffixes.
+    ABSTRACT_SUFFIXES = ("tion", "ness", "ity", "ment", "ance", "ence", "ism", "acy")
+    abstract_count = sum(
+        1 for t in doc if t.pos_ == "NOUN" and t.lower_.endswith(ABSTRACT_SUFFIXES)
+    )
+    abstract_noun_ratio = abstract_count / word_count if word_count > 0 else 0
+
     feature_vector = np.array([
         ttr,
         avg_sentence_length,
@@ -228,7 +263,14 @@ def extract_features(text, language="en"):
         avg_word_length,
         syllables_per_word,
         # CEFR distribution
-        *cefr_ratios
+        *cefr_ratios,
+        # Passage-level discriminating factors
+        discourse_connector_ratio,
+        passive_ratio,
+        modal_ratio,
+        subordination_ratio,
+        negation_ratio,
+        abstract_noun_ratio,
     ]).reshape(1, -1)
 
     return {

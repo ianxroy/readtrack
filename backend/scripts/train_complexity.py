@@ -40,6 +40,13 @@ def train_complexity():
     X_teach = np.asarray(X_teach, dtype=float) if len(X_teach) > 0 else np.empty((0, X_base.shape[1]))
     y_teach = np.asarray(y_teach, dtype=int) if len(y_teach) > 0 else np.array([], dtype=int)
 
+    # Pad teacher vectors that were saved with an older (shorter) feature set.
+    # New features default to 0 (neutral baseline).
+    if len(X_teach) > 0 and X_teach.shape[1] < X_base.shape[1]:
+        pad_cols = X_base.shape[1] - X_teach.shape[1]
+        X_teach = np.hstack([X_teach, np.zeros((len(X_teach), pad_cols))])
+        print(f"Padded {len(X_teach)} teacher samples from {X_teach.shape[1] - pad_cols} → {X_base.shape[1]} features")
+
     if len(X_teach) > 0:
         X = np.concatenate([X_base, X_teach], axis=0)
         y = np.concatenate([y_base, y_teach], axis=0)

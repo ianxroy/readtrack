@@ -236,6 +236,13 @@ No markdown code blocks. Output raw JSON only."""
         import traceback
         traceback.print_exc()
         err_str = str(e).lower()
+        if (
+            "permissiondenied" in err_str
+            or "permission denied" in err_str
+            or "has been denied access" in err_str
+            or "google.api_core.exceptions.permissiondenied" in err_str
+        ):
+            return {"text": "", "warning": None, "error": "project_denied"}
         if "api key expired" in err_str or "api_key_invalid" in err_str or "invalid" in err_str and "key" in err_str:
             return {"text": "", "warning": None, "error": "api_key_invalid"}
         return {"text": "", "warning": None, "error": "ocr_failed"}

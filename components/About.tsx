@@ -13,6 +13,29 @@ const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title
   </div>
 );
 
+const InfoTooltip: React.FC<{ content: React.ReactNode }> = ({ content }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative inline-flex items-center">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="ml-1.5 w-3.5 h-3.5 rounded-full bg-gray-200 text-gray-500 text-[8px] font-bold flex items-center justify-center hover:bg-blue-100 hover:text-blue-600 transition-colors"
+        aria-label="More info"
+      >
+        i
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute left-5 top-0 z-20 w-56 bg-white border border-gray-200 rounded-xl shadow-lg p-3 text-[10px] text-gray-600 leading-relaxed">
+            {content}
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
 const DEFAULT_METRICS: EvaluationApiResponse = {
   proficiency: {
     accuracy: "85.3%",
@@ -203,7 +226,16 @@ export const About: React.FC<AboutProps> = ({ onMenuClick }) => {
         <Section title="Current Metrics">
           <div className="grid sm:grid-cols-2 gap-3 text-[10px]">
             <div className="bg-gray-50 border border-gray-100 rounded-xl p-4">
-              <div className="text-[9px] uppercase tracking-widest text-gray-400 font-bold mb-2">Proficiency</div>
+              <div className="flex items-center mb-2">
+                <span className="text-[9px] uppercase tracking-widest text-gray-400 font-bold">Proficiency</span>
+                <InfoTooltip content={
+                  <>
+                    <p className="font-semibold text-gray-700 mb-1">How it's calculated</p>
+                    <p className="mb-1.5">Evaluated on a <strong>held-out test split</strong> (15% of ~4,900 Phil-IRI labeled samples). Weighted F1, precision, and recall are computed per-class then averaged by support.</p>
+                    <p className="text-orange-600 font-medium">Note: F1 and accuracy may shift as teacher-submitted samples are added to retraining — more data per class generally improves scores.</p>
+                  </>
+                } />
+              </div>
               <div className="space-y-1 text-gray-600">
                 <div className="flex justify-between"><span>Accuracy</span><span className="font-semibold">{metrics.proficiency.accuracy}</span></div>
                 <div className="flex justify-between"><span>F1</span><span className="font-semibold">{metrics.proficiency.f1}</span></div>
@@ -212,7 +244,16 @@ export const About: React.FC<AboutProps> = ({ onMenuClick }) => {
               </div>
             </div>
             <div className="bg-gray-50 border border-gray-100 rounded-xl p-4">
-              <div className="text-[9px] uppercase tracking-widest text-gray-400 font-bold mb-2">Complexity</div>
+              <div className="flex items-center mb-2">
+                <span className="text-[9px] uppercase tracking-widest text-gray-400 font-bold">Complexity</span>
+                <InfoTooltip content={
+                  <>
+                    <p className="font-semibold text-gray-700 mb-1">How it's calculated</p>
+                    <p className="mb-1.5">Evaluated on a <strong>held-out test split</strong> (~15% of 66 Phil-IRI passages). SVM trained with grid-search cross-validation; metrics are on unseen test samples only.</p>
+                    <p className="text-orange-600 font-medium">Note: With a small dataset (66 passages, ~10 test samples), scores are sensitive to the random split. F1 may change significantly as more passages are added.</p>
+                  </>
+                } />
+              </div>
               <div className="space-y-1 text-gray-600">
                 <div className="flex justify-between"><span>Accuracy</span><span className="font-semibold">{metrics.complexity.accuracy}</span></div>
                 <div className="flex justify-between"><span>F1</span><span className="font-semibold">{metrics.complexity.f1}</span></div>

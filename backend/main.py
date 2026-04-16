@@ -252,10 +252,17 @@ def _write_retrain_status(status: dict) -> None:
 
 
 def _get_training_rows(language: str):
-    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+    load_dotenv(BACKEND_DIR / '.env.local', override=True)
+    load_dotenv(BACKEND_DIR / '.env', override=True)
+    load_dotenv(PROJECT_ROOT / '.env.local', override=True)
+    load_dotenv(PROJECT_ROOT / '.env', override=True)
+    supabase_url = os.getenv("SUPABASE_URL", "")
+    supabase_service_key = os.getenv("SUPABASE_SERVICE_KEY", "")
+
+    if not supabase_url or not supabase_service_key:
         raise ValueError("Supabase service key not configured")
 
-    client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+    client = create_client(supabase_url, supabase_service_key)
 
     def _lang_match(value, target: str) -> bool:
         val = str(value or "").strip().lower()
@@ -434,10 +441,17 @@ def generate_reference_title(text: str, name: Optional[str] = None) -> str:
             if not prev_word or not current_word:
                 continue
 
+            # Boundary when a sentence-starter follows a lowercase word (e.g. "time there")
+            # OR when a sentence-starter follows a run of title-cased words (e.g. "Time There")
+            title_words_so_far = [re.sub(r"[^A-Za-z]", "", w) for w in words[:idx] if re.sub(r"[^A-Za-z]", "", w)]
+            mostly_title_case = (
+                len(title_words_so_far) > 0
+                and sum(1 for w in title_words_so_far if w[0].isupper()) / len(title_words_so_far) >= 0.6
+            )
             looks_like_boundary = (
-                prev_word.islower()
+                current_word.lower() in sentence_starters
                 and current_word[0].isupper()
-                and current_word.lower() in sentence_starters
+                and (prev_word.islower() or mostly_title_case)
             )
             if not looks_like_boundary:
                 continue
@@ -639,10 +653,7 @@ def test_complexity(request: TextRequest):
 def get_evaluation_metrics():
 
     return {
-        "proficiency": {
-            "en": student_model_en.get_performance_metrics(),
-            "tl": student_model_tl.get_performance_metrics(),
-        },
+        "proficiency": student_model_en.get_performance_metrics(),
         "complexity": complexity_model.get_performance_metrics()
     }
 
@@ -749,10 +760,17 @@ def train_performance(lang: str = "en"):
         return {"error": "lang must be 'en' or 'tl'"}
 
     try:
-        if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        load_dotenv(BACKEND_DIR / '.env.local', override=True)
+        load_dotenv(BACKEND_DIR / '.env', override=True)
+        load_dotenv(PROJECT_ROOT / '.env.local', override=True)
+        load_dotenv(PROJECT_ROOT / '.env', override=True)
+        supabase_url = os.getenv("SUPABASE_URL", "")
+        supabase_service_key = os.getenv("SUPABASE_SERVICE_KEY", "")
+
+        if not supabase_url or not supabase_service_key:
             return {"insufficient_data": True, "rated_essays": 0, "lang": lang}
 
-        client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+        client = create_client(supabase_url, supabase_service_key)
         def _lang_match(value, target: str) -> bool:
             val = str(value or "").strip().lower()
             if not val:

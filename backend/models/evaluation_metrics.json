@@ -28,10 +28,10 @@
         ]
     },
     "complexity": {
-        "accuracy": "100.0%",
-        "f1": 1.0,
-        "precision": 1.0,
-        "recall": 1.0,
+        "accuracy": "98.5%",
+        "f1": 0.98,
+        "precision": 0.99,
+        "recall": 0.98,
         "evaluation_mode": "in_sample_overfit",
         "labels": [
             "Literal",
@@ -40,7 +40,7 @@
         ],
         "matrix": [
             [
-                24,
+                25,
                 0,
                 0
             ],
@@ -50,14 +50,14 @@
                 0
             ],
             [
-                0,
+                1,
                 0,
                 20
             ]
         ],
-        "n_samples": 64,
+        "n_samples": 66,
         "n_base": 64,
-        "n_teacher": 0
+        "n_teacher": 2
     },
     "proficiency_hybrid": {
         "accuracy": "72.8%",

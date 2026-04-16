@@ -12,6 +12,7 @@ import {
   IoChevronDownOutline,
   IoChevronUpOutline,
   IoImageOutline,
+  IoInformationCircleOutline,
 } from 'react-icons/io5';
 import { LibraryMaterial, TextComplexityResult, ComplexityLevel, OriginalFile } from '../types';
 import { classifyTextComplexityAPI, extractTextFromImageAPI, detectLanguageAPI, addTrainingSampleAPI, ingestReferenceAPI } from '../services/pythonService';
@@ -105,6 +106,17 @@ const LEVEL_DESCRIPTIONS: Record<ComplexityLevel, string> = {
   [ComplexityLevel.EVALUATIVE]: 'Difficult and abstract; scaffolding recommended.',
 };
 
+const ADVANCED_METRIC_HELP: Record<string, string> = {
+  'Complexity Score': 'Model score for how difficult the passage is. Higher values mean the text is more complex and usually needs more support.',
+  'Readability Score': 'A readability measure used by the system. Higher values usually mean the passage is easier to read.',
+  'Est. Reading Time': 'Estimated time for an average reader to finish the passage.',
+  'Avg Sentence Len': 'Average number of words per sentence. Longer sentences often make text harder to read.',
+  'Flesch-Kincaid Grade': 'Estimated U.S. grade level of the text. Higher grades mean harder reading.',
+  'Gunning Fog Index': 'Estimated grade level based on sentence length and complex words. Higher values mean harder text.',
+};
+
+const PHIL_IRI_HELP = 'Phil-IRI stands for Philippine Informal Reading Inventory. In ReadTrack, it is used as a quick Grade 7 reading guide: Literal means easy and direct, Inferential means borderline and may need teacher support, and Evaluative means above Grade 7 and usually needs scaffolding.';
+
 const REASONING_KEYWORDS: Record<ComplexityLevel, Array<{ pattern: RegExp; tag: string }>> = {
   [ComplexityLevel.LITERAL]: [
     { pattern: /short.{0,10}sentence/i, tag: 'Short sentences' },
@@ -173,6 +185,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
   const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
   const [verifyError, setVerifyError] = useState(false);
   const [activeTab, setActiveTab] = useState<'original' | 'analysis'>('original');
+  const [activeMetricHelp, setActiveMetricHelp] = useState<string | null>(null);
   const meta = levelMeta[material.complexityResult.level] ?? levelMeta[ComplexityLevel.LITERAL];
   const cr = material.complexityResult;
   const { summary: reasoningSummary, tags: reasoningTags } = parseReasoning(
@@ -458,40 +471,97 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
                 </div>
               </div>
 
-              {/* Complexity summary */}
-              <div className={`rounded-xl border p-4 ${meta.bg} ${meta.border}`}>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
-                  {[
-                    { label: 'Complexity Score', value: cr.score ?? 'N/A' },
-                    { label: 'Readability Score', value: cr.readabilityScore ?? 'N/A' },
-                    { label: 'Est. Reading Time', value: `${cr.estimatedReadingTime ?? '?'} min` },
-                    { label: 'Avg Sentence Len', value: `${cr.avgSentenceLength ?? '?'} words` },
-                  ].map(({ label, value }) => (
-                    <div key={label}>
-                      <div className={`text-[10px] font-bold uppercase tracking-wide mb-0.5 ${meta.text} opacity-70`}>{label}</div>
-                      <div className={`text-lg font-bold ${meta.text}`}>{value}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              {/* Advanced info accordion */}
+              <details className={`rounded-xl border p-4 ${meta.bg} ${meta.border}`}>
+                <summary className={`flex items-center justify-between cursor-pointer list-none ${meta.text}`}>
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-widest opacity-70">Advanced Info</div>
+                    <p className="text-[11px] mt-0.5 opacity-80">Click the i beside any label to see what it means.</p>
+                  </div>
+                  <IoChevronDownOutline className="text-sm shrink-0" />
+                </summary>
 
-              {/* Readability indices */}
-              {cr.readability && (
-                <div className="grid grid-cols-2 gap-3">
-                  {cr.readability.flesch_kincaid !== undefined && (
-                    <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-center">
-                      <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-0.5">Flesch-Kincaid Grade</div>
-                      <div className="text-xl font-bold text-teal-600">{cr.readability.flesch_kincaid}</div>
-                    </div>
-                  )}
-                  {cr.readability.gunning_fog !== undefined && (
-                    <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-center">
-                      <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-0.5">Gunning Fog Index</div>
-                      <div className="text-xl font-bold text-teal-600">{cr.readability.gunning_fog}</div>
+                <div className="mt-4 space-y-3">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+                    {[
+                      { label: 'Complexity Score', value: cr.score ?? 'N/A' },
+                      { label: 'Readability Score', value: cr.readabilityScore ?? 'N/A' },
+                      { label: 'Est. Reading Time', value: `${cr.estimatedReadingTime ?? '?'} min` },
+                      { label: 'Avg Sentence Len', value: `${cr.avgSentenceLength ?? '?'} words` },
+                    ].map(({ label, value }) => (
+                      <div key={label} className="group relative rounded-lg bg-white/60 border border-white/60 p-2.5">
+                        <button
+                          type="button"
+                          onClick={() => setActiveMetricHelp(activeMetricHelp === label ? null : label)}
+                          className={`mx-auto inline-flex items-center justify-center gap-1 text-[10px] font-bold uppercase tracking-wide mb-0.5 ${meta.text} opacity-75`}
+                          aria-expanded={activeMetricHelp === label}
+                          aria-controls={`metric-help-${label.replace(/\s+/g, '-').toLowerCase()}`}
+                        >
+                          <span>{label}</span>
+                          <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/80 border border-current/10">
+                            <IoInformationCircleOutline className="text-[11px] opacity-70" />
+                          </span>
+                        </button>
+                        <div className={`text-lg font-bold ${meta.text}`}>{value}</div>
+                        {activeMetricHelp === label && (
+                          <p id={`metric-help-${label.replace(/\s+/g, '-').toLowerCase()}`} className="mt-2 text-[10px] leading-relaxed text-gray-600">
+                            {ADVANCED_METRIC_HELP[label]}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {cr.readability && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {cr.readability.flesch_kincaid !== undefined && (
+                        <div className="bg-white/60 border border-white/60 rounded-xl p-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => setActiveMetricHelp(activeMetricHelp === 'Flesch-Kincaid Grade' ? null : 'Flesch-Kincaid Grade')}
+                            className="mx-auto inline-flex items-center gap-1 text-[10px] text-gray-500 font-semibold uppercase tracking-wider mb-0.5"
+                            aria-expanded={activeMetricHelp === 'Flesch-Kincaid Grade'}
+                            aria-controls="metric-help-flesch-kincaid-grade"
+                          >
+                            <span>Flesch-Kincaid Grade</span>
+                            <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/80 border border-gray-200">
+                              <IoInformationCircleOutline className="text-[11px]" />
+                            </span>
+                          </button>
+                          <div className="text-xl font-bold text-teal-600">{cr.readability.flesch_kincaid}</div>
+                          {activeMetricHelp === 'Flesch-Kincaid Grade' && (
+                            <p id="metric-help-flesch-kincaid-grade" className="mt-2 text-[10px] leading-relaxed text-gray-600">
+                              {ADVANCED_METRIC_HELP['Flesch-Kincaid Grade']}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {cr.readability.gunning_fog !== undefined && (
+                        <div className="bg-white/60 border border-white/60 rounded-xl p-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => setActiveMetricHelp(activeMetricHelp === 'Gunning Fog Index' ? null : 'Gunning Fog Index')}
+                            className="mx-auto inline-flex items-center gap-1 text-[10px] text-gray-500 font-semibold uppercase tracking-wider mb-0.5"
+                            aria-expanded={activeMetricHelp === 'Gunning Fog Index'}
+                            aria-controls="metric-help-gunning-fog-index"
+                          >
+                            <span>Gunning Fog Index</span>
+                            <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/80 border border-gray-200">
+                              <IoInformationCircleOutline className="text-[11px]" />
+                            </span>
+                          </button>
+                          <div className="text-xl font-bold text-teal-600">{cr.readability.gunning_fog}</div>
+                          {activeMetricHelp === 'Gunning Fog Index' && (
+                            <p id="metric-help-gunning-fog-index" className="mt-2 text-[10px] leading-relaxed text-gray-600">
+                              {ADVANCED_METRIC_HELP['Gunning Fog Index']}
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-              )}
+              </details>
 
               {/* Reasoning */}
               <div className={`rounded-xl border p-4 ${meta.bg} ${meta.border}`}>
@@ -523,24 +593,18 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
 
 interface UploadVerificationModalProps {
   material: LibraryMaterial;
-  selectedLevel: ComplexityLevel;
-  comment: string;
-  saving: boolean;
-  onSelectLevel: (level: ComplexityLevel) => void;
-  onChangeComment: (value: string) => void;
+  materialName: string;
+  onChangeName: (value: string) => void;
   onCancel: () => void;
-  onConfirm: () => void;
+  onContinue: () => void;
 }
 
-const UploadVerificationModal: React.FC<UploadVerificationModalProps> = ({
+const UploadCompareModal: React.FC<UploadVerificationModalProps> = ({
   material,
-  selectedLevel,
-  comment,
-  saving,
-  onSelectLevel,
-  onChangeComment,
+  materialName,
+  onChangeName,
   onCancel,
-  onConfirm,
+  onContinue,
 }) => {
   const safeImageMime = material.originalFile?.mimeType && SAFE_IMAGE_TYPES.has(material.originalFile.mimeType)
     ? material.originalFile.mimeType
@@ -555,23 +619,33 @@ const UploadVerificationModal: React.FC<UploadVerificationModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden">
         <div className="flex items-start justify-between px-6 pt-6 pb-4 border-b border-gray-100">
-          <div>
-            <h3 className="text-base font-black text-gray-900">Confirm Material Level</h3>
+          <div className="flex-1 min-w-0 pr-3">
+            <h3 className="text-lg font-black text-gray-900">Confirm Material Level</h3>
             <p className="text-xs text-gray-500 mt-1">
               Model predicted: <span className="font-semibold">{material.complexityResult.level}</span>
             </p>
+            <div className="mt-3">
+              <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Material Title</label>
+              <input
+                type="text"
+                value={materialName}
+                onChange={(e) => onChangeName(e.target.value)}
+                placeholder="Enter material title"
+                className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-teal-300"
+              />
+            </div>
           </div>
-          <button onClick={onCancel} className="p-2 rounded-full hover:bg-gray-100 text-gray-400">
+          <button onClick={onCancel} className="p-2 rounded-full hover:bg-gray-100 text-gray-400 shrink-0">
             <IoCloseOutline className="text-lg" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-          <div className="flex gap-4">
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">Original File</p>
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Original File</p>
               {material.originalFile ? (
                 safeImageMime ? (
                   <img
@@ -586,7 +660,7 @@ const UploadVerificationModal: React.FC<UploadVerificationModalProps> = ({
                     title="Original PDF"
                   />
                 ) : DOCX_TYPES.has(material.originalFile.mimeType) ? (
-                  <div className="flex flex-col items-center justify-center gap-3 p-8 bg-blue-50 rounded-lg border border-blue-100 min-h-[240px]">
+                  <div className="flex flex-col items-center justify-center gap-3 p-8 bg-blue-50 rounded-lg border border-blue-100 min-h-[260px]">
                     <IoDocumentOutline className="text-5xl text-blue-400" />
                     <div className="text-center">
                       <p className="text-sm font-bold text-blue-700">{material.originalFile.name}</p>
@@ -594,69 +668,242 @@ const UploadVerificationModal: React.FC<UploadVerificationModalProps> = ({
                     </div>
                   </div>
                 ) : (
-                  <div className="text-xs text-gray-400 italic p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="text-xs text-gray-400 italic p-4 bg-gray-50 rounded-lg border border-gray-200 min-h-[260px] flex items-center justify-center">
                     No preview available for this file type.
                   </div>
                 )
               ) : (
-                <div className="text-xs text-gray-400 italic p-4 bg-gray-50 rounded-lg border border-gray-200 min-h-[240px] flex items-center justify-center">
+                <div className="text-xs text-gray-400 italic p-4 bg-gray-50 rounded-lg border border-gray-200 min-h-[260px] flex items-center justify-center">
                   No original file attached.
                 </div>
               )}
             </div>
 
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">Extracted Text</p>
+            <div>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Extracted Text</p>
               <textarea
                 value={material.text}
                 readOnly
-                className="w-full min-h-[420px] bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs text-gray-700 leading-relaxed outline-none resize-none"
+                className="w-full min-h-[420px] bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-gray-700 leading-relaxed outline-none resize-none"
               />
             </div>
           </div>
+        </div>
 
-          <div>
-            <div className="text-[11px] text-gray-500 mb-2">Choose the teacher-verified level:</div>
-            <div className="flex flex-wrap gap-2 mb-2">
-              {(Object.values(ComplexityLevel) as ComplexityLevel[]).map(level => (
-                <button
-                  key={level}
-                  onClick={() => onSelectLevel(level)}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-colors ${
-                    selectedLevel === level
-                      ? 'bg-teal-600 text-white border-teal-600'
-                      : 'bg-white text-teal-700 border-teal-200 hover:border-teal-400'
-                  }`}
-                >
-                  {level}
-                </button>
-              ))}
+        <div className="px-6 pb-6 pt-3 flex items-center justify-end gap-2 border-t border-gray-100">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 text-xs font-semibold rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onContinue}
+            className="px-5 py-2 text-xs font-black rounded-xl bg-teal-600 text-white hover:bg-teal-700 transition-colors"
+          >
+            Save & Continue
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+interface UploadTeacherVerificationModalProps {
+  material: LibraryMaterial;
+  selectedLevel: ComplexityLevel;
+  comment: string;
+  saving: boolean;
+  onSelectLevel: (level: ComplexityLevel) => void;
+  onChangeComment: (value: string) => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+}
+
+const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = ({
+  material,
+  selectedLevel,
+  comment,
+  saving,
+  onSelectLevel,
+  onChangeComment,
+  onCancel,
+  onConfirm,
+}) => {
+  const predicted = material.complexityResult.level;
+  const isManualChoice = selectedLevel !== predicted;
+  const [decisionMode, setDecisionMode] = useState<'confirm' | 'manual'>('confirm');
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const predMeta = levelMeta[predicted] ?? levelMeta[ComplexityLevel.LITERAL];
+  const selMeta = levelMeta[selectedLevel] ?? levelMeta[ComplexityLevel.LITERAL];
+  const { summary: reasoningSummary } = parseReasoning(material.complexityResult.reasoning, predicted);
+
+  const safeImageMime = material.originalFile?.mimeType && SAFE_IMAGE_TYPES.has(material.originalFile.mimeType)
+    ? material.originalFile.mimeType
+    : null;
+
+  const pdfBlobUrl = useMemo(() => {
+    if (material.originalFile?.mimeType === 'application/pdf' && material.originalFile.base64) {
+      return base64ToBlobUrl(material.originalFile.base64, 'application/pdf');
+    }
+    return null;
+  }, [material.originalFile]);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden">
+
+        {/* Header */}
+        <div className="flex items-start justify-between px-6 pt-6 pb-4 border-b border-gray-100">
+          <div className="flex-1 min-w-0 pr-3">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">New Material</p>
+            <h3 className="text-base font-black text-gray-900 truncate">{material.name}</h3>
+            {material.language && (
+              <span className={`inline-block mt-1 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${
+                material.language === 'eng'
+                  ? 'bg-blue-50 text-blue-600 border-blue-100'
+                  : 'bg-purple-50 text-purple-600 border-purple-100'
+              }`}>
+                {material.language === 'eng' ? 'English' : 'Filipino'}
+              </span>
+            )}
+          </div>
+          <button onClick={onCancel} className="p-2 rounded-full hover:bg-gray-100 text-gray-400 shrink-0">
+            <IoCloseOutline className="text-lg" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+
+          {/* Model Recommendation Card */}
+          <div className={`rounded-2xl border-2 p-4 ${predMeta.bg} ${predMeta.border}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1">
+                <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${predMeta.text} opacity-70`}>
+                  Model Recommendation
+                </p>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${predMeta.dot}`} />
+                  <span className={`text-xl font-black ${predMeta.text}`}>{predicted}</span>
+                </div>
+                <p className={`text-[11px] leading-relaxed ${predMeta.text} opacity-80`}>{reasoningSummary}</p>
+              </div>
             </div>
-            <p className="text-[11px] text-teal-700 mb-3">{LEVEL_DESCRIPTIONS[selectedLevel]}</p>
+          </div>
 
+          {/* Teacher decision */}
+          <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 space-y-3">
+            <div>
+              <p className="text-sm font-bold text-gray-800">Is this recommendation correct?</p>
+              <p className="text-[11px] text-gray-500 mt-1">Keep the model suggestion, or choose a different level manually.</p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                onClick={() => {
+                  setDecisionMode('confirm');
+                  onSelectLevel(predicted);
+                }}
+                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 font-bold text-sm transition-all ${
+                  decisionMode === 'confirm'
+                    ? `${predMeta.bg} ${predMeta.border} ${predMeta.text}`
+                    : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                }`}
+              >
+                Keep {predicted}
+              </button>
+              <button
+                onClick={() => setDecisionMode('manual')}
+                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 font-bold text-sm transition-all ${
+                  decisionMode === 'manual'
+                    ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
+                    : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                }`}
+              >
+                Choose manually
+              </button>
+            </div>
+
+            {decisionMode === 'manual' && (
+              <div className="pt-1 space-y-2 animate-in slide-in-from-top-2 duration-150">
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Select the manual level:</p>
+                <select
+                  value={selectedLevel}
+                  onChange={(e) => onSelectLevel(e.target.value as ComplexityLevel)}
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-semibold text-gray-700 outline-none focus:ring-2 focus:ring-indigo-400"
+                >
+                  {(Object.values(ComplexityLevel) as ComplexityLevel[]).map(level => (
+                    <option key={level} value={level}>{level}</option>
+                  ))}
+                </select>
+                <p className={`text-[11px] font-medium ${selMeta.text}`}>{LEVEL_DESCRIPTIONS[selectedLevel]}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Final level indicator when manually adjusted */}
+          {isManualChoice && (
+            <div className={`rounded-xl border px-4 py-2.5 flex items-center gap-2 ${selMeta.bg} ${selMeta.border}`}>
+              <span className={`w-2 h-2 rounded-full shrink-0 ${selMeta.dot}`} />
+              <span className={`text-[11px] font-bold ${selMeta.text}`}>
+                Will be saved as: <span className="font-black">{selectedLevel}</span>
+              </span>
+            </div>
+          )}
+
+          {/* Optional comment */}
+          <div>
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1.5">
+              Note <span className="normal-case font-normal">(optional)</span>
+            </p>
             <textarea
               value={comment}
               onChange={e => onChangeComment(e.target.value)}
-              placeholder="Optional note for this decision"
-              className="w-full min-h-[80px] bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs outline-none focus:ring-1 focus:ring-teal-400"
+              placeholder="e.g. Grade 7 Section Rizal uses this for inferential practice"
+              className="w-full min-h-[64px] bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-gray-700 outline-none focus:ring-1 focus:ring-teal-400 resize-none"
             />
+          </div>
+
+          {/* Collapsible text preview */}
+          <div>
+            <button
+              onClick={() => setPreviewOpen(v => !v)}
+              className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-400 hover:text-gray-600 uppercase tracking-widest"
+            >
+              {previewOpen ? <IoChevronUpOutline /> : <IoChevronDownOutline />}
+              {previewOpen ? 'Hide' : 'Show'} extracted text ({material.text.split(/\s+/).length} words)
+            </button>
+            {previewOpen && (
+              <textarea
+                value={material.text}
+                readOnly
+                className="mt-2 w-full min-h-[160px] max-h-[240px] bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs text-gray-600 leading-relaxed outline-none resize-none"
+              />
+            )}
           </div>
         </div>
 
-        <div className="px-6 pb-6 pt-2 flex items-center justify-end gap-2 border-t border-gray-100">
+        {/* Footer */}
+        <div className="px-6 pb-6 pt-3 flex items-center justify-end gap-2 border-t border-gray-100">
           <button
             onClick={onCancel}
             disabled={saving}
-            className="px-4 py-2 text-xs font-semibold rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
+            className="px-4 py-2 text-xs font-semibold rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50"
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
             disabled={saving}
-            className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors ${saving ? 'bg-gray-100 text-gray-400' : 'bg-teal-600 text-white hover:bg-teal-700'}`}
+            className={`px-5 py-2 text-xs font-black rounded-xl transition-colors ${
+              saving
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                : isManualChoice
+                  ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                  : 'bg-teal-600 text-white hover:bg-teal-700'
+            }`}
           >
-            {saving ? 'Saving…' : 'Save & Continue'}
+            {saving ? 'Saving…' : isManualChoice ? `Save as ${selectedLevel}` : `Keep ${predicted} & Save`}
           </button>
         </div>
       </div>
@@ -682,11 +929,13 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
   const [isDragging, setIsDragging] = useState(false);
   const [uploadFileName, setUploadFileName] = useState<string>('');
   const [pendingUploadMaterial, setPendingUploadMaterial] = useState<LibraryMaterial | null>(null);
+  const [showUploadCompareModal, setShowUploadCompareModal] = useState(false);
   const [showUploadVerifyModal, setShowUploadVerifyModal] = useState(false);
   const [uploadModalLevel, setUploadModalLevel] = useState<ComplexityLevel>(ComplexityLevel.LITERAL);
   const [uploadModalComment, setUploadModalComment] = useState('');
   const [savingUploadDecision, setSavingUploadDecision] = useState(false);
   const [showSortMenu, setShowSortMenu] = useState(false);
+  const [showPhilIriHelp, setShowPhilIriHelp] = useState(false);
   const [langFilter, setLangFilter] = useState<'all' | 'eng' | 'fil'>('all');
   const dragCount = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -831,10 +1080,27 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
       await refreshMaterials();
     }
 
+    setShowUploadCompareModal(false);
     setShowUploadVerifyModal(false);
     setPendingUploadMaterial(null);
     setUploadModalComment('');
     setSavingUploadDecision(false);
+  };
+
+  const handleContinueToTeacherVerification = () => {
+    if (!pendingUploadMaterial) return;
+    const nextName = pendingUploadMaterial.name.trim();
+    if (!nextName) {
+      setUploadError('Material title is required. Please enter a title before continuing.');
+      return;
+    }
+    setPendingUploadMaterial({ ...pendingUploadMaterial, name: nextName });
+    setShowUploadCompareModal(false);
+    setShowUploadVerifyModal(true);
+  };
+
+  const handleRenamePendingMaterial = (value: string) => {
+    setPendingUploadMaterial(prev => (prev ? { ...prev, name: value } : prev));
   };
 
   const processFile = useCallback(async (file: File) => {
@@ -905,6 +1171,8 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
           const ocrError = (ocrResult as any)?.error;
           if (ocrError === 'api_key_invalid') {
             throw new Error('Gemini API key is expired or invalid. Please update GEMINI_API_KEY in .env.local and restart the backend.');
+          } else if (ocrError === 'project_denied') {
+            throw new Error('Gemini OCR access is denied for this Google project (403). Enable Generative Language API access/billing in Google Cloud or use another API key/project.');
           } else if (ocrError === 'no_api_key') {
             throw new Error('No Gemini API key configured. Add GEMINI_API_KEY to .env.local.');
           } else if (ocrError === 'ocr_timeout') {
@@ -966,7 +1234,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
       setUploadModalLevel(materialWithLang.complexityResult.level);
       setUploadModalComment('');
       setShowUploadModal(false);
-      setShowUploadVerifyModal(true);
+      setShowUploadCompareModal(true);
     } catch (e: any) {
       setUploadError(e.message || 'Analysis failed.');
     } finally {
@@ -985,6 +1253,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
         const ocrResult = await extractTextFromImageAPI(img.base64, img.mimeType);
         const ocrError = (ocrResult as any)?.error;
         if (ocrError === 'api_key_invalid') throw new Error('Gemini API key is expired or invalid. Please update GEMINI_API_KEY in .env.local and restart the backend.');
+        if (ocrError === 'project_denied') throw new Error('Gemini OCR access is denied for this Google project (403). Enable Generative Language API access/billing in Google Cloud or use another API key/project.');
         if (ocrError === 'no_api_key') throw new Error('No Gemini API key configured. Add GEMINI_API_KEY to .env.local.');
         if (ocrError === 'ocr_timeout') throw new Error('OCR timed out. Try a smaller image or upload again.');
         if (ocrResult?.text) combinedText += (combinedText ? '\n\n' : '') + ocrResult.text;
@@ -1020,7 +1289,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
       setUploadModalLevel(material.complexityResult.level);
       setUploadModalComment('');
       setShowUploadModal(false);
-      setShowUploadVerifyModal(true);
+      setShowUploadCompareModal(true);
     } catch (e: any) {
       setUploadError(e.message || 'Analysis failed.');
     } finally {
@@ -1176,18 +1445,47 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
               )}
 
               <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-blue-600 mb-1">
-                  Grade 7 Readability Check (Philippines DepEd)
-                </div>
-                <p className="text-xs text-blue-700 leading-relaxed">
-                  <span className="font-semibold">Literal</span> = Easy, students can read independently.{' '}
-                  <span className="font-semibold">Inferential</span> = Borderline, may need teacher support.{' '}
-                  <span className="font-semibold">Evaluative</span> = Above G7, not recommended without scaffolding.
-                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowPhilIriHelp(v => !v)}
+                  className="flex items-center gap-1 text-left text-[10px] font-bold uppercase tracking-wider text-blue-600 mb-1"
+                  aria-expanded={showPhilIriHelp}
+                  aria-controls="phil-iri-help-upload"
+                >
+                  <span>Grade 7 Readability Check (Philippines DepEd)</span>
+                  <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/80 border border-blue-200">
+                    <IoInformationCircleOutline className="text-[11px]" />
+                  </span>
+                </button>
+                {showPhilIriHelp ? (
+                  <p id="phil-iri-help-upload" className="text-xs text-blue-700 leading-relaxed">
+                    {PHIL_IRI_HELP}
+                  </p>
+                ) : (
+                  <p className="text-xs text-blue-700 leading-relaxed">
+                    <span className="font-semibold">Literal</span> = Easy, students can read independently.{' '}
+                    <span className="font-semibold">Inferential</span> = Borderline, may need teacher support.{' '}
+                    <span className="font-semibold">Evaluative</span> = Above G7, not recommended without scaffolding.
+                  </p>
+                )}
               </div>
             </div>
           </div>
         </div>
+      )}
+
+      {showUploadCompareModal && pendingUploadMaterial && (
+        <UploadCompareModal
+          material={pendingUploadMaterial}
+          materialName={pendingUploadMaterial.name}
+          onChangeName={handleRenamePendingMaterial}
+          onCancel={() => {
+            setShowUploadCompareModal(false);
+            setPendingUploadMaterial(null);
+            setUploadModalComment('');
+          }}
+          onContinue={handleContinueToTeacherVerification}
+        />
       )}
 
       {showUploadVerifyModal && pendingUploadMaterial && (
@@ -1252,14 +1550,29 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick })
 
           {/* Upload note */}
           <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-blue-600 mb-1">
-              Grade 7 Readability Check (Philippines DepEd)
-            </div>
-            <p className="text-xs text-blue-700 leading-relaxed">
-              <span className="font-semibold">Literal</span> = Easy, students can read independently.{' '}
-              <span className="font-semibold">Inferential</span> = Borderline, may need teacher support.{' '}
-              <span className="font-semibold">Evaluative</span> = Above G7, not recommended without scaffolding.
-            </p>
+            <button
+              type="button"
+              onClick={() => setShowPhilIriHelp(v => !v)}
+              className="flex items-center gap-1 text-left text-[10px] font-bold uppercase tracking-wider text-blue-600 mb-1"
+              aria-expanded={showPhilIriHelp}
+              aria-controls="phil-iri-help-main"
+            >
+              <span>Grade 7 Readability Check (Philippines DepEd)</span>
+              <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/80 border border-blue-200">
+                <IoInformationCircleOutline className="text-[11px]" />
+              </span>
+            </button>
+            {showPhilIriHelp ? (
+              <p id="phil-iri-help-main" className="text-xs text-blue-700 leading-relaxed">
+                {PHIL_IRI_HELP}
+              </p>
+            ) : (
+              <p className="text-xs text-blue-700 leading-relaxed">
+                <span className="font-semibold">Literal</span> = Easy, students can read independently.{' '}
+                <span className="font-semibold">Inferential</span> = Borderline, may need teacher support.{' '}
+                <span className="font-semibold">Evaluative</span> = Above G7, not recommended without scaffolding.
+              </p>
+            )}
           </div>
 
           {/* Search + Sort row */}

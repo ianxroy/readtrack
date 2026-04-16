@@ -201,7 +201,7 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
   const [isSavingEvaluation, setIsSavingEvaluation] = useState(false);
   const [evaluationMessage, setEvaluationMessage] = useState<string | null>(null);
   const [evaluationError, setEvaluationError] = useState(false);
-  const [activeTab, setActiveTab] = useState<'original' | 'analysis'>('original');
+  const [activeTab, setActiveTab] = useState<'compare' | 'original' | 'analysis'>('compare');
   const [editableText, setEditableText] = useState(essay.text);
   const [isSavingText, setIsSavingText] = useState(false);
   const [textMessage, setTextMessage] = useState<string | null>(null);
@@ -221,7 +221,7 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
     );
     setTeacherComment(essay.teacherComment ?? '');
     setEvaluationMessage(null);
-    setActiveTab('original');
+    setActiveTab('compare');
     setEditableText(essay.text);
     setTextMessage(null);
     setTextError(false);
@@ -343,7 +343,7 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
 
         {/* Tab Bar */}
         <div className="flex border-b border-gray-200 px-4">
-          {(['original', 'analysis'] as const).map(tab => (
+          {(['compare', 'original', 'analysis'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -353,7 +353,7 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              {tab === 'original' ? 'Original Submission' : 'Analysis'}
+              {tab === 'compare' ? 'Compare First' : tab === 'original' ? 'Original Submission' : 'Analysis'}
             </button>
           ))}
         </div>
@@ -454,24 +454,9 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
             </div>
           )}
 
-          {/* Analysis Tab */}
-          {activeTab === 'analysis' && (
-            <div className="space-y-8">
-              <div className="w-full">
-                <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">
-                  Highlighted Preview
-                </h4>
-                <div className="w-full rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-                  <GrammarHighlightedText text={editableText} issues={dr?.issues ?? []} />
-                </div>
-              </div>
-
-              {/* DepEd Rubric — primary evaluation */}
-              {dr?.rubricScore && (
-                <DepEdRubricPanel rubric={dr.rubricScore} />
-              )}
-
-              {/* Scoring Grid */}
+          {/* Compare Tab */}
+          {activeTab === 'compare' && (
+            <div className="space-y-6">
               {dr && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Mungkahing Marka — AI predicted + teacher actual */}
@@ -516,51 +501,73 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
                   </div>
 
                   {/* Antas ng Kahusayan — predicted (AI) + actual (teacher) */}
-                  {dr && (
-                    <div className={`p-4 rounded-2xl border col-span-full ${pMeta?.border || 'border-gray-100'} ${pMeta?.bg || 'bg-gray-50'}`}>
-                      <div className="flex items-center gap-2 mb-3">
-                        <IoCheckmarkCircleOutline className={`text-xs ${pMeta?.color || 'text-gray-400'}`} />
-                        <span className={`text-[10px] font-bold uppercase tracking-widest ${pMeta?.color || 'text-gray-400'}`}>
-                          Antas ng Kahusayan
-                        </span>
-                      </div>
-                      <div className="flex items-start gap-6">
-                        <div className="flex-1">
-                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Hinulaang (AI)</p>
-                          <p className={`text-xl font-black ${pMeta?.color || 'text-gray-900'}`}>{dr.proficiency}</p>
-                          <p className="mt-1 text-[11px] text-gray-500 leading-relaxed">
-                            {dr.proficiency === ProficiencyLevel.NAGSISIMULA
-                              ? 'Nangangailangan ng matinding suporta at gabay ng guro.'
-                              : dr.proficiency === ProficiencyLevel.PAPAUNLAD
-                                ? 'Maaaring sumulong sa tulong ng guro at pagsasanay.'
-                                : 'Kaya niyang magtrabaho nang mag-isa sa mga gawaing angkop sa kanyang antas.'}
-                          </p>
-                        </div>
-                        {teacherProficiency && teacherPMeta && (
-                          <>
-                            <div className="w-px self-stretch bg-gray-200" />
-                            <div className="flex-1">
-                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Aktwal (Guro)</p>
-                              <p className={`text-xl font-black ${teacherPMeta.color}`}>{teacherProficiency}</p>
-                              <p className="mt-1 text-[11px] text-gray-500 leading-relaxed">
-                                {teacherProficiency === ProficiencyLevel.NAGSISIMULA
-                                  ? 'Nangangailangan ng matinding suporta at gabay ng guro.'
-                                  : teacherProficiency === ProficiencyLevel.PAPAUNLAD
-                                    ? 'Maaaring sumulong sa tulong ng guro at pagsasanay.'
-                                    : 'Kaya niyang magtrabaho nang mag-isa sa mga gawaing angkop sa kanyang antas.'}
-                              </p>
-                            </div>
-                          </>
-                        )}
-                        {!teacherProficiency && (
-                          <div className="flex-1 flex items-center justify-center">
-                            <p className="text-[10px] text-gray-400 italic">I-rate ang sanaysay para makita ang aktwal na antas.</p>
-                          </div>
-                        )}
-                      </div>
+                  <div className={`p-4 rounded-2xl border col-span-full ${pMeta?.border || 'border-gray-100'} ${pMeta?.bg || 'bg-gray-50'}`}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <IoCheckmarkCircleOutline className={`text-xs ${pMeta?.color || 'text-gray-400'}`} />
+                      <span className={`text-[10px] font-bold uppercase tracking-widest ${pMeta?.color || 'text-gray-400'}`}>
+                        Antas ng Kahusayan
+                      </span>
                     </div>
-                  )}
+                    <div className="flex items-start gap-6">
+                      <div className="flex-1">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Hinulaang (AI)</p>
+                        <p className={`text-xl font-black ${pMeta?.color || 'text-gray-900'}`}>{dr.proficiency}</p>
+                        <p className="mt-1 text-[11px] text-gray-500 leading-relaxed">
+                          {dr.proficiency === ProficiencyLevel.NAGSISIMULA
+                            ? 'Nangangailangan ng matinding suporta at gabay ng guro.'
+                            : dr.proficiency === ProficiencyLevel.PAPAUNLAD
+                              ? 'Maaaring sumulong sa tulong ng guro at pagsasanay.'
+                              : 'Kaya niyang magtrabaho nang mag-isa sa mga gawaing angkop sa kanyang antas.'}
+                        </p>
+                      </div>
+                      {teacherProficiency && teacherPMeta ? (
+                        <>
+                          <div className="w-px self-stretch bg-gray-200" />
+                          <div className="flex-1">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Aktwal (Guro)</p>
+                            <p className={`text-xl font-black ${teacherPMeta.color}`}>{teacherProficiency}</p>
+                            <p className="mt-1 text-[11px] text-gray-500 leading-relaxed">
+                              {teacherProficiency === ProficiencyLevel.NAGSISIMULA
+                                ? 'Nangangailangan ng matinding suporta at gabay ng guro.'
+                                : teacherProficiency === ProficiencyLevel.PAPAUNLAD
+                                  ? 'Maaaring sumulong sa tulong ng guro at pagsasanay.'
+                                  : 'Kaya niyang magtrabaho nang mag-isa sa mga gawaing angkop sa kanyang antas.'}
+                            </p>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex-1 flex items-center justify-center">
+                          <p className="text-[10px] text-gray-400 italic">I-rate ang sanaysay para makita ang aktwal na antas.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
+              )}
+
+              <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3">
+                <p className="text-[11px] text-indigo-800 leading-relaxed">
+                  Ihambing muna ang <span className="font-bold">Hinulaang (AI)</span> at <span className="font-bold">Aktwal (Guro)</span>, pagkatapos buksan ang <span className="font-bold">Analysis</span> para sa detalyadong breakdown.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Analysis Tab */}
+          {activeTab === 'analysis' && (
+            <div className="space-y-8">
+              <div className="w-full">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">
+                  Highlighted Preview
+                </h4>
+                <div className="w-full rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+                  <GrammarHighlightedText text={editableText} issues={dr?.issues ?? []} />
+                </div>
+              </div>
+
+              {/* DepEd Rubric — primary evaluation */}
+              {dr?.rubricScore && (
+                <DepEdRubricPanel rubric={dr.rubricScore} />
               )}
 
               {/* Performance Metrics & Feedback */}

@@ -147,6 +147,9 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         if ((extracted as any)?.error === 'api_key_invalid') {
           setError('Gemini API key is expired or invalid. Please update the key in .env.local and restart the backend.');
           break;
+        } else if ((extracted as any)?.error === 'project_denied') {
+          setError('Gemini OCR access is denied for this Google project (403). Enable Generative Language API access/billing in Google Cloud or use another API key/project.');
+          break;
         } else if ((extracted as any)?.error === 'no_api_key') {
           setError('No Gemini API key configured. Add GEMINI_API_KEY to .env.local and restart the backend.');
           break;

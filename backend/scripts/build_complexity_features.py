@@ -32,6 +32,9 @@ FEATURE_NAMES = [
     'avg_word_length', 'syllables_per_word',
     'cefr_a1_ratio', 'cefr_a2_ratio', 'cefr_b1_ratio', 'cefr_b2_ratio',
     'cefr_c1_ratio', 'cefr_c2_ratio',
+    # Passage-level discriminating factors
+    'discourse_connector_ratio', 'passive_ratio', 'modal_ratio',
+    'subordination_ratio', 'negation_ratio', 'abstract_noun_ratio',
 ]
 
 
