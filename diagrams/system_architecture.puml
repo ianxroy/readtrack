@@ -48,8 +48,7 @@ node "Frontend  (React 19 · TypeScript · Vite 6)" as frontend {
     [App.tsx\n(Router & Layout)] as app
     [Dashboard.tsx\n(Grade 7 Analytics)] as dashboard
     [StudentGrading/\n(Essay Grading)] as grading
-    [MaterialLibrary.tsx\n(Upload · Language Filter · Browse)] as matlib
-    [MaterialChecker.tsx\n(G7 Suitability Panel)] as matchecker
+    [MaterialLibrary.tsx\n(Upload · Confirm Level · Browse)] as matlib
     [GrammarChecker.tsx] as grammarui
     [Analyzer.tsx] as analyzer
   }
@@ -78,7 +77,7 @@ node "Backend  (FastAPI · Python · Uvicorn)" as backend {
   }
 
   package "NLP Processing" as nlp {
-    [preprocessing.py\n(24-dim feature extraction)] as preprocess
+    [preprocessing.py\n(30-dim feature extraction)] as preprocess
     [spaCy  en_core_web_sm\n(English tokenisation, POS)] as spacy
     [calamanCy  tl_calamancy_md\n(Filipino POS, NER, dependency)] as calamancy
     [LanguageTool\n(Grammar rules engine)] as langtool
@@ -128,7 +127,6 @@ teacher -down--> app
 app -down-> dashboard
 app -down-> grading
 app -down-> matlib
-app -down-> matchecker
 app -down-> grammarui
 
 
@@ -138,7 +136,6 @@ app -down-> grammarui
 grading -down-> pyservice
 grading -down-> analyzer
 matlib -down-> pyservice
-matchecker -down-> pyservice
 grammarui -down-> gramservice
 analyzer -down-> pyservice
 dashboard -down-> supaservice

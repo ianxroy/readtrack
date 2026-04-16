@@ -286,6 +286,18 @@ input[type=range] { width: 100%; accent-color: #1565c0; cursor: pointer; }
 .btn-retrain { background: #00695c; color: white; border: none; border-radius: 8px; padding: 11px 28px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s; }
 .btn-retrain:hover    { background: #00796b; }
 .btn-retrain:disabled { background: #90a4ae; cursor: not-allowed; }
+.btn-export-pdf {
+  background: rgba(255,255,255,0.18);
+  color: white;
+  border: 1px solid rgba(255,255,255,0.45);
+  border-radius: 20px;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-export-pdf:hover { background: rgba(255,255,255,0.3); }
 .retrain-result { margin-top: 12px; background: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 8px; padding: 12px 16px; display: none; font-size: 12px; }
 .retrain-result.visible { display: block; }
 .retrain-result strong { font-size: 14px; color: #2e7d32; }
@@ -295,7 +307,7 @@ input[type=range] { width: 100%; accent-color: #1565c0; cursor: pointer; }
 /* ── Print / Export ── */
 @media print {
   .page-header { position: static; box-shadow: none; }
-  .jump-links, .backend-badge, .btn-primary, .btn-retrain,
+  .jump-links, .backend-badge, .btn-primary, .btn-retrain, .btn-export-pdf,
   .input-row button, input[type="range"], .score-btn,
   .retrain-actions, .api-note { display: none !important; }
   .section-card { box-shadow: none; border: 1px solid #ddd; break-inside: avoid; }
@@ -312,7 +324,10 @@ input[type=range] { width: 100%; accent-color: #1565c0; cursor: pointer; }
       <h1>ReadTrack — Algorithm Visualizer</h1>
       <div class="tagline">Student Essay Checker — step-by-step: analyze, score, and classify student writing</div>
     </div>
-    <div class="backend-badge disconnected" id="backendBadge">⬤ Checking backend…</div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <div class="backend-badge disconnected" id="backendBadge">⬤ Checking backend…</div>
+      <button class="btn-export-pdf" type="button" onclick="downloadPdf()">Download PDF</button>
+    </div>
   </div>
   <div class="jump-links">
     <a class="jump-link" href="#sec1">① Input</a>
@@ -339,12 +354,63 @@ const API = 'http://localhost:8000';
 let analysisResult = null;
 let complexityResult = null;
 let detectedLang = 'en'; // 'en' or 'tl' — set after each analysis
+let printTabState = null;
+let printTitleState = null;
 
 const PROF_LABELS = {
   en: { Mahusay: 'Proficient', Papaunlad: 'Developing', Nagsisimula: 'Beginning' },
   tl: { Mahusay: 'Mahusay',   Papaunlad: 'Papaunlad',  Nagsisimula: 'Nagsisimula' },
 };
 function profLabel(key) { return PROF_LABELS[detectedLang]?.[key] ?? key; }
+
+function preparePrintExport() {
+  if (!printTitleState) {
+    const stamp = new Date().toISOString().slice(0, 10);
+    printTitleState = { previousTitle: document.title };
+    document.title = `ReadTrack-Algorithm-Visualizer-${stamp}`;
+  }
+
+  if (!printTabState) {
+    const tabs = Array.from(document.querySelectorAll('.ml-tab'));
+    const panels = Array.from(document.querySelectorAll('.ml-panel'));
+    if (tabs.length || panels.length) {
+      printTabState = {
+        activeTabs: tabs.filter((t) => t.classList.contains('active')).map((t) => t.dataset.tab),
+        activePanels: panels.filter((p) => p.classList.contains('active')).map((p) => p.id),
+      };
+      tabs.forEach((t) => t.classList.add('active'));
+      panels.forEach((p) => p.classList.add('active'));
+    }
+  }
+}
+
+function cleanupPrintExport() {
+  if (printTabState) {
+    const activeTabs = new Set(printTabState.activeTabs.filter(Boolean));
+    const activePanels = new Set(printTabState.activePanels.filter(Boolean));
+    document.querySelectorAll('.ml-tab').forEach((t) => {
+      t.classList.toggle('active', activeTabs.has(t.dataset.tab));
+    });
+    document.querySelectorAll('.ml-panel').forEach((p) => {
+      p.classList.toggle('active', activePanels.has(p.id));
+    });
+    printTabState = null;
+  }
+
+  if (printTitleState) {
+    document.title = printTitleState.previousTitle;
+    printTitleState = null;
+  }
+}
+
+function downloadPdf() {
+  preparePrintExport();
+  window.print();
+  cleanupPrintExport();
+}
+
+window.addEventListener('beforeprint', preparePrintExport);
+window.addEventListener('afterprint', cleanupPrintExport);
 
 async function checkBackend() {
   const badge = document.getElementById('backendBadge');
@@ -423,6 +489,12 @@ function buildSection2() {
     { cat:'fc-read',   name:'Gunning Fog',        val: fog,           desc:'Years education needed' },
     { cat:'fc-syntax', name:'Punct Density',      val: complexityResult?.punctDensity   != null ? complexityResult.punctDensity.toFixed(3)   : '—', desc:'Punctuation / total' },
     { cat:'fc-syntax', name:'Sent Len StdDev',    val: complexityResult?.sentLenStdDev  != null ? complexityResult.sentLenStdDev.toFixed(3)  : '—', desc:'Sentence "burstiness"' },
+    { cat:'fc-syntax', name:'Discourse Conn',     val: am.discourseConnectorRatio != null ? am.discourseConnectorRatio.toFixed(3) : '—', desc:'however/therefore/because…' },
+    { cat:'fc-syntax', name:'Passive Voice',      val: am.passiveRatio   != null ? am.passiveRatio.toFixed(3)   : '—', desc:'Passive constructions / sent' },
+    { cat:'fc-syntax', name:'Modal Verbs',        val: am.modalRatio     != null ? am.modalRatio.toFixed(3)     : '—', desc:'can/should/might/would' },
+    { cat:'fc-syntax', name:'Subordination',      val: am.subordinationRatio != null ? am.subordinationRatio.toFixed(3) : '—', desc:'SCONJ density / sentences' },
+    { cat:'fc-syntax', name:'Negation',           val: am.negationRatio  != null ? am.negationRatio.toFixed(3)  : '—', desc:'Negation tokens / words' },
+    { cat:'fc-syntax', name:'Abstract Nouns',     val: am.abstractNounRatio != null ? am.abstractNounRatio.toFixed(3) : '—', desc:'-tion/-ness/-ity suffixes' },
     { cat:'fc-cefr',   name:'% Basic CEFR',  val: groupVal(basicCount), desc:'A1–A2 words', words: [...(byLevel.A1||[]), ...(byLevel.A2||[])].slice(0,20).join(', ') || '—' },
     { cat:'fc-cefr',   name:'% Independent', val: groupVal(indCount),   desc:'B1–B2 words', words: [...(byLevel.B1||[]), ...(byLevel.B2||[])].slice(0,20).join(', ') || '—' },
     { cat:'fc-cefr',   name:'% Proficient',  val: groupVal(profCount),  desc:'C1–C2 words', words: [...(byLevel.C1||[]), ...(byLevel.C2||[])].slice(0,20).join(', ') || '—' },
@@ -1396,13 +1468,13 @@ function renderResults() {
   });
   rubricScores = { content: 0, organization: 0, language: 0, grammar: 0, mechanics: 0 };
   rubricLang = detectedLang;
-  const main = document.getElementById('main');
   if (complexityResult || analysisResult) {
-    main.insertAdjacentHTML('beforeend', buildSection2());
-    main.insertAdjacentHTML('beforeend', buildSection3());
-    main.insertAdjacentHTML('beforeend', buildSection4());
-    main.insertAdjacentHTML('beforeend', buildSection5());
-    main.insertAdjacentHTML('beforeend', buildSection6());
+    // Insert sections 2–6 immediately after section 1 to maintain correct order
+    // Insert in reverse so each is placed right after sec1, resulting in 2→3→4→5→6
+    const anchor = document.getElementById('sec1');
+    [buildSection6(), buildSection5(), buildSection4(), buildSection3(), buildSection2()].forEach(html => {
+      anchor.insertAdjacentHTML('afterend', html);
+    });
     loadTrainStatus();
     setTimeout(() => { if (document.getElementById('sl-asl')) updateSliders(); }, 0);
   }

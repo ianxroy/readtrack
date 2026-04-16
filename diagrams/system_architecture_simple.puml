@@ -31,14 +31,14 @@ skinparam cloud {
 actor "Teacher" as teacher
 
 node "Frontend\n(React 19 · TypeScript · Vite 6)" as frontend {
-  [Dashboard · StudentGrading\nMaterialLibrary · MaterialChecker\nGrammarChecker · Analyzer] as pages
+  [Dashboard · StudentGrading\nMaterialLibrary · GrammarChecker\nAnalyzer · About] as pages
   [pythonService · grammarService\ngeminiService · supabaseService] as services
 }
 
 node "Backend\n(FastAPI · Python)" as backend {
   [API Endpoints\n(/analyze · /ocr · /grammar · /train)] as api
 
-  [Layer 1 — Deterministic NLP\nspaCy · calamanCy · LanguageTool\nSymSpellPy · SVM Models] as layer1
+  [Layer 1 — Deterministic NLP\nspaCy · calamanCy · LanguageTool\nSymSpellPy · SVM Models\n(30-dim features)] as layer1
 
   [Layer 2 — AI Enhancement\nGemini OCR · Gemini Grammar AI\nGemini Rubric Feedback] as layer2
 

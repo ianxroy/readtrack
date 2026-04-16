@@ -9,6 +9,7 @@ interface UploadModalProps {
   students: Student[];
   sections: Section[];
   subjects: Subject[];
+  prefilledSectionId?: string;
   prefilledStudentId?: string;
   prefilledSubjectId?: string;
   prefilledText?: string;
@@ -21,15 +22,20 @@ interface UploadModalProps {
   }) => Promise<void>;
   onAddSection?: (section: Section) => void;
   onAddSubject?: (subject: Subject) => void;
+  onAddStudent?: (student: { name: string; sectionId: string }) => string;
   onClose: () => void;
 }
 
 export const UploadModal: React.FC<UploadModalProps> = ({
   students, sections, subjects,
+  prefilledSectionId,
   prefilledStudentId, prefilledSubjectId, prefilledText,
-  onUpload, onAddSection, onAddSubject, onClose,
+  onUpload, onAddSection, onAddSubject, onAddStudent, onClose,
 }) => {
-  const [sectionId, setSectionId] = useState('');
+  const initialSectionId = prefilledSectionId
+    ?? (prefilledStudentId ? students.find(s => s.id === prefilledStudentId)?.sectionId : '')
+    ?? '';
+  const [sectionId, setSectionId] = useState(initialSectionId);
   const [studentId, setStudentId] = useState(prefilledStudentId ?? '');
   const [subjectId, setSubjectId] = useState(prefilledSubjectId ?? '');
   const [title, setTitle] = useState('');
@@ -54,6 +60,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   const [newSubjectName, setNewSubjectName] = useState('');
   const [newSubjectLang, setNewSubjectLang] = useState<'english' | 'filipino'>('filipino');
 
+  // Inline student creation
+  const [showNewStudent, setShowNewStudent] = useState(false);
+  const [newStudentName, setNewStudentName] = useState('');
+
   const handleCreateSection = () => {
     const name = newSectionName.trim();
     if (!name || !onAddSection) return;
@@ -73,7 +83,28 @@ export const UploadModal: React.FC<UploadModalProps> = ({
     setShowNewSubject(false);
   };
 
+  const handleCreateStudent = () => {
+    const name = newStudentName.trim();
+    if (!name || !sectionId || !onAddStudent) return;
+    const newId = onAddStudent({ name, sectionId });
+    if (newId) {
+      setStudentId(newId);
+    }
+    setNewStudentName('');
+    setShowNewStudent(false);
+  };
+
   useEffect(() => { setStudentId(prefilledStudentId ?? ''); }, [prefilledStudentId]);
+  useEffect(() => {
+    if (prefilledSectionId) {
+      setSectionId(prefilledSectionId);
+      return;
+    }
+    if (prefilledStudentId) {
+      const student = students.find(s => s.id === prefilledStudentId);
+      if (student?.sectionId) setSectionId(student.sectionId);
+    }
+  }, [prefilledSectionId, prefilledStudentId, students]);
   useEffect(() => { setSubjectId(prefilledSubjectId ?? ''); }, [prefilledSubjectId]);
   useEffect(() => { if (prefilledText) setText(prefilledText); }, [prefilledText]);
 
@@ -484,9 +515,45 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
           {/* Student selector */}
           <div>
-            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">
-              Student (Mag-aaral)
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                Student (Mag-aaral)
+              </label>
+              {onAddStudent && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowNewStudent(s => !s);
+                    setNewStudentName('');
+                    // Ensure add-student can proceed even when "All sections" is selected.
+                    if (!sectionId && sections.length > 0) setSectionId(sections[0].id);
+                  }}
+                  className="text-[10px] font-bold text-teal-500 hover:text-teal-700 flex items-center gap-0.5"
+                >
+                  <IoAddOutline /> New Student
+                </button>
+              )}
+            </div>
+            {showNewStudent && (
+              <div className="flex gap-2 mb-2">
+                <input
+                  autoFocus
+                  className="flex-1 px-3 py-2 bg-gray-50 border border-teal-300 rounded-xl text-sm outline-none focus:ring-2 focus:ring-teal-400"
+                  placeholder={sectionId ? 'Student name…' : 'Select a section first…'}
+                  value={newStudentName}
+                  onChange={e => setNewStudentName(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') handleCreateStudent();
+                    if (e.key === 'Escape') setShowNewStudent(false);
+                  }}
+                />
+                <button
+                  onClick={handleCreateStudent}
+                  disabled={!newStudentName.trim() || !sectionId}
+                  className="px-3 py-2 bg-teal-500 hover:bg-teal-600 disabled:bg-gray-100 disabled:text-gray-400 text-white text-xs font-bold rounded-xl transition-colors"
+                >Add</button>
+              </div>
+            )}
             <select
               className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-teal-400 appearance-none"
               value={studentId}

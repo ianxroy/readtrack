@@ -58,16 +58,9 @@ export const StudentGrid: React.FC<StudentGridProps> = ({
     return (essay.diagnosisResult?.proficiency as ProficiencyLevel | undefined) ?? null;
   };
 
-  // Students in current section who have at least one essay in selected subject (or all students if no subject filter)
+  // Students in current section. Keep zero-essay students visible so newly added students appear immediately.
   const filtered = students
     .filter(s => selectedSection ? s.sectionId === selectedSection.id : true)
-    .filter(s => {
-      // Hide students with no essays for the selected subject
-      const essayCount = selectedSubject
-        ? s.essays.filter(e => e.subjectId === selectedSubject.id).length
-        : s.essays.length;
-      return essayCount > 0;
-    })
     .filter(s => {
       if (proficiencyFilter === 'all') return true;
       return s.essays.some(e =>

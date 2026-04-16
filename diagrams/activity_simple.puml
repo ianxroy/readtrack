@@ -32,7 +32,7 @@ switch (Select Action)
 case (Student Grading)
   :Input Essay\n(Type / Image OCR / PDF);
   |Backend|
-  :Analyze Text\n(Language Detection, Feature Extraction,\nGrammar Check);
+  :Analyze Text\n(Language Detection,\n30-dim Feature Extraction,\nGrammar Check);
   :Classify with SVM:
   Writing Level: Nagsisimula | Papaunlad | Mahusay
   Complexity: Literal | Inferential | Evaluative;
@@ -46,24 +46,10 @@ case (Material Library)
   :Upload or Browse Reading Materials;
   |Backend|
   :Detect Language (English / Filipino);
-  :Auto-classify Complexity via SVM;
+  :Auto-classify Complexity via SVM\n(30-dim features · Phil-IRI anchored);
   |Frontend|
-  :Filter by Language & Complexity;
-
-case (Material Checker — G7)
-  |Teacher|
-  :Paste or Upload Reading Material;
-  |Backend|
-  :Analyze Complexity via SVM\n(POST /analyze/complexity);
-  if (Complexity == Literal?) then (yes)
-    :Verdict: Ready for Grade 7;
-  elseif (Complexity == Inferential?) then (yes)
-    :Verdict: Use with Teacher Support;
-  else (Evaluative)
-    :Verdict: Above Grade 7 Level;
-  endif
-  |Frontend|
-  :Show Phil-IRI level + vocabulary breakdown;
+  :Confirm model recommendation\n(Accept or Override level);
+  :Filter by Language & Complexity\nG7 suitability · vocabulary breakdown;
 
 case (Grammar Checker)
   |Teacher|

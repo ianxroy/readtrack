@@ -1,0 +1,36 @@
+flowchart TD
+    START([Start]) --> OPEN[User opens ReadTrack]
+    OPEN --> AUTH{Authenticated?}
+    AUTH -- No --> LOGIN[Login via Supabase Auth]
+    LOGIN --> DASH
+    AUTH -- Yes --> DASH[Display Dashboard<br/>Grade 7 Reading Complexity & Proficiency Tracker]
+
+    DASH --> ACTION{Select Action}
+
+    %% ── Student Grading ──
+    ACTION -- Student Grading --> INPUT[Input Essay<br/>Type / Image OCR / PDF]
+    INPUT --> ANALYZE[Analyze Text<br/>Language Detection · 30-dim Feature Extraction · Grammar Check]
+    ANALYZE --> SVM[Classify with SVM<br/>Writing Level: Nagsisimula / Papaunlad / Mahusay<br/>Complexity: Literal / Inferential / Evaluative]
+    SVM --> GEMINI[Generate AI Rubric Feedback<br/>Gemini 2.5 Flash]
+    GEMINI --> RESULTS[Display Results & Save to Supabase]
+
+    %% ── Material Library ──
+    ACTION -- Material Library --> MATLIB[Upload or Browse Reading Materials]
+    MATLIB --> LANG[Detect Language English / Filipino]
+    LANG --> CLASSIFY[Auto-classify Complexity via SVM<br/>30-dim features · Phil-IRI anchored]
+    CLASSIFY --> CONFIRM[Confirm model recommendation<br/>Accept or Override level]
+    CONFIRM --> FILTER[Filter by Language & Complexity<br/>G7 suitability · vocabulary breakdown]
+
+    %% ── Grammar Checker ──
+    ACTION -- Grammar Checker --> GTEXT[Input Text]
+    GTEXT --> GRAMCHECK[Check with LanguageTool + SymSpellPy]
+    GRAMCHECK --> ENHANCE[Enhance with Gemini AI]
+    ENHANCE --> ISSUES[Display Issues & Suggestions]
+
+    %% ── Dashboard ──
+    ACTION -- Dashboard --> ANALYTICS[View Grade 7 Analytics<br/>Complexity & Proficiency Distribution]
+
+    RESULTS --> STOP([End])
+    FILTER --> STOP
+    ISSUES --> STOP
+    ANALYTICS --> STOP

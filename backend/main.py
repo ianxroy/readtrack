@@ -1116,6 +1116,27 @@ def analyze_complexity_text(request: TextRequest):
         result = complexity_model.predict(features, text_to_analyze)
 
         result["analyzed_text"] = text_to_analyze
+
+        # Expose raw NLP features so visualizers can display them
+        m = features["metrics"]
+        ri = m.get("readabilityIndices", {})
+        cefr = m.get("cefrDistribution", {})
+        total_cefr = sum(cefr.values()) or 1
+        result["features"] = {
+            "avg_word_length":          round(sum(len(w) for w in m.get("difficultWords", [])) / max(len(m.get("difficultWords", [])), 1), 2),
+            "avg_sentence_length":      round(m.get("avgSentenceLength", 0), 2),
+            "ttr":                      round(m.get("vocabularyRichness", 0) / 100, 3),
+            "cefr_ratio":               round(((cefr.get("B2", 0) + cefr.get("C1", 0) + cefr.get("C2", 0)) / total_cefr), 3),
+            "fkgl":                     round(ri.get("flesch_kincaid", 0), 1),
+            "gunning_fog":              round(ri.get("gunning_fog", 0), 1),
+            "dependency_depth":         round(m.get("avgDepDistance", 0), 2),
+            "subordination_ratio":      round(m.get("subordinationRatio", 0), 3),
+            "discourse_connector_ratio":round(m.get("discourseConnectorRatio", 0), 3),
+            "passive_ratio":            round(m.get("passiveRatio", 0), 3),
+            "modal_ratio":              round(m.get("modalRatio", 0), 3),
+            "negation_ratio":           round(m.get("negationRatio", 0), 3),
+            "abstract_noun_ratio":      round(m.get("abstractNounRatio", 0), 3),
+        }
         return result
     except Exception as e:
         import traceback

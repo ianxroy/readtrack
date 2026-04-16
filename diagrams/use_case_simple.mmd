@@ -1,0 +1,23 @@
+graph LR
+    Teacher(["Teacher"])
+
+    subgraph System["ReadTrack System"]
+        UC_AUTH["Authentication<br/>Login / Logout"]
+        UC_GRADING["Student Grading<br/>Upload → SVM → AI Feedback"]
+        UC_LIBRARY["Material Library<br/>Upload · Detect Language · Filter"]
+        UC_GRAMMAR["Grammar & Spelling<br/>LanguageTool · SymSpell · Gemini AI"]
+        UC_INGEST["Text Ingestion<br/>OCR · PDF Extraction"]
+        UC_DASHBOARD["Dashboard & Analytics<br/>Grade 7 Complexity & Proficiency"]
+        UC_MODELS["Model Management<br/>Performance · Retraining"]
+    end
+
+    Teacher --- UC_AUTH
+    Teacher --- UC_GRADING
+    Teacher --- UC_LIBRARY
+    Teacher --- UC_GRAMMAR
+    Teacher --- UC_DASHBOARD
+    Teacher --- UC_MODELS
+
+    UC_INGEST -.->|extend| UC_GRADING
+    UC_INGEST -.->|extend| UC_LIBRARY
+    UC_GRAMMAR -.->|extend| UC_GRADING

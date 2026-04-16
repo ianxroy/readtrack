@@ -128,6 +128,18 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f4f6fb; colo
 .btn-primary { background: #00838f; color: white; border: none; border-radius: 8px; padding: 10px 24px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; transition: background 0.2s; }
 .btn-primary:hover { background: #0097a7; }
 .btn-primary:disabled { background: #90a4ae; cursor: not-allowed; }
+.btn-export-pdf {
+  background: rgba(255,255,255,0.18);
+  color: white;
+  border: 1px solid rgba(255,255,255,0.45);
+  border-radius: 20px;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-export-pdf:hover { background: rgba(255,255,255,0.3); }
 .api-note { font-size: 10px; color: #aaa; font-family: monospace; }
 .section-error { background: #ffebee; color: #c62828; border-radius: 6px; padding: 8px 12px; font-size: 12px; margin-top: 10px; display: none; }
 .section-error.visible { display: block; }
@@ -139,7 +151,7 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f4f6fb; colo
 
 @media print {
   .page-header { position: static; box-shadow: none; }
-  .jump-links, .backend-badge, .btn-primary { display: none !important; }
+  .jump-links, .backend-badge, .btn-primary, .btn-export-pdf { display: none !important; }
   .section-card { box-shadow: none; border: 1px solid #ddd; break-inside: avoid; }
   body { background: white; }
 }
@@ -155,6 +167,7 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f4f6fb; colo
     </div>
     <div style="display:flex;gap:8px;align-items:center;">
       <div class="backend-badge disconnected" id="backendBadge">⬤ Checking backend…</div>
+      <button class="btn-export-pdf" type="button" onclick="downloadPdf()">Download PDF</button>
     </div>
   </div>
   <div class="jump-links">
@@ -178,6 +191,57 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f4f6fb; colo
 <script>
 const API = 'http://localhost:8000';
 let complexityResult = null;
+let printTabState = null;
+let printTitleState = null;
+
+function preparePrintExport() {
+  if (!printTitleState) {
+    const stamp = new Date().toISOString().slice(0, 10);
+    printTitleState = { previousTitle: document.title };
+    document.title = `ReadTrack-Material-Complexity-Checker-${stamp}`;
+  }
+
+  if (!printTabState) {
+    const tabs = Array.from(document.querySelectorAll('.ml-tab'));
+    const panels = Array.from(document.querySelectorAll('.ml-panel'));
+    if (tabs.length || panels.length) {
+      printTabState = {
+        activeTabs: tabs.filter((t) => t.classList.contains('active')).map((t) => t.dataset.tab),
+        activePanels: panels.filter((p) => p.classList.contains('active')).map((p) => p.id),
+      };
+      tabs.forEach((t) => t.classList.add('active'));
+      panels.forEach((p) => p.classList.add('active'));
+    }
+  }
+}
+
+function cleanupPrintExport() {
+  if (printTabState) {
+    const activeTabs = new Set(printTabState.activeTabs.filter(Boolean));
+    const activePanels = new Set(printTabState.activePanels.filter(Boolean));
+    document.querySelectorAll('.ml-tab').forEach((t) => {
+      t.classList.toggle('active', activeTabs.has(t.dataset.tab));
+    });
+    document.querySelectorAll('.ml-panel').forEach((p) => {
+      p.classList.toggle('active', activePanels.has(p.id));
+    });
+    printTabState = null;
+  }
+
+  if (printTitleState) {
+    document.title = printTitleState.previousTitle;
+    printTitleState = null;
+  }
+}
+
+function downloadPdf() {
+  preparePrintExport();
+  window.print();
+  cleanupPrintExport();
+}
+
+window.addEventListener('beforeprint', preparePrintExport);
+window.addEventListener('afterprint', cleanupPrintExport);
 
 async function checkBackend() {
   const badge = document.getElementById('backendBadge');
@@ -240,7 +304,12 @@ function buildFeaturesResult() {
     { cls:'fc-orange', name:'FKGL',            val: fmt(f.fkgl,1),              desc:'Flesch-Kincaid grade' },
     { cls:'fc-orange', name:'Gunning Fog',     val: fmt(f.gunning_fog,1),       desc:'fog index' },
     { cls:'fc-purple', name:'Dep Depth',       val: fmt(f.dependency_depth,1),  desc:'avg parse depth' },
-    { cls:'fc-purple', name:'Subordination',   val: fmt(f.subordination_ratio,3),desc:'complex clauses' },
+    { cls:'fc-purple', name:'Subordination',   val: fmt(f.subordination_ratio,3),desc:'SCONJ / sentences' },
+    { cls:'fc-purple', name:'Discourse Conn',  val: fmt(f.discourse_connector_ratio,3), desc:'however/therefore/because…' },
+    { cls:'fc-purple', name:'Passive Voice',   val: fmt(f.passive_ratio,3),     desc:'passive constructions / sent' },
+    { cls:'fc-purple', name:'Modal Verbs',     val: fmt(f.modal_ratio,3),       desc:'can/should/might/would' },
+    { cls:'fc-purple', name:'Negation',        val: fmt(f.negation_ratio,3),    desc:'negation tokens / words' },
+    { cls:'fc-purple', name:'Abstract Nouns',  val: fmt(f.abstract_noun_ratio,3),desc:'-tion/-ness/-ity suffixes' },
   ];
   return `<div id="sec2r" style="background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06);padding:18px 20px;">
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#00838f;margin-bottom:12px;">Extracted NLP Features (from /analyze/complexity)</div>
@@ -249,9 +318,9 @@ function buildFeaturesResult() {
 }
 
 function buildSVMResult() {
-  const verdict = complexityResult?.complexity ?? complexityResult?.verdict ?? '—';
-  const conf = complexityResult?.confidence;
-  const confPct = conf != null ? (conf * 100).toFixed(1) + '%' : '—';
+  const verdict = complexityResult?.level ?? complexityResult?.complexity ?? complexityResult?.verdict ?? '—';
+  const conf = complexityResult?.confidence ?? complexityResult?.probability;
+  const confPct = conf != null ? (conf * 100).toFixed(1) + '%' : 'N/A';
   return `<div id="sec3r" style="background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06);padding:18px 20px;">
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#6a1b9a;margin-bottom:12px;">SVM Classification Result</div>
     <div class="svm-box">
@@ -263,7 +332,7 @@ function buildSVMResult() {
 }
 
 function buildVerdictResult() {
-  const verdict = complexityResult?.complexity ?? complexityResult?.verdict ?? '';
+  const verdict = complexityResult?.level ?? complexityResult?.complexity ?? complexityResult?.verdict ?? '';
   const bands = [
     { key:'Literal',      cls:'vb-literal',      grade:'Grade 1–3',    desc:'Concrete facts, directly stated. Surface-level recall.' },
     { key:'Inferential',  cls:'vb-inferential',  grade:'Grade 4–6',    desc:'Implied meaning, cause-effect, prediction.' },

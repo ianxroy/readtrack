@@ -295,5 +295,11 @@ def extract_features(text, language="en"):
             "avgDepDistance": round(avg_dep_distance, 4),
             "punctDensity": round(punct_density, 4),
             "sentLenStdDev": round(float(sent_len_std), 4),
+            "discourseConnectorRatio": round(discourse_connector_ratio, 4),
+            "passiveRatio": round(passive_ratio, 4),
+            "modalRatio": round(modal_ratio, 4),
+            "subordinationRatio": round(subordination_ratio, 4),
+            "negationRatio": round(negation_ratio, 4),
+            "abstractNounRatio": round(abstract_noun_ratio, 4),
         }
     }

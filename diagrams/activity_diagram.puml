@@ -64,7 +64,7 @@ case (Student Grading)
   fork
     :Detect Language\n(English or Filipino);
   fork again
-    :Extract 24-Dimensional\nLinguistic Feature Vector\n(vocabulary, syntax, readability,\nsentence structure, CEFR groups);
+    :Extract 30-Dimensional\nLinguistic Feature Vector\n(vocabulary, syntax, readability,\nCEFR groups, discourse connectors,\npassive voice, modals, negation,\nabstract nouns, subordination);
   fork again
     :Check Grammar & Spelling\n(LanguageTool + SymSpellPy);
   end fork
@@ -111,12 +111,22 @@ case (Material Library)
     fork
       :Detect Language\n(detectLanguageAPI → eng or fil);
     fork again
-      :Extract linguistic features;
+      :Extract 30-dim linguistic features;
       :Classify complexity via SVM\n(Literal / Inferential / Evaluative);
     end fork
 
+    |Frontend|
+    :Show confirmation modal\n"Is this recommendation good?"\n(Accept model suggestion / Override);
+
+    if (Teacher accepts suggestion?) then (yes)
+      :Save material with model-assigned level;
+    else (no)
+      :Teacher picks level manually;
+      :Save material with teacher-assigned level;
+    endif
+
     |Supabase|
-    :Save material with language tag\n(material_uploads in Supabase);
+    :Persist material + language tag\n(material_uploads in Supabase);
 
   case (Browse & Filter)
     |Supabase|
@@ -126,43 +136,8 @@ case (Material Library)
     |Frontend|
     :Filter by Language\n(All | English | Filipino);
     :Filter by Complexity Level;
-    :View material card and detail;
+    :View material card — G7 suitability,\nPhi-IRI level, vocabulary breakdown;
   endswitch
-
-case (Material Checker — G7 Suitability)
-  |Teacher|
-  :Navigate to Material Checker;
-  :Paste reading material or upload file;
-
-  |Backend|
-  :Send to POST /analyze/complexity;
-
-  :SVM classifies complexity level\n(Literal | Inferential | Evaluative);
-
-  note right
-    Verdict is determined by the SVM
-    complexity model alone — anchored
-    to DepEd Grade 7 MELCs standards.
-    Flesch-Kincaid is display-only.
-  end note
-
-  if (Complexity Level == Literal?) then (yes)
-    :Verdict: Ready for Grade 7;
-  elseif (Complexity Level == Inferential?) then (yes)
-    :Verdict: Use with Teacher Support;
-  else (Evaluative)
-    :Verdict: Above Grade 7 Level;
-  endif
-
-  :Derive Phil-IRI Reading Level\n(Flesch-Kincaid score → Independent / Instructional / Frustration)\n[Display only — does not affect verdict];
-
-  if (CEFR word group data available?) then (yes)
-    :Display vocabulary breakdown\n(% Basic · % Intermediate · % Advanced);
-  else (no)
-  endif
-
-  |Frontend|
-  :Display G7 Suitability Panel\n(verdict badge, Phil-IRI level, explanation);
 
 case (Grammar Checker)
   |Teacher|

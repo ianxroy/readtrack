@@ -235,7 +235,26 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
   const handleAddStudent = (name: string) => {
     if (!selectedSectionId) return;
     const student: Student = { id: Date.now().toString(), name, sectionId: selectedSectionId, essays: [] };
-    updateStudents([...students, student]);
+    setStudents(prev => {
+      const next = [...prev, student];
+      saveStudents(next);
+      return next;
+    });
+  };
+
+  const handleAddStudentToSection = (params: { name: string; sectionId: string }): string => {
+    const student: Student = {
+      id: Date.now().toString(),
+      name: params.name,
+      sectionId: params.sectionId,
+      essays: [],
+    };
+    setStudents(prev => {
+      const next = [...prev, student];
+      saveStudents(next);
+      return next;
+    });
+    return student.id;
   };
 
   const handleMoveStudent = (studentId: string, targetSectionId: string) => {
@@ -737,12 +756,14 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
           students={students}
           sections={sections}
           subjects={subjects}
+          prefilledSectionId={selectedSectionId || undefined}
           prefilledStudentId={selectedStudentId ?? undefined}
           prefilledSubjectId={selectedSubjectId ?? undefined}
           prefilledText={uploadPrefilledText}
           onUpload={handleUpload}
           onAddSection={section => updateSections([...sections, section])}
           onAddSubject={subject => updateSubjects([...subjects, subject])}
+          onAddStudent={handleAddStudentToSection}
           onClose={() => { setShowUpload(false); setUploadPrefilledText(undefined); }}
         />
       )}
