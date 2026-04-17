@@ -121,32 +121,45 @@ class StudentProficiencySVM(BaseModel):
         vector = features_data['vector']
         metrics = features_data['metrics']
 
-        # 1. Real Grammar Scoring
-        # Instead of a hard-coded 85.0, we calculate a score based on real issues
+        # 1. Grammar Score (0–100) — less punishing for G7 Filipino writers
         if grammar_data and 'issue_count' in grammar_data:
             word_count = metrics.get('wordCount', 1)
-            # Weighted error calculation: Errors are penalized more than warnings
-            error_count = len([i for i in grammar_data.get('issues', []) if i.get('severity') == 'error'])
+            error_count   = len([i for i in grammar_data.get('issues', []) if i.get('severity') == 'error'])
             warning_count = grammar_data.get('issue_count', 0) - error_count
-            
-            # Penalty per word (scaled so it's not too punishing for Grade 7)
-            penalty = ((error_count * 3.0) + (warning_count * 1.0)) / max(word_count, 1) * 100
+            # Softer penalty: errors cost 2×, warnings 0.5× (was 3× and 1×)
+            penalty = ((error_count * 2.0) + (warning_count * 0.5)) / max(word_count, 1) * 100
             grammar_score = max(0, min(100, 100 - penalty))
         else:
-            grammar_score = 70.0  # Neutral fallback
+            grammar_score = 70.0
 
-        # 2. Heuristic Calculation for Grade 7 (Less Strict)
-        vocab_rich = metrics['vocabularyRichness']
-        struct_coh = metrics['structureCohesion']
-        advanced_count = metrics.get('advancedWordCount', 0)
+        # 2. Pull all available metrics
+        vocab_rich     = metrics.get('vocabularyRichness', 0)      # 0–100 (TTR×100)
+        struct_coh     = metrics.get('structureCohesion', 0)       # 0–100 (clause density)
+        dep_depth      = metrics.get('avgDepDistance', 0) or 0     # avg dependency distance
+        discourse      = metrics.get('discourseConnectorRatio', 0) or 0  # 0–1
+        sent_std       = metrics.get('sentLenStdDev', 0) or 0      # sentence length variety
+        advanced_count = metrics.get('advancedWordCount', 0) or 0  # B2+ word count
 
-        # Grade 7 specific boost: Encourage using varied words even if not "C2" level
-        # We consider B2 as "Advanced" for a 7th Grader
-        cefr_boost = min(20, advanced_count * 4) 
-        
-        # Weighted average for the base score
-        # Grammar and Cohesion now heavily influence the calculated_score
-        calculated_score = (vocab_rich * 0.3) + (struct_coh * 0.3) + (grammar_score * 0.4) + cefr_boost
+        # 3. Normalize new components to 0–100
+        # Syntax depth: dep_depth 1–5 typical → (depth−1)/4×100
+        syntax_n   = min(100, max(0, (dep_depth - 1) / 4 * 100))
+        # Discourse quality: ratio 0–0.5 typical → ×200
+        discourse_n = min(100, discourse * 200)
+        # Sentence variety: std dev 0–15 words typical → /15×100
+        variety_n  = min(100, sent_std / 15 * 100)
+        # CEFR B2+ as proper weighted component (was additive, now 5% weight)
+        cefr_n     = min(100, advanced_count * 4)
+
+        # 4. Weighted base score — weights sum to 1.0
+        calculated_score = (
+            grammar_score * 0.25 +   # Grammar accuracy        25%
+            vocab_rich    * 0.20 +   # Vocabulary richness     20%
+            struct_coh    * 0.15 +   # Clause/structure        15%
+            syntax_n      * 0.15 +   # Syntactic depth         15%
+            discourse_n   * 0.10 +   # Discourse connectors    10%
+            variety_n     * 0.10 +   # Sentence variety        10%
+            cefr_n        * 0.05     # Advanced vocabulary      5%
+        )
 
         # 3. Hybrid ML-Heuristic Decision
         ml_result = self.ml_predict(vector)
@@ -253,11 +266,37 @@ class TextComplexitySVM(BaseModel):
 
         ml_result = self.ml_predict(vector)
 
-        avg_len = metrics['avgSentenceLength']
+        avg_len    = metrics['avgSentenceLength']
         diff_ratio = metrics['difficultWordRatio']
-        advanced_cefr = metrics.get('advancedWordCount', 0)
 
-        complexity_score = (avg_len * 3) + (diff_ratio * 4) + (advanced_cefr * 3)
+        # --- Full weighted complexity score ---
+        # Each component is normalized to 0–100, then weighted.
+        ri       = metrics.get('readabilityIndices', {})
+        cefr     = metrics.get('cefrDistribution', {})
+        tot_cefr = sum(cefr.values()) or 1
+
+        fkgl       = ri.get('flesch_kincaid', 0) or 0
+        cefr_ratio = (cefr.get('B2', 0) + cefr.get('C1', 0) + cefr.get('C2', 0)) / tot_cefr
+        ttr        = (metrics.get('vocabularyRichness', 0) or 0) / 100
+        dep_depth  = metrics.get('avgDepDistance', 0) or 0
+        sub_ratio  = metrics.get('subordinationRatio', 0) or 0
+
+        # Normalize each to 0–100
+        fkgl_n = min(100, max(0, fkgl / 10 * 100))          # Grade 10 → 100
+        cefr_n = min(100, cefr_ratio * 100)                  # 0–1 → 0–100
+        sent_n = min(100, max(0, (avg_len - 5) / 20 * 100))  # 5 words=0, 25 words=100
+        ttr_n  = min(100, ttr * 100)                         # 0–1 → 0–100
+        dep_n  = min(100, max(0, dep_depth * 20))            # depth 5 → 100
+        sub_n  = min(100, sub_ratio * 200)                   # 0.5 ratio → 100
+
+        complexity_score = (
+            fkgl_n * 0.30 +   # Readability grade level   — strongest predictor
+            cefr_n * 0.30 +   # Advanced vocabulary ratio — equally strong
+            sent_n * 0.15 +   # Sentence length
+            ttr_n  * 0.10 +   # Vocabulary variety
+            dep_n  * 0.10 +   # Syntactic depth
+            sub_n  * 0.05     # Clause complexity
+        )
 
         if ml_result:
             level = ml_result

@@ -13,6 +13,7 @@ import {
   IoChevronUpOutline,
   IoImageOutline,
   IoInformationCircleOutline,
+  IoCheckmarkCircle,
 } from 'react-icons/io5';
 import { LibraryMaterial, TextComplexityResult, ComplexityLevel, OriginalFile } from '../types';
 import { classifyTextComplexityAPI, extractTextFromImageAPI, detectLanguageAPI, addTrainingSampleAPI, ingestReferenceAPI, detectLanguageClientSide, triggerRetrainAPI } from '../services/pythonService';
@@ -164,16 +165,6 @@ function getLevelLabel(level: ComplexityLevel, uiLang: 'eng' | 'fil' = 'eng'): s
   return uiLang === 'eng' ? mapped.primary : mapped.secondary;
 }
 
-function getLevelDesc(level: ComplexityLevel, uiLang: 'eng' | 'fil' = 'eng'): string {
-  if (uiLang === 'eng') {
-    if (level === ComplexityLevel.LITERAL) return 'Easy — G7 Readable';
-    if (level === ComplexityLevel.INFERENTIAL) return 'Moderate — G7 Borderline';
-    return 'Difficult — Above G7';
-  }
-  if (level === ComplexityLevel.LITERAL) return 'Madali — Akma sa G7';
-  if (level === ComplexityLevel.INFERENTIAL) return 'Katamtaman — Hangganan ng G7';
-  return 'Mahirap — Higit sa G7';
-}
 
 const ADVANCED_METRIC_HELP: Record<string, string> = {
   'Complexity Score': 'Model score for how difficult the passage is. Higher values mean the text is more complex and usually needs more support.',
@@ -263,14 +254,19 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
   const [isSavingText, setIsSavingText] = useState(false);
   const [textMessage, setTextMessage] = useState<string | null>(null);
   const [textError, setTextError] = useState(false);
-  const [teacherLevel, setTeacherLevel] = useState<ComplexityLevel>(material.teacherVerifiedLevel ?? material.complexityResult.level);
+  const normalizedCardLevel = normalizeLevel(material.complexityResult.level, material.complexityResult.score);
+  const [teacherLevel, setTeacherLevel] = useState<ComplexityLevel>(
+    material.teacherVerifiedLevel
+      ? normalizeLevel(material.teacherVerifiedLevel)
+      : normalizedCardLevel
+  );
   const [verificationComment, setVerificationComment] = useState(material.verificationComment ?? '');
   const [isSavingVerification, setIsSavingVerification] = useState(false);
   const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
   const [verifyError, setVerifyError] = useState(false);
   const [activeTab, setActiveTab] = useState<'original' | 'analysis'>('original');
   const [activeMetricHelp, setActiveMetricHelp] = useState<string | null>(null);
-  const meta = levelMeta[material.complexityResult.level] ?? levelMeta[ComplexityLevel.LITERAL];
+  const meta = levelMeta[normalizedCardLevel];
   const levelLabel = getLevelLabel(material.complexityResult.level, uiLang);
   const cr = material.complexityResult;
   const levelDescriptions = uiLang === 'eng' ? LEVEL_DESCRIPTIONS : LEVEL_DESCRIPTIONS_FIL;
@@ -822,11 +818,11 @@ const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = (
   onConfirm,
 }) => {
   const uiLang = getMaterialUiLanguage(material);
-  const predicted = material.complexityResult.level;
+  const predicted = normalizeLevel(material.complexityResult.level, material.complexityResult.score);
   const isManualChoice = selectedLevel !== predicted;
   const [decisionMode, setDecisionMode] = useState<'confirm' | 'manual'>('confirm');
   const [previewOpen, setPreviewOpen] = useState(false);
-  const predMeta = levelMeta[predicted] ?? levelMeta[ComplexityLevel.LITERAL];
+  const predMeta = levelMeta[predicted];
   const selMeta = levelMeta[selectedLevel] ?? levelMeta[ComplexityLevel.LITERAL];
   const levelDescriptions = uiLang === 'eng' ? LEVEL_DESCRIPTIONS : LEVEL_DESCRIPTIONS_FIL;
   const { summary: reasoningSummary } = parseReasoning(material.complexityResult.reasoning, predicted, uiLang);
@@ -883,6 +879,85 @@ const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = (
               </div>
             </div>
           </div>
+
+          {/* Why this score? */}
+          {(() => {
+            const cr    = material.complexityResult;
+            const f     = (cr as any).features ?? {};
+            const score = cr.score;
+
+            const fkgl     = +(f.fkgl     ?? 0);
+            const cefrR    = +(f.cefr_ratio ?? 0);
+            const avgLen   = +(f.avg_sentence_length ?? cr.avgSentenceLength ?? 0);
+            const ttr      = +(f.ttr      ?? 0);
+            const dep      = +(f.dependency_depth ?? 0);
+            const sub      = +(f.subordination_ratio ?? 0);
+
+            // Mirror backend normalization
+            const fkgl_n = Math.min(100, Math.max(0, fkgl / 10 * 100));
+            const cefr_n = Math.min(100, cefrR * 100);
+            const sent_n = Math.min(100, Math.max(0, (avgLen - 5) / 20 * 100));
+            const ttr_n  = Math.min(100, ttr * 100);
+            const dep_n  = Math.min(100, Math.max(0, dep * 20));
+            const sub_n  = Math.min(100, sub * 200);
+
+            const components = [
+              { label: 'Readability Grade (FKGL)', raw: fkgl.toFixed(1), normalized: fkgl_n, weight: 0.30, hint: 'Estimated grade level. Grade 10 → normalized 100.' },
+              { label: 'Advanced Vocab (CEFR B2+)', raw: `${(cefrR * 100).toFixed(1)}%`, normalized: cefr_n, weight: 0.30, hint: 'Proportion of B2–C2 words. More advanced words = harder.' },
+              { label: 'Avg Sentence Length', raw: `${avgLen.toFixed(1)} words`, normalized: sent_n, weight: 0.15, hint: '5 words → 0 · 25 words → 100.' },
+              { label: 'Vocabulary Variety (TTR)', raw: `${(ttr * 100).toFixed(1)}%`, normalized: ttr_n, weight: 0.10, hint: 'Ratio of unique words. Higher variety = harder.' },
+              { label: 'Syntactic Depth', raw: dep.toFixed(2), normalized: dep_n, weight: 0.10, hint: 'Average dependency distance. Deeper grammar = harder.' },
+              { label: 'Clause Complexity', raw: `${(sub * 100).toFixed(1)}%`, normalized: sub_n, weight: 0.05, hint: 'Ratio of subordinate clauses (because, although, while…).' },
+            ];
+
+            const computed = components.reduce((s, c) => s + c.normalized * c.weight, 0);
+
+            return (
+              <details className="rounded-xl border border-gray-100 overflow-hidden">
+                <summary className="flex items-center justify-between px-4 py-3 cursor-pointer list-none bg-gray-50 hover:bg-gray-100 transition-colors">
+                  <span className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Why this score?</span>
+                  <IoChevronDownOutline className="text-xs text-gray-400" />
+                </summary>
+                <div className="px-4 py-3 space-y-4 bg-white">
+
+                  {/* Formula summary */}
+                  <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2.5 space-y-1.5">
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400">Score Formula</p>
+                    <p className="text-[10px] font-mono text-gray-500 leading-relaxed">
+                      Score = (FKGL×30%) + (CEFR B2+×30%) + (SentLen×15%) + (TTR×10%) + (SynDepth×10%) + (Clauses×5%)
+                    </p>
+                    <p className={`text-[13px] font-black font-mono ${predMeta.text}`}>
+                      = {computed.toFixed(1)} {typeof score === 'number' && Math.abs(computed - score) > 1 ? `(saved: ${score})` : ''}
+                    </p>
+                    <p className="text-[9px] text-gray-300">Capped at 100 · &lt;40 Independent · 40–74 Instructional · ≥75 Frustration</p>
+                  </div>
+
+                  {/* Per-component breakdown */}
+                  <div className="space-y-2.5">
+                    {components.map(({ label, raw, normalized, weight, hint }) => (
+                      <div key={label}>
+                        <div className="flex items-center justify-between text-[11px] mb-0.5">
+                          <span className="text-gray-600 flex items-center gap-1">
+                            {label}
+                            <span className="text-[9px] font-bold bg-gray-100 text-gray-400 px-1 rounded">{(weight * 100).toFixed(0)}%</span>
+                          </span>
+                          <div className="flex items-center gap-2 tabular-nums">
+                            <span className="text-gray-400 text-[10px]">{raw}</span>
+                            <span className={`font-bold text-[11px] ${predMeta.text}`}>{normalized.toFixed(1)}</span>
+                          </div>
+                        </div>
+                        <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full ${predMeta.dot}`} style={{ width: `${normalized}%` }} />
+                        </div>
+                        <p className="text-[9px] text-gray-300 mt-0.5">{hint}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                </div>
+              </details>
+            );
+          })()}
 
           {/* Teacher decision */}
           <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 space-y-3">
@@ -1324,7 +1399,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
       const materialWithLang: LibraryMaterial = { ...material, language: detectedLang };
 
       setPendingUploadMaterial(materialWithLang);
-      setUploadModalLevel(materialWithLang.complexityResult.level);
+      setUploadModalLevel(normalizeLevel(materialWithLang.complexityResult.level, materialWithLang.complexityResult.score));
       setUploadModalComment('');
       setShowUploadModal(false);
       setShowUploadCompareModal(true);
@@ -1379,7 +1454,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
       };
       setStagedImages([]);
       setPendingUploadMaterial(material);
-      setUploadModalLevel(material.complexityResult.level);
+      setUploadModalLevel(normalizeLevel(material.complexityResult.level, material.complexityResult.score));
       setUploadModalComment('');
       setShowUploadModal(false);
       setShowUploadCompareModal(true);
@@ -1787,7 +1862,11 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {displayed.map(mat => {
                 const cr = mat.complexityResult;
-                const cardLevel = normalizeLevel(cr.level, cr.score);
+                const modelLevel = normalizeLevel(cr.level, cr.score);
+                const teacherLevel = mat.isVerified && mat.teacherVerifiedLevel
+                  ? normalizeLevel(mat.teacherVerifiedLevel)
+                  : null;
+                const cardLevel = teacherLevel ?? modelLevel;
                 const meta = levelMeta[cardLevel];
                 const cardUiLang = getMaterialUiLanguage(mat);
                 return (
@@ -1802,10 +1881,20 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
                     <div className="flex items-start justify-between gap-2 mb-3 pt-1">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
+                          {/* Primary level badge — teacher's if verified, model's otherwise */}
                           <div className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${meta.badge}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
+                            {teacherLevel
+                              ? <IoCheckmarkCircle className="text-[10px]" />
+                              : <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
+                            }
                             {getLevelLabel(cardLevel, cardUiLang)}
                           </div>
+                          {/* Model prediction shown only when teacher override differs */}
+                          {teacherLevel && teacherLevel !== modelLevel && (
+                            <div className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full border ${levelMeta[modelLevel].badge} opacity-50`}>
+                              {getLevelLabel(modelLevel, cardUiLang)}
+                            </div>
+                          )}
                           {mat.language && (
                             <span className={`inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
                               mat.language === 'eng'
@@ -1828,24 +1917,8 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
                       </button>
                     </div>
 
-                    {/* Score */}
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="flex-1">
-                        <div className="flex justify-between text-[10px] text-gray-400 mb-1">
-                          <span>Complexity Score</span>
-                          <span className={`font-bold ${meta.text}`}>{typeof cr.score === 'number' ? cr.score : 'N/A'}</span>
-                        </div>
-                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${meta.dot}`}
-                            style={{ width: `${typeof cr.score === 'number' ? Math.min(100, cr.score) : 0}%` }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-
                     {/* Meta row */}
-                    <div className="flex items-center gap-3 text-[10px] text-gray-400">
+                    <div className="flex items-center gap-3 text-[10px] text-gray-400 mb-3">
                       <span className="flex items-center gap-1">
                         <IoDocumentTextOutline className="text-xs" />
                         {cr.wordCount} words
@@ -1859,9 +1932,37 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
                       </span>
                     </div>
 
-                    {/* G7 readability note */}
-                    <div className={`mt-3 pt-3 border-t border-gray-50 text-[10px] font-medium ${meta.text}`}>
-                      {getLevelDesc(cardLevel, cardUiLang)}
+                    {/* Model vs Teacher level rows */}
+                    <div className="pt-3 border-t border-gray-50 space-y-1.5">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="text-gray-400">Model</span>
+                          <span className={`font-semibold ${levelMeta[modelLevel].text}`}>
+                            {getLevelLabel(modelLevel, cardUiLang)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${levelMeta[modelLevel].dot}`}
+                              style={{ width: `${typeof cr.score === 'number' ? Math.min(100, cr.score) : 0}%` }}
+                            />
+                          </div>
+                          <span className={`text-[10px] font-bold tabular-nums ${levelMeta[modelLevel].text}`}>
+                            {typeof cr.score === 'number' ? cr.score : 'N/A'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-gray-400 flex items-center gap-1">
+                          {teacherLevel && <IoCheckmarkCircle className="text-teal-500 text-[10px]" />}
+                          Verified
+                        </span>
+                        {teacherLevel
+                          ? <span className={`font-semibold ${levelMeta[teacherLevel].text}`}>{getLevelLabel(teacherLevel, cardUiLang)}</span>
+                          : <span className="text-gray-300 italic">Not yet</span>
+                        }
+                      </div>
                     </div>
                   </div>
                 );
