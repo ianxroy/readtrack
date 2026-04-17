@@ -50,7 +50,7 @@ const DEFAULT_METRICS: EvaluationApiResponse = {
     f1: 0.98,
     precision: 0.98,
     recall: 0.98,
-    labels: ["Literal", "Inferential", "Evaluative"],
+    labels: ["Independent", "Instructional", "Frustration"],
     matrix: [],
   },
 };
@@ -100,7 +100,7 @@ export const About: React.FC<AboutProps> = ({ onMenuClick }) => {
           </p>
           <div className="mt-4 bg-blue-50 border border-blue-100 rounded-xl p-4 text-xs text-blue-800 leading-relaxed">
             <span className="font-semibold">Complexity</span> measures if a reading material is
-            appropriate for Grade 7 students (Literal → easy, Inferential → moderate, Evaluative →
+            appropriate for Grade 7 students (Independent → easy, Instructional → moderate, Frustration →
             difficult). <span className="font-semibold">Proficiency</span> classifies student
             writing into Phil-IRI aligned levels (Frustration / Instructional / Independent).
           </div>
@@ -135,15 +135,15 @@ export const About: React.FC<AboutProps> = ({ onMenuClick }) => {
                 </div>
               </div>
               <p className="text-[11px] text-gray-500 leading-relaxed mb-3">
-                Classifies materials as <strong className="text-gray-700">Literal</strong>,{" "}
-                <strong className="text-gray-700">Inferential</strong>, or{" "}
-                <strong className="text-gray-700">Evaluative</strong> to determine G7 readability.
+                Classifies materials as <strong className="text-gray-700">Independent</strong>,{" "}
+                <strong className="text-gray-700">Instructional</strong>, or{" "}
+                <strong className="text-gray-700">Frustration</strong> (Phil-IRI) to determine G7 readability.
               </p>
               <div className="space-y-1.5 border-t border-gray-100 pt-3 text-[10px]">
                 {[
                   ["Algorithm", "SVC (linear kernel)"],
                   ["Features", "24 linguistic + readability features"],
-                  ["Output", "Literal / Inferential / Evaluative"],
+                  ["Output", "Independent / Instructional / Frustration"],
                   ["Indices", "Flesch-Kincaid, Gunning Fog"],
                 ].map(([k, v]) => (
                   <div key={k} className="flex justify-between">
@@ -204,7 +204,7 @@ export const About: React.FC<AboutProps> = ({ onMenuClick }) => {
               </div>
               <p className="text-[11px] text-blue-800/70 leading-relaxed">
                 Philippine Informal Reading Inventory grade-level passages (G4–G10). Labels map
-                directly to complexity levels: G4–G6 = Literal, G7 = Inferential, G8–G10 = Evaluative.
+                directly to complexity levels: G4–G6 = Independent, G7 = Instructional, G8–G10 = Frustration.
               </p>
             </div>
           </div>

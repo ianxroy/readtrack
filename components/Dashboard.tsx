@@ -148,19 +148,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ view: _view, refreshToken 
 
   const complexityRows: DistributionRow[] = [
     {
-      label: <><span className="font-bold text-gray-700">Literal</span><span className="text-[10px] text-gray-400 font-normal"> · Easy, G7 Readable</span></>,
+      label: <><span className="font-bold text-gray-700">Independent</span><span className="text-[10px] text-gray-400 font-normal"> · Easy, G7 Readable</span></>,
       count: analytics.complexityCounts[ComplexityLevel.LITERAL],
       colorClass: "bg-green-500",
       bgClass: "bg-green-50",
     },
     {
-      label: <><span className="font-bold text-gray-700">Inferential</span><span className="text-[10px] text-gray-400 font-normal"> · Moderate, Borderline</span></>,
+      label: <><span className="font-bold text-gray-700">Instructional</span><span className="text-[10px] text-gray-400 font-normal"> · Moderate, Borderline</span></>,
       count: analytics.complexityCounts[ComplexityLevel.INFERENTIAL],
       colorClass: "bg-orange-500",
       bgClass: "bg-orange-50",
     },
     {
-      label: <><span className="font-bold text-gray-700">Evaluative</span><span className="text-[10px] text-gray-400 font-normal"> · Difficult, Above G7</span></>,
+      label: <><span className="font-bold text-gray-700">Frustration</span><span className="text-[10px] text-gray-400 font-normal"> · Difficult, Above G7</span></>,
       count: analytics.complexityCounts[ComplexityLevel.EVALUATIVE],
       colorClass: "bg-red-500",
       bgClass: "bg-red-50",
