@@ -345,6 +345,30 @@ function renderResults() {
 
 function fmt(v, d=2) { return (typeof v === 'number') ? v.toFixed(d) : (v ?? '—'); }
 
+const PHIL_IRI_BY_LEVEL = {
+  Literal: 'Independent',
+  Inferential: 'Instructional',
+  Evaluative: 'Frustration',
+  Independent: 'Independent',
+  Instructional: 'Instructional',
+  Frustration: 'Frustration',
+};
+
+const MODEL_LEVEL_BY_PHIL_IRI = {
+  Independent: 'Literal',
+  Instructional: 'Inferential',
+  Frustration: 'Evaluative',
+};
+
+function toPhilIriLevel(rawLevel) {
+  return PHIL_IRI_BY_LEVEL[rawLevel] || 'Instructional';
+}
+
+function normalizeModelLevel(rawLevel) {
+  if (rawLevel === 'Literal' || rawLevel === 'Inferential' || rawLevel === 'Evaluative') return rawLevel;
+  return MODEL_LEVEL_BY_PHIL_IRI[rawLevel] || 'Inferential';
+}
+
 function buildFeaturesResult() {
   const f = complexityResult?.features ?? {};
   const m = complexityResult?.metrics ?? {};
@@ -370,7 +394,9 @@ function buildFeaturesResult() {
 }
 
 function buildSVMResult() {
-  const verdict = complexityResult?.level ?? complexityResult?.complexity ?? complexityResult?.verdict ?? '—';
+  const verdictRaw = complexityResult?.level ?? complexityResult?.complexity ?? complexityResult?.verdict ?? '—';
+  const verdict = toPhilIriLevel(verdictRaw);
+  const modelBand = normalizeModelLevel(verdictRaw);
   const conf = complexityResult?.confidence ?? complexityResult?.probability;
   const confPct = conf != null ? (conf * 100).toFixed(1) + '%' : 'N/A';
   return `<div id="sec3r" style="background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06);padding:18px 20px;">
@@ -378,7 +404,7 @@ function buildSVMResult() {
     <div class="svm-box">
       <div class="svm-box-title">Prediction</div>
       <div style="font-size:22px;font-weight:800;color:#1a1a2e;">${verdict} <span class="confidence-tag">confidence ${confPct}</span></div>
-      <div style="font-size:11px;color:#666;margin-top:6px;">SVM trained on DepEd-aligned sample materials · RBF kernel · StandardScaler normalized</div>
+      <div style="font-size:11px;color:#666;margin-top:6px;">Model band: ${modelBand} · SVM trained on DepEd-aligned sample materials · RBF kernel · StandardScaler normalized</div>
     </div>
   </div>`;
 }
@@ -391,18 +417,39 @@ function buildCalculationResult() {
   const wc  = Number(f.wordCount ?? m.wordCount ?? 0);
   const advCount  = Number(m.advancedWordCount ?? 0);
 
-  const aslPart = asl * 3;
-  const dwrPart = dwr * 4;
-  const advPart = advCount * 3;
-  const cs      = aslPart + dwrPart + advPart;
-  const apiScore   = Number(complexityResult?.score);
-  const finalScore = Number.isFinite(apiScore) ? apiScore : cs;
-  const level      = finalScore < 40 ? 'Independent' : finalScore < 75 ? 'Instructional' : 'Frustration';
-  const levelColor = level === 'Independent' ? '#2e7d32' : level === 'Instructional' ? '#f57f17' : '#c62828';
+  const ri       = m.readabilityIndices ?? {};
+  const cefr     = m.cefrDistribution ?? {};
+  const totCefr  = (Number(cefr.A1 ?? 0) + Number(cefr.A2 ?? 0) + Number(cefr.B1 ?? 0) + Number(cefr.B2 ?? 0) + Number(cefr.C1 ?? 0) + Number(cefr.C2 ?? 0)) || 1;
+  const fkgl     = Number(f.fkgl ?? ri.flesch_kincaid ?? 0);
+  const cefrRatio = (Number(cefr.B2 ?? 0) + Number(cefr.C1 ?? 0) + Number(cefr.C2 ?? 0)) / totCefr;
+  const ttr       = Number(f.ttr ?? ((m.vocabularyRichness ?? 0) / 100));
+  const depDepth  = Number(f.avgDepDistance ?? m.avgDepDistance ?? 0);
+  const subRatio  = Number(f.subordinationRatio ?? m.subordinationRatio ?? 0);
 
-  const fkgl  = Number(f.fkgl ?? m.readabilityIndices?.flesch_kincaid ?? 0);
+  const fkglN = Math.min(100, Math.max(0, (fkgl / 10) * 100));
+  const cefrN = Math.min(100, cefrRatio * 100);
+  const sentN = Math.min(100, Math.max(0, ((asl - 5) / 20) * 100));
+  const ttrN  = Math.min(100, ttr * 100);
+  const depN  = Math.min(100, Math.max(0, depDepth * 20));
+  const subN  = Math.min(100, subRatio * 200);
+
+  const fkglPart = fkglN * 0.30;
+  const cefrPart = cefrN * 0.30;
+  const sentPart = sentN * 0.15;
+  const ttrPart  = ttrN * 0.10;
+  const depPart  = depN * 0.10;
+  const subPart  = subN * 0.05;
+
+  const cs       = fkglPart + cefrPart + sentPart + ttrPart + depPart + subPart;
+  const cappedCs = Math.min(100, cs);
+  const apiScore   = Number(complexityResult?.score);
+  const finalScore = Number.isFinite(apiScore) ? apiScore : cappedCs;
+  const fallbackLevel = finalScore < 40 ? 'Independent' : finalScore < 75 ? 'Instructional' : 'Frustration';
+  const fallbackColor = fallbackLevel === 'Independent' ? '#2e7d32' : fallbackLevel === 'Instructional' ? '#f57f17' : '#c62828';
+  const predictedLevelRaw = complexityResult?.level ?? complexityResult?.complexity ?? complexityResult?.verdict ?? 'Instructional';
+  const predictedLevel = toPhilIriLevel(predictedLevelRaw);
+
   const fog   = Number(f.gunning_fog ?? m.readabilityIndices?.gunning_fog ?? 0);
-  const ttr   = Number(f.ttr ?? (m.vocabularyRichness ? m.vocabularyRichness / 100 : 0));
   const depD  = Number(f.avgDepDistance ?? m.avgDepDistance ?? 0);
   const subR  = Number(f.subordinationRatio ?? m.subordinationRatio ?? 0);
   const discR = Number(f.discourseConnectorRatio ?? m.discourseConnectorRatio ?? 0);
@@ -411,12 +458,9 @@ function buildCalculationResult() {
   const negR  = Number(f.negationRatio ?? m.negationRatio ?? 0);
   const abstR = Number(f.abstractNounRatio ?? m.abstractNounRatio ?? 0);
 
-  const mlNote = (Number.isFinite(apiScore) && Math.abs(apiScore - cs) > 0.5)
-    ? `<div style="margin-top:8px;background:#f3e5f5;border:1px solid #ce93d8;border-radius:6px;padding:8px 12px;font-size:11px;color:#6a1b9a;">
-        <strong>ML Path Active</strong> — TextComplexitySVM used the full 30-dim vector → score ${apiScore.toFixed(2)}.
-        Heuristic CS = ${cs.toFixed(2)} shown above for reference only.
-       </div>`
-    : `<div style="margin-top:6px;font-size:10px;color:#888;">Score matches heuristic — complexity_model.pkl may be absent; heuristic used as primary classifier.</div>`;
+  const mlNote = `<div style="margin-top:8px;background:#f3e5f5;border:1px solid #ce93d8;border-radius:6px;padding:8px 12px;font-size:11px;color:#6a1b9a;">
+        <strong>How to read this:</strong> Score comes from the weighted formula above (capped at 100). The final label comes from backend <code>level</code> when the ML model is available; score thresholds are mainly fallback bands.
+       </div>`;
 
   return `<div id="sec5r" style="background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06);overflow:hidden;">
     <div style="padding:13px 20px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #eef0f5;border-left:4px solid #00838f;">
@@ -430,10 +474,12 @@ function buildCalculationResult() {
 
       <div style="background:#fff3e0;border:1px solid #ffcc80;border-radius:8px;padding:14px 16px;margin-bottom:16px;font-family:monospace;">
         <div style="font-size:11px;font-weight:700;color:#e65100;margin-bottom:8px;">HEURISTIC COMPLEXITY FORMULA</div>
-        <div style="font-size:13px;margin-bottom:4px;">CS = (ASL × 3) + (DWR × 4) + (AdvCEFR_count × 3)</div>
-        <div style="font-size:12px;color:#555;margin-bottom:2px;">= (${asl.toFixed(2)} × 3) + (${dwr.toFixed(2)} × 4) + (${advCount} × 3)</div>
-        <div style="font-size:12px;color:#555;margin-bottom:6px;">= ${aslPart.toFixed(2)} + ${dwrPart.toFixed(2)} + ${advPart.toFixed(2)}</div>
-        <div style="font-size:18px;font-weight:800;color:${levelColor};">= ${finalScore.toFixed(2)} → ${level}</div>
+        <div style="font-size:13px;margin-bottom:4px;">CS = (FKGLn × 0.30) + (CEFRn × 0.30) + (Sentn × 0.15) + (TTRn × 0.10) + (DEPn × 0.10) + (SUBn × 0.05)</div>
+        <div style="font-size:12px;color:#555;margin-bottom:2px;">FKGLn=${fkglN.toFixed(2)} CEFRn=${cefrN.toFixed(2)} Sentn=${sentN.toFixed(2)} TTRn=${ttrN.toFixed(2)} DEPn=${depN.toFixed(2)} SUBn=${subN.toFixed(2)}</div>
+        <div style="font-size:12px;color:#555;margin-bottom:6px;">= ${fkglPart.toFixed(2)} + ${cefrPart.toFixed(2)} + ${sentPart.toFixed(2)} + ${ttrPart.toFixed(2)} + ${depPart.toFixed(2)} + ${subPart.toFixed(2)}</div>
+        <div style="font-size:18px;font-weight:800;color:${fallbackColor};">= ${finalScore.toFixed(2)} (score)</div>
+        <div style="font-size:12px;color:${fallbackColor};margin-top:2px;">Fallback band from score: ${fallbackLevel}</div>
+        <div style="font-size:12px;color:#1a1a2e;margin-top:2px;">Predicted level from API: <strong>${predictedLevel}</strong></div>
         <div style="font-size:10px;color:#888;margin-top:4px;">Threshold: &lt; 40 Independent · 40–74 Instructional · ≥ 75 Frustration</div>
         ${mlNote}
       </div>
@@ -443,19 +489,34 @@ function buildCalculationResult() {
         <thead><tr><th>Component</th><th>Value</th><th>Weight</th><th>Contribution</th><th>What It Measures</th></tr></thead>
         <tbody>
           <tr>
-            <td><strong>ASL</strong> — Avg Sentence Length</td>
-            <td>${asl.toFixed(2)} words/sent</td><td>× 3</td><td><strong>${aslPart.toFixed(2)}</strong></td>
-            <td>Longer sentences → more complex syntax</td>
+            <td><strong>FKGLn</strong> — FKGL normalized</td>
+            <td>${fkglN.toFixed(2)}</td><td>× 0.30</td><td><strong>${fkglPart.toFixed(2)}</strong></td>
+            <td>Readability grade level normalized to 0–100 (Grade 10 maps to 100).</td>
           </tr>
           <tr>
-            <td><strong>DWR</strong> — Difficult Word Ratio</td>
-            <td>${dwr.toFixed(2)}%</td><td>× 4</td><td><strong>${dwrPart.toFixed(2)}</strong></td>
-            <td>Words &gt; 9 characters ÷ total words × 100. Highest weight.</td>
+            <td><strong>CEFRn</strong> — B2+C1+C2 ratio normalized</td>
+            <td>${cefrN.toFixed(2)}</td><td>× 0.30</td><td><strong>${cefrPart.toFixed(2)}</strong></td>
+            <td>Advanced CEFR vocabulary proportion (0–1 scaled to 0–100).</td>
           </tr>
           <tr>
-            <td><strong>AdvCEFR</strong> — C1+C2 count</td>
-            <td>≈ ${advCount} words</td><td>× 3</td><td><strong>${advPart.toFixed(2)}</strong></td>
-            <td>Mastery-level vocabulary. English only — 0 for Filipino.</td>
+            <td><strong>Sentn</strong> — sentence length normalized</td>
+            <td>${sentN.toFixed(2)}</td><td>× 0.15</td><td><strong>${sentPart.toFixed(2)}</strong></td>
+            <td>Average sentence length where 5 words=0 and 25 words=100.</td>
+          </tr>
+          <tr>
+            <td><strong>TTRn</strong> — lexical diversity normalized</td>
+            <td>${ttrN.toFixed(2)}</td><td>× 0.10</td><td><strong>${ttrPart.toFixed(2)}</strong></td>
+            <td>Type-token ratio scaled to 0–100.</td>
+          </tr>
+          <tr>
+            <td><strong>DEPn</strong> — dependency depth normalized</td>
+            <td>${depN.toFixed(2)}</td><td>× 0.10</td><td><strong>${depPart.toFixed(2)}</strong></td>
+            <td>Syntactic depth (depth 5 maps to 100).</td>
+          </tr>
+          <tr>
+            <td><strong>SUBn</strong> — subordination normalized</td>
+            <td>${subN.toFixed(2)}</td><td>× 0.05</td><td><strong>${subPart.toFixed(2)}</strong></td>
+            <td>Clause complexity (ratio 0.5 maps to 100).</td>
           </tr>
         </tbody>
       </table>
@@ -474,7 +535,7 @@ function buildCalculationResult() {
           <tr><td>Gunning Fog Index</td><td>${fog.toFixed(2)}</td><td>Education years needed — reflects complex word density</td></tr>
           <tr style="background:#f5f5f5;"><td colspan="3"><strong>📚 Lexical Features (5)</strong></td></tr>
           <tr><td>Type-Token Ratio</td><td>${ttr.toFixed(3)}</td><td>Vocabulary diversity — low = repetitive/simple; high = varied/complex</td></tr>
-          <tr><td>Difficult Word Ratio</td><td>${dwr.toFixed(1)}%</td><td>Words > 9 characters — primary heuristic discriminator (weight ×4)</td></tr>
+          <tr><td>Difficult Word Ratio</td><td>${dwr.toFixed(1)}%</td><td>Words > 9 characters — diagnostic lexical difficulty feature</td></tr>
           <tr><td>Average Word Length</td><td>${Number(complexityResult?.metrics?.avg_word_length || 0).toFixed(1)} chars</td><td>Longer words indicate academic vocabulary and complexity</td></tr>
           <tr><td>Syllables per Word</td><td>${Number(complexityResult?.metrics?.syllablesPerWord || 0).toFixed(2)}</td><td>Polysyllabic words signal advanced/formal text</td></tr>
           <tr><td>Advanced CEFR Count</td><td>${advCount} (${fmt((advCount/wc)*100,1)}%)</td><td>C1+C2 mastery-level words — English only feature</td></tr>
@@ -482,7 +543,7 @@ function buildCalculationResult() {
           <tr><td>Average Dep Distance</td><td>${depD.toFixed(3)}</td><td>Parse tree span — deeper trees indicate more embedded clauses</td></tr>
           <tr><td>Clause Density</td><td>${Number(complexityResult?.metrics?.clauseDensity || 0).toFixed(3)}</td><td>Verbs per sentence — more clauses = more structural complexity</td></tr>
           <tr><td>Sentence Length Std Dev</td><td>${Number(complexityResult?.metrics?.sentLenStdDev || 0).toFixed(3)}</td><td>Variation in sentence length — stylistic diversity marker</td></tr>
-          <tr><td>Avg Sentence Length</td><td>${asl.toFixed(1)} words</td><td>Longer sentences = complex syntax (heuristic weight: ×3)</td></tr>
+          <tr><td>Avg Sentence Length</td><td>${asl.toFixed(1)} words</td><td>Used in normalized sentence-length component (Sentn)</td></tr>
           <tr style="background:#f5f5f5;"><td colspan="3"><strong>🔄 Subordination &amp; Connectivity (2)</strong></td></tr>
           <tr><td>Subordination Ratio</td><td>${subR.toFixed(3)}</td><td>SCONJ density (because/although/when) — key Inferential marker</td></tr>
           <tr><td>Discourse Connector Ratio</td><td>${discR.toFixed(3)}</td><td>however/therefore/moreover — evaluative/argumentative reasoning signals</td></tr>
@@ -515,7 +576,8 @@ function buildCalculationResult() {
 }
 
 function buildVerdictResult() {
-  const verdict = complexityResult?.level ?? complexityResult?.complexity ?? complexityResult?.verdict ?? '';
+  const verdictRaw = complexityResult?.level ?? complexityResult?.complexity ?? complexityResult?.verdict ?? '';
+  const verdict = normalizeModelLevel(verdictRaw);
   const PHIL_IRI_LABEL = { 'Literal': 'Independent', 'Inferential': 'Instructional', 'Evaluative': 'Frustration' };
   const bands = [
     { key:'Literal',      cls:'vb-literal',      grade:'G7 Ready',          desc:'Readable by Grade 7 independently. Simple vocabulary, short sentences, directly stated facts. Phil-IRI: Independent level.' },
@@ -761,31 +823,36 @@ function buildSection5() {
       <div class="section-number">5</div>
       <div>
         <div class="section-title">SVM Classifier</div>
-        <div class="section-subtitle">sklearn SVC with RBF kernel — trained on DepEd-aligned reading samples</div>
+        <div class="section-subtitle">backend/svm_models.py — ML prediction with weighted normalized complexity score</div>
       </div>
     </div>
     <div class="section-body">
       <div class="two-col">
         <div>
-          <div class="ml-file-badge">backend/analysis_router.py</div>
+          <div class="ml-file-badge">backend/svm_models.py</div>
           <div class="ml-code"><span class="c-cm"># Classification step</span>
-features = <span class="c-fn">extract_features</span>(body)
-X = scaler.<span class="c-fn">transform</span>([features])  <span class="c-cm"># StandardScaler</span>
+features = <span class="c-fn">extract_features</span>(text)
+ml_result = <span class="c-fn">ml_predict</span>(features[<span class="c-str">'vector'</span>])
 
-verdict    = svm_model.<span class="c-fn">predict</span>(X)[<span class="c-num">0</span>]
-confidence = svm_model.<span class="c-fn">predict_proba</span>(X).<span class="c-fn">max</span>()
+<span class="c-cm"># Weighted normalized score (0–100)</span>
+complexity_score = (
+  fkgl_n * <span class="c-num">0.30</span> + cefr_n * <span class="c-num">0.30</span> + sent_n * <span class="c-num">0.15</span> +
+  ttr_n  * <span class="c-num">0.10</span> + dep_n  * <span class="c-num">0.10</span> + sub_n  * <span class="c-num">0.05</span>
+)
 
-<span class="c-cm"># verdict → "Independent" | "Instructional" | "Frustration"</span>
+level = ml_result <span class="c-kw">if</span> ml_result <span class="c-kw">else</span> threshold_label(complexity_score)
+
+<span class="c-cm"># API output</span>
 <span class="c-kw">return</span> {
-    <span class="c-str">"complexity"</span>:  verdict,
-    <span class="c-str">"confidence"</span>: <span class="c-fn">float</span>(confidence),
-    <span class="c-str">"features"</span>:   dict(<span class="c-fn">zip</span>(FEATURE_NAMES, features)),
+    <span class="c-str">"level"</span>: level,
+    <span class="c-str">"score"</span>: <span class="c-fn">min</span>(<span class="c-num">100</span>, <span class="c-fn">round</span>(complexity_score, <span class="c-num">2</span>)),
+    <span class="c-str">"metrics"</span>: features[<span class="c-str">'metrics'</span>],
 }</div>
           <div style="margin-top:12px;background:#f3e5f5;border:1px solid #ce93d8;border-radius:8px;padding:10px 13px;font-size:11px;color:#4a148c;line-height:1.7;">
-            <strong>Model:</strong> SVC (RBF kernel, C=10, gamma=0.1)<br>
-            <strong>Scaler:</strong> StandardScaler (fitted on training corpus)<br>
+            <strong>Model:</strong> SVC (RBF kernel, gamma='scale')<br>
+            <strong>Scoring:</strong> Weighted normalized formula (FKGL/CEFR strongest weights)<br>
             <strong>Classes:</strong> Independent · Instructional · Frustration<br>
-            <strong>Training:</strong> DepEd-graded Philippine reading passages
+            <strong>Inference rule:</strong> Use ML level when available, otherwise score-threshold fallback
           </div>
         </div>
         <div>
