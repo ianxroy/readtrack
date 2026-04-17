@@ -116,9 +116,9 @@ const LEVEL_DESCRIPTIONS: Record<ComplexityLevel, string> = {
 };
 
 const LEVEL_DESCRIPTIONS_FIL: Record<ComplexityLevel, string> = {
-  [ComplexityLevel.LITERAL]: 'Independent (Mahusay): akma sa independiyenteng pagbasa ng Grade 7.',
-  [ComplexityLevel.INFERENTIAL]: 'Instructional (Papaunlad): maaaring kailanganin ng gabay ng guro.',
-  [ComplexityLevel.EVALUATIVE]: 'Frustration (Nagsisimula): nangangailangan ng mas matinding suporta ng guro.',
+  [ComplexityLevel.LITERAL]: 'Madali (Independent): akma sa independiyenteng pagbasa ng Grade 7.',
+  [ComplexityLevel.INFERENTIAL]: 'Katamtaman (Instructional): maaaring kailanganin ng gabay ng guro.',
+  [ComplexityLevel.EVALUATIVE]: 'Mahirap (Frustration): nangangailangan ng mas matinding suporta ng guro.',
 };
 
 const getMaterialUiLanguage = (material: LibraryMaterial): 'eng' | 'fil' => {
@@ -126,9 +126,9 @@ const getMaterialUiLanguage = (material: LibraryMaterial): 'eng' | 'fil' => {
 };
 
 const LEVEL_DISPLAY: Record<ComplexityLevel, { primary: string; secondary: string }> = {
-  [ComplexityLevel.LITERAL]: { primary: 'Independent', secondary: 'Mahusay' },
-  [ComplexityLevel.INFERENTIAL]: { primary: 'Instructional', secondary: 'Papaunlad' },
-  [ComplexityLevel.EVALUATIVE]: { primary: 'Frustration', secondary: 'Nagsisimula' },
+  [ComplexityLevel.LITERAL]: { primary: 'Independent', secondary: 'Madali' },
+  [ComplexityLevel.INFERENTIAL]: { primary: 'Instructional', secondary: 'Katamtaman' },
+  [ComplexityLevel.EVALUATIVE]: { primary: 'Frustration', secondary: 'Mahirap' },
 };
 
 function getLevelDisplay(level: ComplexityLevel, uiLang: 'eng' | 'fil' = 'eng'): string {
@@ -161,7 +161,7 @@ const ADVANCED_METRIC_HELP: Record<string, string> = {
   'Gunning Fog Index': 'Estimated grade level based on sentence length and complex words. Higher values mean harder text.',
 };
 
-const PHIL_IRI_HELP = 'Phil-IRI stands for Philippine Informal Reading Inventory. In ReadTrack, level labels use: Independent (Mahusay), Instructional (Papaunlad), and Frustration (Nagsisimula).';
+const PHIL_IRI_HELP = 'Phil-IRI stands for Philippine Informal Reading Inventory. In ReadTrack, level labels use: Independent (Madali), Instructional (Katamtaman), and Frustration (Mahirap).';
 
 const REASONING_KEYWORDS: Record<ComplexityLevel, Array<{ pattern: RegExp; tag: string }>> = {
   [ComplexityLevel.LITERAL]: [
@@ -1520,9 +1520,9 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
                   </p>
                 ) : (
                   <p className="text-xs text-blue-700 leading-relaxed">
-                    <span className="font-semibold">Mahusay</span> = Independent.{' '}
-                    <span className="font-semibold">Papaunlad</span> = Instructional.{' '}
-                    <span className="font-semibold">Nagsisimula</span> = Frustration.
+                    <span className="font-semibold">Madali</span> = Independent.{' '}
+                    <span className="font-semibold">Katamtaman</span> = Instructional.{' '}
+                    <span className="font-semibold">Mahirap</span> = Frustration.
                   </p>
                 )}
               </div>
@@ -1625,9 +1625,9 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
               </p>
             ) : (
               <p className="text-xs text-blue-700 leading-relaxed">
-                <span className="font-semibold">Mahusay</span> = Independent.{' '}
-                <span className="font-semibold">Papaunlad</span> = Instructional.{' '}
-                <span className="font-semibold">Nagsisimula</span> = Frustration.
+                <span className="font-semibold">Madali</span> = Independent.{' '}
+                <span className="font-semibold">Katamtaman</span> = Instructional.{' '}
+                <span className="font-semibold">Mahirap</span> = Frustration.
               </p>
             )}
           </div>
