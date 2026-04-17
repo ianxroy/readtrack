@@ -169,7 +169,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ view: _view, refreshToken 
 
   if (dashboardLoading) {
     return (
-      <main className="flex-1 overflow-y-auto bg-[#F2F2F7]">
+      <main className="flex-1 h-full min-h-0 overflow-y-auto bg-[#F2F2F7]">
         <div className="flex flex-col items-center justify-center h-full">
           <div className="w-8 h-8 rounded-full border-2 border-teal-500 border-t-transparent animate-spin mb-3" />
           <p className="text-sm text-gray-400">Loading dashboard...</p>
@@ -179,7 +179,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ view: _view, refreshToken 
   }
 
   return (
-    <main className="flex-1 overflow-y-auto bg-[#F2F2F7]">
+    <main className="flex-1 h-full min-h-0 overflow-y-auto bg-[#F2F2F7]">
       <div className="px-6 pt-10 pb-10 max-w-6xl mx-auto space-y-5">
         <section className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">

@@ -105,7 +105,7 @@ const AppRoutes: React.FC = () => {
                   onDeleteHistory={handleDeleteHistory}
                 />
 
-                <main className="flex-1 h-full overflow-hidden flex flex-col relative bg-[#F2F2F7]">
+                <main className="flex-1 h-full min-h-0 overflow-hidden flex flex-col relative bg-[#F2F2F7]">
                   <Routes>
                     <Route path="/evaluation" element={<Navigate to="/about" replace />} />
                     <Route path="/" element={<></>} />
@@ -116,10 +116,10 @@ const AppRoutes: React.FC = () => {
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
 
-                  <div className={`h-full ${location.pathname === '/' ? 'block' : 'hidden'}`}>
+                  <div className={`h-full min-h-0 ${location.pathname === '/' ? 'block' : 'hidden'}`}>
                     <Dashboard view="welcome" onMenuClick={toggleMenu} refreshToken={dashboardRefreshToken} />
                   </div>
-                  <div className={`h-full ${location.pathname === '/student' ? 'block' : 'hidden'}`}>
+                  <div className={`h-full min-h-0 ${location.pathname === '/student' ? 'block' : 'hidden'}`}>
                     <StudentGrading
                       onMenuClick={() => setIsMobileMenuOpen(true)}
                       onSaveAnalysis={handleSaveAnalysis}
@@ -127,13 +127,13 @@ const AppRoutes: React.FC = () => {
                       selectedAnalysis={selectedAnalysis}
                     />
                   </div>
-                  <div className={`h-full ${location.pathname === '/material' ? 'block' : 'hidden'}`}>
+                  <div className={`h-full min-h-0 ${location.pathname === '/material' ? 'block' : 'hidden'}`}>
                     <MaterialLibrary onMenuClick={() => setIsMobileMenuOpen(true)} onDataChanged={handleDashboardDataChange} />
                   </div>
-                  <div className={`h-full ${location.pathname === '/grammar' ? 'block' : 'hidden'}`}>
+                  <div className={`h-full min-h-0 ${location.pathname === '/grammar' ? 'block' : 'hidden'}`}>
                     <GrammarChecker />
                   </div>
-                  <div className={`h-full ${location.pathname === '/about' ? 'block' : 'hidden'}`}>
+                  <div className={`h-full min-h-0 ${location.pathname === '/about' ? 'block' : 'hidden'}`}>
                     <About onMenuClick={() => setIsMobileMenuOpen(true)} />
                   </div>
                 </main>

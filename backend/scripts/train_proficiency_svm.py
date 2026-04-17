@@ -1,5 +1,6 @@
 import pickle
 import os
+import sys
 import warnings
 
 # Suppress warnings
@@ -16,6 +17,11 @@ THREAD_ENV_VARS = (
 )
 for env_var in THREAD_ENV_VARS:
     os.environ[env_var] = str(CPU_COUNT)
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(SCRIPT_DIR)
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
 
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.preprocessing import RobustScaler
