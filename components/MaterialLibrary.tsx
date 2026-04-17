@@ -1097,7 +1097,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
   };
 
   const handleVerifyMaterial = async (material: LibraryMaterial, level: ComplexityLevel, comment: string) => {
-    const saveRes = await saveMaterialTeacherVerification(material.id, { level, comment }, material.complexityResult);
+    const saveRes = await saveMaterialTeacherVerification(material.id, { level: toPhilIriLabel(level), comment }, material.complexityResult);
     if (saveRes.error) {
       return { ok: false, message: `Could not save verification: ${saveRes.error}` };
     }
