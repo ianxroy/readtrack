@@ -15,7 +15,7 @@ import {
   IoInformationCircleOutline,
 } from 'react-icons/io5';
 import { LibraryMaterial, TextComplexityResult, ComplexityLevel, OriginalFile } from '../types';
-import { classifyTextComplexityAPI, extractTextFromImageAPI, detectLanguageAPI, addTrainingSampleAPI, ingestReferenceAPI, detectLanguageClientSide } from '../services/pythonService';
+import { classifyTextComplexityAPI, extractTextFromImageAPI, detectLanguageAPI, addTrainingSampleAPI, ingestReferenceAPI, detectLanguageClientSide, triggerRetrainAPI } from '../services/pythonService';
 import { saveMaterialUpload, loadMaterialUploads, deleteMaterialUpload, saveMaterialTeacherVerification } from '../services/supabaseService';
 import { useEffect } from 'react';
 import { IoDocumentOutline } from 'react-icons/io5';
@@ -74,6 +74,9 @@ const levelMeta = {
     label: 'Frustration', desc: 'Difficult — Above G7',
   },
 };
+
+const toPhilIriLabel = (level: ComplexityLevel): 'Independent' | 'Instructional' | 'Frustration' =>
+  levelMeta[level]?.label as 'Independent' | 'Instructional' | 'Frustration' ?? 'Instructional';
 
 type SortKey = 'newest' | 'oldest' | 'score_high' | 'score_low' | 'name';
 
@@ -1052,6 +1055,9 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
     const { error } = await deleteMaterialUpload(id);
     if (error) console.error('Delete material failed:', error);
     await refreshMaterials();
+    // Fire-and-forget retrain — backend updates model without blocking the UI
+    triggerRetrainAPI('en').catch(() => {});
+    triggerRetrainAPI('tl').catch(() => {});
   };
 
   const handleVerifyMaterial = async (material: LibraryMaterial, level: ComplexityLevel, comment: string) => {
@@ -1060,16 +1066,10 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
       return { ok: false, message: `Could not save verification: ${saveRes.error}` };
     }
 
-    let message = 'Teacher verification saved.';
-    let ok = true;
-    try {
-      const trainRes = await addTrainingSampleAPI(material.text, level);
-      message = trainRes.message || message;
-      if (trainRes.status !== 'ok') ok = false;
-    } catch (e: any) {
-      ok = false;
-      message = `Verification saved, but model training failed: ${e?.message || 'unknown error'}`;
-    }
+    const message = 'Teacher verification saved.';
+    const ok = true;
+    // Fire-and-forget — training runs in background, never blocks or errors the UI
+    addTrainingSampleAPI(material.text, toPhilIriLabel(level)).catch(() => {});
 
     const updated: LibraryMaterial = {
       ...material,
@@ -1131,14 +1131,8 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
     if (error) {
       setUploadError(`Database error: ${error}`);
     } else {
-      try {
-        const trainRes = await addTrainingSampleAPI(material.text, uploadModalLevel);
-        if (trainRes.status !== 'ok') {
-          setUploadError(trainRes.message || 'Sample saved but retraining is pending.');
-        }
-      } catch (e: any) {
-        setUploadError(`Saved material, but model training failed: ${e?.message || 'unknown error'}`);
-      }
+      // Fire-and-forget — training runs in background, never blocks or errors the UI
+      addTrainingSampleAPI(material.text, toPhilIriLabel(uploadModalLevel)).catch(() => {});
       await refreshMaterials();
       onDataChanged?.();
     }

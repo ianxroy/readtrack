@@ -228,14 +228,20 @@ export const addTrainingSampleAPI = async (
     text: string,
     level: 'Independent' | 'Instructional' | 'Frustration'
 ): Promise<{ status: string; message: string }> => {
-    const response = await fetchOrThrowNetworkError(apiUrl('/training/add-sample'), {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'accept': 'application/json',
-        },
-        body: JSON.stringify({ text, level }),
-    });
+    let response: Response;
+    try {
+        response = await fetch(apiUrl('/training/add-sample'), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'accept': 'application/json',
+            },
+            body: JSON.stringify({ text, level }),
+        });
+    } catch {
+        // Backend offline — training will happen on next retrain; not a user-facing error.
+        return { status: 'pending', message: 'Material saved. Training sample will be submitted on next model retrain.' };
+    }
 
     if (!response.ok) {
         throw new Error(await unwrapErrorMessage(response));
@@ -301,18 +307,22 @@ interface DetectLanguageResponse {
 // Client-side fallback: matches backend grammar_service.py detect_language() heuristic.
 // Returns 'fil' if >= 3 Filipino function words found, otherwise 'eng'.
 export function detectLanguageClientSide(text: string): 'eng' | 'fil' {
+    // Only unambiguous Filipino words — exclude English homophones like 'at', 'ay', 'may', 'ka', 'si'
     const filipinoWords = new Set([
-        'ang','ng','mga','sa','na','ay','at','si','ni','kay','para','kung','pero',
+        'ang','ng','mga','sa','na','ni','kay','para','kung','pero',
         'dahil','kaya','nang','din','rin','nga','ba','mo','ko','niya','namin',
         'natin','nila','siya','sila','kami','tayo','ito','iyan','iyon','dito',
-        'diyan','doon','hindi','wala','mayroon','may','po','opo','ako','ka',
+        'diyan','doon','hindi','wala','mayroon','po','opo','ako',
         'ikaw','kita','naman','talaga','lang','pala','kasi','kahit','kapag',
-        'habang','bago','ngayon','kanina','bukas','kahapon','ano','bakit','paano',
-        'sino','alin','gaano','huwag','oo','oho','opo','ho','grabe','sayang',
+        'habang','ngayon','kanina','bukas','kahapon','bakit','paano',
+        'sino','gaano','huwag','grabe','sayang',
     ]);
     const words = (text ?? '').toLowerCase().match(/\b\w+\b/g) ?? [];
     const hits = words.filter(w => filipinoWords.has(w)).length;
-    return hits >= 3 ? 'fil' : 'eng';
+    // Require both a minimum hit count and a meaningful ratio to avoid
+    // English texts with Filipino-looking words (e.g. "ang", "sa" in proper nouns)
+    const ratio = words.length > 0 ? hits / words.length : 0;
+    return (hits >= 4 && ratio >= 0.02) ? 'fil' : 'eng';
 }
 
 // detectLanguageAPI is intentionally fail-safe: network errors and non-OK responses

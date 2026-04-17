@@ -185,12 +185,14 @@ def _is_us_uk_variant(original_word: str, replacements: List[str]) -> bool:
 
     return False
 
+# Unambiguous Filipino function words only — 'at', 'ay', 'si', 'may', 'sa' removed
+# because they are also common English words and cause false positives on English text.
 _FILIPINO_FUNCTION_WORDS = frozenset([
-    'ang', 'ng', 'mga', 'sa', 'na', 'ay', 'at', 'si', 'ni', 'kay', 'para',
+    'ang', 'ng', 'mga', 'na', 'ni', 'kay', 'para',
     'kung', 'pero', 'dahil', 'kaya', 'nang', 'din', 'rin', 'nga', 'ba',
     'mo', 'ko', 'niya', 'namin', 'natin', 'nila', 'siya', 'sila', 'kami',
     'tayo', 'ito', 'iyan', 'iyon', 'dito', 'diyan', 'doon', 'hindi', 'wala',
-    'mayroon', 'may', 'isang', 'mga', 'po', 'opo', 'ho', 'oho',
+    'mayroon', 'isang', 'po', 'opo', 'ho', 'oho',
 ])
 
 def detect_language(text: str) -> str:
@@ -200,7 +202,8 @@ def detect_language(text: str) -> str:
     # Filipino heuristic: count function words before trusting langdetect
     words = re.findall(r'\b\w+\b', text.lower())
     fil_hits = sum(1 for w in words if w in _FILIPINO_FUNCTION_WORDS)
-    if fil_hits >= 3:
+    ratio = fil_hits / len(words) if words else 0
+    if fil_hits >= 4 and ratio >= 0.02:
         return 'tl'
 
     try:
@@ -210,10 +213,9 @@ def detect_language(text: str) -> str:
         elif detected == 'en':
             return 'en'
         else:
-            # Second-chance: if any Filipino function word present, prefer tl
-            return 'tl' if fil_hits >= 1 else 'en'
+            return 'tl' if fil_hits >= 4 else 'en'
     except LangDetectException:
-        return 'tl' if fil_hits >= 1 else 'en'
+        return 'tl' if fil_hits >= 4 else 'en'
 
 @router.post("/api/grammar/check", response_model=GrammarCheckResponse)
 async def check_grammar(request: GrammarCheckRequest):

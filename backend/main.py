@@ -962,7 +962,8 @@ def retrain_model(request: RetrainRequest):
         _write_retrain_status(status_meta)
         return result
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        # Not enough samples — not an error, just nothing to retrain yet
+        return {"status": "skipped", "message": str(e)}
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -1075,12 +1076,51 @@ class DetectLanguageRequest(BaseModel):
     text: str
 
 
+async def _detect_language_gemini(text: str) -> Optional[str]:
+    """Use Gemini to detect whether text is English or Filipino. Returns 'eng'|'fil' or None on failure."""
+    try:
+        api_key = get_gemini_api_key()
+        if not api_key:
+            return None
+        import google.generativeai as genai
+        genai_api = cast(Any, genai)
+        genai_api.configure(api_key=api_key)
+        model = genai_api.GenerativeModel("gemini-2.5-flash")
+        snippet = text[:800]
+        prompt = (
+            "Identify the primary language of the following text. "
+            "Reply with exactly one word: 'English' or 'Filipino'. "
+            "Do not explain.\n\n"
+            f"Text:\n{snippet}"
+        )
+        response = model.generate_content(
+            prompt,
+            generation_config=genai_api.types.GenerationConfig(
+                temperature=0, max_output_tokens=5
+            ),
+        )
+        answer = (response.text or "").strip().lower()
+        if "english" in answer:
+            return "eng"
+        if "filipino" in answer or "tagalog" in answer:
+            return "fil"
+        return None
+    except Exception as e:
+        logger.warning(f"Gemini language detection failed: {e}")
+        return None
+
+
 @app.post("/detect-language")
 async def detect_language_endpoint(request: DetectLanguageRequest):
     from grammar_service import detect_language
     try:
         if not request.text or len(request.text.strip()) < 10:
             return {"language": "fil"}
+        # Try Gemini first for accurate detection
+        gemini_result = await _detect_language_gemini(request.text)
+        if gemini_result:
+            return {"language": gemini_result}
+        # Fall back to heuristic + langdetect
         lang = detect_language(request.text)
         return {"language": "eng" if lang == "en" else "fil"}
     except Exception as e:
