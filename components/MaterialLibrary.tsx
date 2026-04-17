@@ -161,6 +161,19 @@ const ADVANCED_METRIC_HELP: Record<string, string> = {
   'Gunning Fog Index': 'Estimated grade level based on sentence length and complex words. Higher values mean harder text.',
 };
 
+function friendlyError(e: unknown): string {
+  const msg = (e instanceof Error ? e.message : String(e)).toLowerCase();
+  if (msg.includes('api key') || msg.includes('gemini') || msg.includes('unauthorized')) return 'API key error. Please contact your administrator.';
+  if (msg.includes('timeout') || msg.includes('timed out')) return 'The request timed out. Please try again.';
+  if (msg.includes('too large') || msg.includes('memory')) return 'The file is too large to process. Please try a smaller file.';
+  if (msg.includes('no text') || msg.includes('empty') || msg.includes('no readable')) return 'No text could be extracted. Please ensure the file contains readable text.';
+  if (msg.includes('network') || msg.includes('fetch') || msg.includes('cannot reach')) return 'Cannot reach the backend. Please check your connection.';
+  if (msg.includes('database') || msg.includes('supabase')) return 'A database error occurred. Please try again.';
+  if (msg.includes('corrupt') || msg.includes('format') || msg.includes('ubyte') || msg.includes('unsupported')) return 'The file could not be processed. Try re-saving and uploading again.';
+  if (e instanceof Error && e.message) return e.message;
+  return 'An unexpected error occurred. Please try again.';
+}
+
 const PHIL_IRI_HELP = 'Phil-IRI stands for Philippine Informal Reading Inventory. In ReadTrack, level labels use: Independent (Madali), Instructional (Katamtaman), and Frustration (Mahirap).';
 
 const REASONING_KEYWORDS: Record<ComplexityLevel, Array<{ pattern: RegExp; tag: string }>> = {
@@ -1129,7 +1142,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
     });
 
     if (error) {
-      setUploadError(`Database error: ${error}`);
+      setUploadError(friendlyError(error));
     } else {
       // Fire-and-forget — training runs in background, never blocks or errors the UI
       addTrainingSampleAPI(material.text, toPhilIriLabel(uploadModalLevel)).catch(() => {});
@@ -1293,7 +1306,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
       setShowUploadModal(false);
       setShowUploadCompareModal(true);
     } catch (e: any) {
-      setUploadError(e.message || 'Analysis failed.');
+      setUploadError(friendlyError(e));
     } finally {
       setUploading(false);
     }
@@ -1348,7 +1361,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
       setShowUploadModal(false);
       setShowUploadCompareModal(true);
     } catch (e: any) {
-      setUploadError(e.message || 'Analysis failed.');
+      setUploadError(friendlyError(e));
     } finally {
       setUploading(false);
     }

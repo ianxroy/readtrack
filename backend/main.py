@@ -32,6 +32,27 @@ from grammar_service import router as grammar_router
 
 logger = logging.getLogger(__name__)
 
+import struct as _struct
+
+def _friendly_error(e: Exception) -> str:
+    """Return a user-friendly error message without leaking internal details."""
+    import traceback
+    traceback.print_exc()
+    msg = str(e).lower()
+    if isinstance(e, _struct.error) or "ubyte" in msg or "format requires" in msg:
+        return "The file could not be processed. It may be corrupted or use an unsupported format. Try re-saving and uploading again."
+    if isinstance(e, MemoryError) or "memory" in msg:
+        return "The file is too large to process. Please try a smaller file."
+    if isinstance(e, TimeoutError) or "timeout" in msg or "timed out" in msg:
+        return "The request timed out. Please try again."
+    if "connection" in msg or "network" in msg or "refused" in msg:
+        return "Could not connect to a required service. Please try again later."
+    if "api key" in msg or "invalid key" in msg or "unauthorized" in msg:
+        return "API key error. Please contact your administrator."
+    if "no text" in msg or "empty" in msg:
+        return "No text could be extracted from the file. Please ensure the file contains readable text."
+    return "An unexpected error occurred. Please try again."
+
 BACKEND_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BACKEND_DIR.parent
 
@@ -398,11 +419,15 @@ def _train_language_model(language: str) -> dict:
 
 def extract_text_from_pdf(base64_string: str) -> str:
     try:
+        import struct
         file_bytes = base64.b64decode(base64_string)
-        reader = PdfReader(BytesIO(file_bytes))
+        reader = PdfReader(BytesIO(file_bytes), strict=False)
         pages_text = []
         for page in reader.pages:
-            page_text = page.extract_text() or ""
+            try:
+                page_text = page.extract_text() or ""
+            except (struct.error, Exception):
+                page_text = ""
             pages_text.append(page_text)
         return "\n\n".join(t.strip() for t in pages_text if t.strip())
     except Exception as e:
@@ -646,8 +671,7 @@ def test_complexity(request: TextRequest):
 
         return result
     except Exception as e:
-        import traceback
-        return {"error": str(e), "trace": traceback.format_exc()}
+        return {"error": _friendly_error(e)}
 
 @app.get("/api/evaluation")
 def get_evaluation_metrics():
@@ -698,10 +722,7 @@ async def analyze_student_text(request: TextRequest): # Added async to handle aw
         return result
         
     except Exception as e:
-        import traceback
-        print("ERROR in analyze_student_text:")
-        traceback.print_exc()
-        return {"error": str(e), "trace": traceback.format_exc()}
+        return {"error": _friendly_error(e)}
 
 @app.post("/analyze/rubric")
 async def analyze_rubric(request: RubricRequest):
@@ -713,11 +734,9 @@ async def analyze_rubric(request: RubricRequest):
         )
         return result
     except ValueError as e:
-        raise HTTPException(status_code=503, detail=str(e))
+        raise HTTPException(status_code=503, detail="Rubric evaluation is temporarily unavailable. Please try again.")
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return {"error": str(e)}
+        return {"error": _friendly_error(e)}
 
 
 @app.get("/train/status")
@@ -749,9 +768,7 @@ def train_status():
             },
         }
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return {"error": str(e)}
+        return {"error": _friendly_error(e)}
 
 
 @app.get("/train/performance")
@@ -940,9 +957,7 @@ def train_performance(lang: str = "en"):
         }
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return {"error": str(e)}
+        return {"error": _friendly_error(e)}
 
 
 @app.post("/train/retrain")
@@ -965,9 +980,7 @@ def retrain_model(request: RetrainRequest):
         # Not enough samples — not an error, just nothing to retrain yet
         return {"status": "skipped", "message": str(e)}
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return {"error": str(e)}
+        return {"error": _friendly_error(e)}
 
 @app.post("/training/add-sample")
 async def add_training_sample(request: TrainingSampleRequest):
@@ -1040,10 +1053,7 @@ def extract_text_from_image_endpoint(request: OCRRequest):
 
         return {"text": ocr_text, "warning": ocr_warning}
     except Exception as e:
-        import traceback
-        print("ERROR in extract_text_from_image_endpoint:")
-        traceback.print_exc()
-        return {"error": str(e), "trace": traceback.format_exc()}
+        return {"error": _friendly_error(e)}
 
 @app.post("/reference/ingest")
 def ingest_reference(request: ReferenceIngestRequest):
@@ -1065,10 +1075,7 @@ def ingest_reference(request: ReferenceIngestRequest):
         cleaned_text = remove_title_from_body(text, title)
         return {"title": title, "text": cleaned_text}
     except Exception as e:
-        import traceback
-        print("ERROR in ingest_reference:")
-        traceback.print_exc()
-        return {"error": str(e), "trace": traceback.format_exc()}
+        return {"error": _friendly_error(e)}
 
 
 
@@ -1179,8 +1186,7 @@ def analyze_complexity_text(request: TextRequest):
         }
         return result
     except Exception as e:
-        import traceback
-        return {"error": str(e), "trace": traceback.format_exc()}
+        return {"error": _friendly_error(e)}
 
 if __name__ == "__main__":
     import uvicorn
