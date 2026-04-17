@@ -114,10 +114,10 @@ def load_asap_data(path, sample_size=None):
 
 def load_teacher_samples(path: str):
     """Load teacher-verified samples from JSONL. Returns (X, y) numpy arrays."""
-    X, y = [], []
+    pairs = []
     label_map = {"Independent": 0, "Instructional": 1, "Frustration": 2}
     if not os.path.exists(path):
-        return np.array(X), np.array(y, dtype=int)
+        return np.array([]), np.array([], dtype=int)
     with open(path, 'r') as f:
         for line in f:
             line = line.strip()
@@ -125,11 +125,27 @@ def load_teacher_samples(path: str):
                 continue
             try:
                 sample = json.loads(line)
-                X.append(sample['vector'])
-                y.append(label_map[sample['label']])
+                vec = sample.get('vector')
+                label = label_map[sample['label']]
+                if isinstance(vec, (list, tuple)) and len(vec) > 0:
+                    pairs.append((list(vec), label))
             except Exception:
                 continue
-    return np.array(X), np.array(y, dtype=int)
+    if not pairs:
+        return np.array([]), np.array([], dtype=int)
+
+    # Teacher samples may come from older feature schemas; pad shorter vectors with zeros.
+    max_len = max(len(v) for v, _ in pairs)
+    padded = []
+    y = []
+    for v, label in pairs:
+        vec = list(v)
+        if len(vec) < max_len:
+            vec.extend([0.0] * (max_len - len(vec)))
+        padded.append(vec)
+        y.append(label)
+
+    return np.array(padded, dtype=float), np.array(y, dtype=int)
 
 def load_commonlit_features(base_dir: str = None):
     """

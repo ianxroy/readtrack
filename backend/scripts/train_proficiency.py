@@ -27,7 +27,8 @@ from svm_models import StudentProficiencySVM
 from train_utils import load_asap_data, save_model_metrics
 
 def train_proficiency():
-    base_dir = os.path.dirname(__file__)
+    scripts_dir = os.path.dirname(__file__)
+    base_dir = os.path.dirname(scripts_dir)
     models_dir = os.path.join(base_dir, 'models')
     os.makedirs(models_dir, exist_ok=True)
 

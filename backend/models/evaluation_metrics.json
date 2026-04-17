@@ -5,9 +5,9 @@
         "precision": 0.85,
         "recall": 0.85,
         "labels": [
-            "Independent",
-            "Instructional",
-            "Frustration"
+            "Mahusay",
+            "Papaunlad",
+            "Nagsisimula"
         ],
         "matrix": [
             [
@@ -28,36 +28,36 @@
         ]
     },
     "complexity": {
-        "accuracy": "98.5%",
-        "f1": 0.98,
-        "precision": 0.99,
-        "recall": 0.98,
+        "accuracy": "92.8%",
+        "f1": 0.93,
+        "precision": 0.94,
+        "recall": 0.93,
         "evaluation_mode": "in_sample_overfit",
         "labels": [
-            "Literal",
-            "Inferential",
-            "Evaluative"
+            "Independent",
+            "Instructional",
+            "Frustration"
         ],
         "matrix": [
             [
-                25,
-                0,
+                24,
+                3,
                 0
             ],
             [
                 0,
-                20,
+                33,
                 0
             ],
             [
-                1,
                 0,
+                3,
                 20
             ]
         ],
-        "n_samples": 66,
+        "n_samples": 83,
         "n_base": 64,
-        "n_teacher": 2
+        "n_teacher": 19
     },
     "proficiency_hybrid": {
         "accuracy": "72.8%",
