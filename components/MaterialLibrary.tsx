@@ -78,6 +78,29 @@ const levelMeta = {
 const toPhilIriLabel = (level: ComplexityLevel): 'Independent' | 'Instructional' | 'Frustration' =>
   levelMeta[level]?.label as 'Independent' | 'Instructional' | 'Frustration' ?? 'Instructional';
 
+// Normalizes any level string the backend or DB might return into a valid ComplexityLevel.
+// Backend returns "Independent"/"Instructional"/"Frustration"; DB may also store "Literal"/"Inferential"/"Evaluative".
+function normalizeLevel(level: string | undefined | null, score?: number): ComplexityLevel {
+  const map: Record<string, ComplexityLevel> = {
+    'Literal':       ComplexityLevel.LITERAL,
+    'Independent':   ComplexityLevel.LITERAL,
+    'Madali':        ComplexityLevel.LITERAL,
+    'Inferential':   ComplexityLevel.INFERENTIAL,
+    'Instructional': ComplexityLevel.INFERENTIAL,
+    'Katamtaman':    ComplexityLevel.INFERENTIAL,
+    'Evaluative':    ComplexityLevel.EVALUATIVE,
+    'Frustration':   ComplexityLevel.EVALUATIVE,
+    'Mahirap':       ComplexityLevel.EVALUATIVE,
+  };
+  // If score is available, derive level from it — score is the ground truth number
+  if (score !== undefined && score !== null) {
+    if (score >= 75) return ComplexityLevel.EVALUATIVE;
+    if (score >= 40) return ComplexityLevel.INFERENTIAL;
+    return ComplexityLevel.LITERAL;
+  }
+  return map[level ?? ''] ?? ComplexityLevel.LITERAL;
+}
+
 type SortKey = 'newest' | 'oldest' | 'score_high' | 'score_low' | 'name';
 
 function sortMaterials(items: LibraryMaterial[], key: SortKey): LibraryMaterial[] {
@@ -1763,9 +1786,10 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
           {displayed.length > 0 && (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {displayed.map(mat => {
-                const meta = levelMeta[mat.complexityResult.level] ?? levelMeta[ComplexityLevel.LITERAL];
-                const cardUiLang = getMaterialUiLanguage(mat);
                 const cr = mat.complexityResult;
+                const cardLevel = normalizeLevel(cr.level, cr.score);
+                const meta = levelMeta[cardLevel];
+                const cardUiLang = getMaterialUiLanguage(mat);
                 return (
                   <div
                     key={mat.id}
@@ -1780,7 +1804,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
                         <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
                           <div className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${meta.badge}`}>
                             <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
-                            {getLevelLabel(mat.complexityResult.level, cardUiLang)}
+                            {getLevelLabel(cardLevel, cardUiLang)}
                           </div>
                           {mat.language && (
                             <span className={`inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
@@ -1837,7 +1861,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
 
                     {/* G7 readability note */}
                     <div className={`mt-3 pt-3 border-t border-gray-50 text-[10px] font-medium ${meta.text}`}>
-                      {getLevelDesc(mat.complexityResult.level, cardUiLang)}
+                      {getLevelDesc(cardLevel, cardUiLang)}
                     </div>
                   </div>
                 );
