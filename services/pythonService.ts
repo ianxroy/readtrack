@@ -4,8 +4,51 @@ import {
     DepEdRubricScore,
 } from "../types";
 
+const normalizeBaseUrl = (value: string | undefined): string => {
+    if (!value) return '';
+    return value.trim().replace(/\/$/, '');
+};
+
+const getApiBaseUrl = (): string => {
+    const viteEnv = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
+    const envBase = normalizeBaseUrl(viteEnv?.VITE_BACKEND_URL);
+    if (envBase) return envBase;
+
+    if (typeof window !== 'undefined') {
+        const { hostname, protocol } = window.location;
+        const localHosts = new Set(['localhost', '127.0.0.1']);
+        if (localHosts.has(hostname)) {
+            return 'http://localhost:8000';
+        }
+        return `${protocol}//${hostname}:8000`;
+    }
+
+    return 'http://localhost:8000';
+};
+
+const API_BASE_URL = getApiBaseUrl();
+
+const apiUrl = (path: string): string => `${API_BASE_URL}${path}`;
+
+const unwrapErrorMessage = async (response: Response): Promise<string> => {
+    try {
+        const errorData = await response.json();
+        return errorData.detail || `HTTP error! status: ${response.status}`;
+    } catch {
+        return `HTTP error! status: ${response.status}`;
+    }
+};
+
+const fetchOrThrowNetworkError = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    try {
+        return await fetch(input, init);
+    } catch {
+        throw new Error(`Cannot reach backend at ${API_BASE_URL}. Set VITE_BACKEND_URL if your API runs elsewhere.`);
+    }
+};
+
 export const analyzeStudentWorkAPI = async (text: string, base64Image?: string, mimeType?: string): Promise<StudentDiagnosisResult> => {
-    const response = await fetch('http://localhost:8000/analyze/student', {
+    const response = await fetchOrThrowNetworkError(apiUrl('/analyze/student'), {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -15,8 +58,7 @@ export const analyzeStudentWorkAPI = async (text: string, base64Image?: string, 
     });
 
     if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+        throw new Error(await unwrapErrorMessage(response));
     }
     const data = await response.json();
     if (data?.error) {
@@ -26,7 +68,7 @@ export const analyzeStudentWorkAPI = async (text: string, base64Image?: string, 
 };
 
 export const classifyTextComplexityAPI = async (text: string, base64Image?: string, mimeType?: string): Promise<TextComplexityResult> => {
-    const response = await fetch('http://localhost:8000/analyze/complexity', {
+    const response = await fetchOrThrowNetworkError(apiUrl('/analyze/complexity'), {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -36,8 +78,7 @@ export const classifyTextComplexityAPI = async (text: string, base64Image?: stri
     });
 
     if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+        throw new Error(await unwrapErrorMessage(response));
     }
     const data = await response.json();
     if (data?.error) {
@@ -50,7 +91,7 @@ export const extractTextFromImageAPI = async (
     base64Image: string,
     mimeType?: string
 ): Promise<{text: string; warning?: string; error?: string}> => {
-    const response = await fetch('http://localhost:8000/ocr/extract', {
+    const response = await fetchOrThrowNetworkError(apiUrl('/ocr/extract'), {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -60,8 +101,7 @@ export const extractTextFromImageAPI = async (
     });
 
     if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+        throw new Error(await unwrapErrorMessage(response));
     }
 
     const data = await response.json();
@@ -74,7 +114,7 @@ export const ingestReferenceAPI = async (payload: {
     text?: string;
     file?: string;
 }): Promise<{ title: string; text: string }> => {
-    const response = await fetch('http://localhost:8000/reference/ingest', {
+    const response = await fetchOrThrowNetworkError(apiUrl('/reference/ingest'), {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -84,8 +124,7 @@ export const ingestReferenceAPI = async (payload: {
     });
 
     if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+        throw new Error(await unwrapErrorMessage(response));
     }
 
     const data = await response.json();
@@ -100,7 +139,7 @@ export const evaluateDepEdRubricAPI = async (
     language: 'english' | 'filipino' = 'filipino',
     gradeLevel: string = 'Grade 7'
 ): Promise<DepEdRubricScore> => {
-    const response = await fetch('http://localhost:8000/analyze/rubric', {
+    const response = await fetchOrThrowNetworkError(apiUrl('/analyze/rubric'), {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -110,8 +149,7 @@ export const evaluateDepEdRubricAPI = async (
     });
 
     if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+        throw new Error(await unwrapErrorMessage(response));
     }
     const data = await response.json();
     if (data?.error) throw new Error(data.error);
@@ -151,7 +189,7 @@ export interface RetrainResponse {
 }
 
 export const getTrainStatusAPI = async (): Promise<TrainStatusResponse> => {
-    const response = await fetch('http://localhost:8000/train/status', {
+    const response = await fetchOrThrowNetworkError(apiUrl('/train/status'), {
         method: 'GET',
         headers: {
             'accept': 'application/json',
@@ -159,8 +197,7 @@ export const getTrainStatusAPI = async (): Promise<TrainStatusResponse> => {
     });
 
     if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+        throw new Error(await unwrapErrorMessage(response));
     }
 
     const data = await response.json();
@@ -169,7 +206,7 @@ export const getTrainStatusAPI = async (): Promise<TrainStatusResponse> => {
 };
 
 export const triggerRetrainAPI = async (language: 'en' | 'tl'): Promise<RetrainResponse> => {
-    const response = await fetch('http://localhost:8000/train/retrain', {
+    const response = await fetchOrThrowNetworkError(apiUrl('/train/retrain'), {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -179,8 +216,7 @@ export const triggerRetrainAPI = async (language: 'en' | 'tl'): Promise<RetrainR
     });
 
     if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+        throw new Error(await unwrapErrorMessage(response));
     }
 
     const data = await response.json();
@@ -190,9 +226,9 @@ export const triggerRetrainAPI = async (language: 'en' | 'tl'): Promise<RetrainR
 
 export const addTrainingSampleAPI = async (
     text: string,
-    level: 'Literal' | 'Inferential' | 'Evaluative'
+    level: 'Independent' | 'Instructional' | 'Frustration'
 ): Promise<{ status: string; message: string }> => {
-    const response = await fetch('http://localhost:8000/training/add-sample', {
+    const response = await fetchOrThrowNetworkError(apiUrl('/training/add-sample'), {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -202,8 +238,7 @@ export const addTrainingSampleAPI = async (
     });
 
     if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+        throw new Error(await unwrapErrorMessage(response));
     }
 
     const data = await response.json();
@@ -250,10 +285,9 @@ export interface ModelPerformanceData {
 }
 
 export const getModelPerformanceAPI = async (lang: 'en' | 'tl'): Promise<ModelPerformanceData> => {
-    const res = await fetch(`http://localhost:8000/train/performance?lang=${lang}`);
+    const res = await fetchOrThrowNetworkError(apiUrl(`/train/performance?lang=${lang}`));
     if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || `HTTP error! status: ${res.status}`);
+        throw new Error(await unwrapErrorMessage(res));
     }
     const data = await res.json();
     if (data?.error) throw new Error(data.error);
@@ -264,21 +298,37 @@ interface DetectLanguageResponse {
     language: string;
 }
 
+// Client-side fallback: matches backend grammar_service.py detect_language() heuristic.
+// Returns 'fil' if >= 3 Filipino function words found, otherwise 'eng'.
+export function detectLanguageClientSide(text: string): 'eng' | 'fil' {
+    const filipinoWords = new Set([
+        'ang','ng','mga','sa','na','ay','at','si','ni','kay','para','kung','pero',
+        'dahil','kaya','nang','din','rin','nga','ba','mo','ko','niya','namin',
+        'natin','nila','siya','sila','kami','tayo','ito','iyan','iyon','dito',
+        'diyan','doon','hindi','wala','mayroon','may','po','opo','ako','ka',
+        'ikaw','kita','naman','talaga','lang','pala','kasi','kahit','kapag',
+        'habang','bago','ngayon','kanina','bukas','kahapon','ano','bakit','paano',
+        'sino','alin','gaano','huwag','oo','oho','opo','ho','grabe','sayang',
+    ]);
+    const words = (text ?? '').toLowerCase().match(/\b\w+\b/g) ?? [];
+    const hits = words.filter(w => filipinoWords.has(w)).length;
+    return hits >= 3 ? 'fil' : 'eng';
+}
+
 // detectLanguageAPI is intentionally fail-safe: network errors and non-OK responses
-// return 'fil' rather than throwing, so callers need not handle errors.
-// This differs from other functions in this file which propagate errors to callers.
+// fall back to client-side heuristic rather than defaulting to 'fil'.
 export const detectLanguageAPI = async (text: string): Promise<'eng' | 'fil'> => {
     try {
-        const response = await fetch('http://localhost:8000/detect-language', {
+        const response = await fetchOrThrowNetworkError(apiUrl('/detect-language'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'accept': 'application/json' },
             body: JSON.stringify({ text }),
         });
-        if (!response.ok) return 'fil';
+        if (!response.ok) return detectLanguageClientSide(text);
         const data = await response.json() as DetectLanguageResponse;
         return data.language === 'eng' ? 'eng' : 'fil';
     } catch {
-        return 'fil';
+        return detectLanguageClientSide(text);
     }
 };
 

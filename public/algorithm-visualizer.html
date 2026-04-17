@@ -181,18 +181,18 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f4f6fb; colo
 .verdict-band-sub   { font-size: 11px; margin-top: 3px; color: #555; }
 .verdict-band-g7    { font-size: 11px; font-weight: 600; margin-top: 5px; }
 .verdict-badge { float: right; display: inline-block; border-radius: 12px; padding: 3px 12px; font-size: 10px; font-weight: 700; color: white; }
-.vb-literal     { background: #e8f5e9; border-color: #c8e6c9; }
-.vb-literal     .verdict-band-label { color: #2e7d32; }
-.vb-literal     .verdict-band-g7    { color: #2e7d32; }
-.vb-literal     .verdict-badge      { background: #2e7d32; }
-.vb-inferential { background: #fff8e1; border-color: #ffecb3; }
-.vb-inferential .verdict-band-label { color: #f57f17; }
-.vb-inferential .verdict-band-g7    { color: #f57f17; }
-.vb-inferential .verdict-badge      { background: #f57f17; }
-.vb-evaluative  { background: #fce4ec; border-color: #f8bbd0; }
-.vb-evaluative  .verdict-band-label { color: #c62828; }
-.vb-evaluative  .verdict-band-g7    { color: #c62828; }
-.vb-evaluative  .verdict-badge      { background: #c62828; }
+.vb-independent     { background: #e8f5e9; border-color: #c8e6c9; }
+.vb-independent     .verdict-band-label { color: #2e7d32; }
+.vb-independent     .verdict-band-g7    { color: #2e7d32; }
+.vb-independent     .verdict-badge      { background: #2e7d32; }
+.vb-instructional { background: #fff8e1; border-color: #ffecb3; }
+.vb-instructional .verdict-band-label { color: #f57f17; }
+.vb-instructional .verdict-band-g7    { color: #f57f17; }
+.vb-instructional .verdict-badge      { background: #f57f17; }
+.vb-frustration  { background: #fce4ec; border-color: #f8bbd0; }
+.vb-frustration  .verdict-band-label { color: #c62828; }
+.vb-frustration  .verdict-band-g7    { color: #c62828; }
+.vb-frustration  .verdict-badge      { background: #c62828; }
 
 .prof-bands { display: flex; flex-direction: column; gap: 7px; margin-top: 14px; }
 .prof-band { border-radius: 8px; padding: 9px 13px; border: 2px solid transparent; display: flex; align-items: center; justify-content: space-between; transition: border-color 0.2s; }
@@ -339,7 +339,8 @@ input[type=range] { width: 100%; accent-color: #1565c0; cursor: pointer; }
     <a class="jump-link" href="#sec7">⑦ ML Code</a>
     <a class="jump-link" href="#sec8">⑧ File Pipeline</a>
     <a class="jump-link" href="#sec9">⑨ Grammar Service</a>
-    <a class="jump-link" href="material-visualizer.html" style="background:rgba(0,131,143,0.25);color:rgba(255,255,255,0.9);">⑩ Material Checker ↗</a>
+    <a class="jump-link" href="#sec10">⑩ Material Calc</a>
+    <a class="jump-link" href="material-visualizer.html" style="background:rgba(0,131,143,0.25);color:rgba(255,255,255,0.9);">Material Checker ↗</a>
   </div>
 </div>
 
@@ -356,6 +357,45 @@ let complexityResult = null;
 let detectedLang = 'en'; // 'en' or 'tl' — set after each analysis
 let printTabState = null;
 let printTitleState = null;
+
+// Demo data for the pre-filled sample essay so all sections render on load
+const DEMO_COMPLEXITY = {
+  wordCount: 37,
+  avgSentenceLength: 7.4,
+  difficultWordRatio: 0.0,
+  level: 'Independent',
+  score: 22.2,
+  verbRatio: 0.189,
+  nounRatio: 0.243,
+  adjRatio: 0.081,
+  clauseDensity: 1.0,
+  avgDepDistance: 1.89,
+  punctDensity: 0.027,
+  sentLenStdDev: 1.86,
+  readability: { flesch_kincaid: 3.5, gunning_fog: 5.2 },
+};
+const DEMO_ANALYSIS = {
+  proficiency: 'Nagsisimula',
+  metrics: {
+    vocabularyRichness: 94.6,
+    structureCohesion: 35.0,
+    grammarAccuracy: 85.0,
+    cefrDistribution: { A1: 28, A2: 6, B1: 2, B2: 1, C1: 0, C2: 0 },
+    cefrWordsByLevel: {
+      A1: ['sun','sets','fly','home','run','air','cold','sky'],
+      A2: ['slowly','behind','darkness','comes','houses'],
+      B1: ['appear','begin'],
+      B2: ['quiet'],
+      C1: [], C2: [],
+    },
+    discourseConnectorRatio: 0.000,
+    passiveRatio: 0.000,
+    modalRatio: 0.000,
+    subordinationRatio: 0.000,
+    negationRatio: 0.000,
+    abstractNounRatio: 0.000,
+  },
+};
 
 const PROF_LABELS = {
   en: { Mahusay: 'Proficient', Papaunlad: 'Developing', Nagsisimula: 'Beginning' },
@@ -514,7 +554,7 @@ function buildSection2() {
     <div class="section-header">
       <div class="section-number">2</div>
       <div>
-        <div class="section-title">Feature Extraction — 24-Dimensional Vector</div>
+        <div class="section-title">Feature Extraction — 30-Dimensional Vector</div>
         <div class="section-subtitle">Computed by spaCy en_core_web_sm + cefrpy · Each value feeds directly into the SVM classifier</div>
       </div>
     </div>
@@ -528,6 +568,207 @@ function buildSection2() {
       </div>
       ${detectedLang === 'tl' ? '<div class="cefr-hidden-note">ℹ CEFR features hidden — cefrpy is English-only. Filipino essays use 0 for all CEFR dimensions.</div>' : ''}
       <div class="feature-grid">${chipHtml}</div>
+
+      <div style="margin-top:24px;">
+        <div class="subsection-label" style="margin-bottom:12px;">All 30 Features — Name · Description · How It Is Used by the SVM</div>
+        <table class="ml-table" style="font-size:11px;">
+          <thead>
+            <tr>
+              <th style="width:32px;">#</th>
+              <th style="width:130px;">Feature Name</th>
+              <th>Description</th>
+              <th style="width:220px;">How It Is Used</th>
+              <th style="width:70px;">Source</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="5" style="background:#e8f5e9;font-weight:700;color:#2e7d32;padding:6px 10px;">Vocabulary Features</td></tr>
+            <tr>
+              <td>1</td><td><strong>TTR</strong></td>
+              <td>Type-Token Ratio — unique words ÷ total words. Measures vocabulary diversity.</td>
+              <td>Higher TTR → richer vocabulary → pushes toward <em>Mahusay / Evaluative</em></td>
+              <td>Client-side</td>
+            </tr>
+            <tr>
+              <td>3</td><td><strong>Difficult Word Ratio</strong></td>
+              <td>Words longer than 9 characters ÷ total words × 100. Proxy for advanced vocabulary use.</td>
+              <td>Higher ratio → harder text → raises complexity score in heuristic formula (weight ×4)</td>
+              <td>spaCy</td>
+            </tr>
+            <tr>
+              <td>17</td><td><strong>Avg Word Length</strong></td>
+              <td>Mean character count per alpha token.</td>
+              <td>Longer average words correlate with academic register; separates <em>Evaluative</em> from <em>Literal</em></td>
+              <td>spaCy</td>
+            </tr>
+            <tr>
+              <td>18</td><td><strong>Syllables per Word</strong></td>
+              <td>Total syllable count ÷ word count.</td>
+              <td>Used alongside FK grade level; higher value = phonologically complex vocabulary</td>
+              <td>spaCy</td>
+            </tr>
+            <tr><td colspan="5" style="background:#e3f2fd;font-weight:700;color:#1565c0;padding:6px 10px;">Syntax / Structure Features</td></tr>
+            <tr>
+              <td>2</td><td><strong>Avg Sentence Length</strong></td>
+              <td>Word count ÷ sentence count (ASL).</td>
+              <td>Longer sentences = more syntactic complexity; primary heuristic weight (×3). Also input to FK &amp; Fog.</td>
+              <td>spaCy</td>
+            </tr>
+            <tr>
+              <td>4</td><td><strong>Clause Density</strong></td>
+              <td>Verb count ÷ sentence count. Estimates embedded clause density.</td>
+              <td>More verbs per sentence → more subordinate clauses → pushes toward <em>Inferential / Evaluative</em></td>
+              <td>spaCy</td>
+            </tr>
+            <tr>
+              <td>8</td><td><strong>Verb Ratio</strong></td>
+              <td>VERB POS tokens ÷ word count.</td>
+              <td>Active, event-driven texts have more verbs; helps distinguish narrative (Literal) from argumentative (Evaluative)</td>
+              <td>spaCy</td>
+            </tr>
+            <tr>
+              <td>9</td><td><strong>Noun Ratio</strong></td>
+              <td>NOUN POS tokens ÷ word count.</td>
+              <td>Noun-heavy texts are more informational; high ratio typical of <em>Evaluative</em> academic writing</td>
+              <td>spaCy</td>
+            </tr>
+            <tr>
+              <td>10</td><td><strong>Adj Ratio</strong></td>
+              <td>ADJ POS tokens ÷ word count.</td>
+              <td>Descriptive/evaluative language marker; moderate adjective use separates <em>Inferential</em> from simple <em>Literal</em></td>
+              <td>spaCy</td>
+            </tr>
+            <tr>
+              <td>11</td><td><strong>Avg Dep Distance</strong></td>
+              <td>Mean |token.i − token.head.i| across all tokens. Measures parse tree span.</td>
+              <td>Larger distance = more deeply nested syntax; strong signal for <em>Evaluative</em> complexity</td>
+              <td>spaCy</td>
+            </tr>
+            <tr>
+              <td>12</td><td><strong>Word Count</strong></td>
+              <td>Total alpha token count in the essay.</td>
+              <td>Raw length; longer essays tend to have more complexity; prevents bias toward very short texts</td>
+              <td>spaCy</td>
+            </tr>
+            <tr>
+              <td>13</td><td><strong>Sentence Count</strong></td>
+              <td>Number of sentences detected by spaCy sentencizer.</td>
+              <td>Denominator for ASL and clause density; very low counts flag fragment-heavy writing</td>
+              <td>spaCy</td>
+            </tr>
+            <tr>
+              <td>14</td><td><strong>Sent Len StdDev</strong></td>
+              <td>Standard deviation of per-sentence word counts ("burstiness").</td>
+              <td>Skilled writers vary sentence length; low StdDev = monotone style typical of <em>Nagsisimula</em></td>
+              <td>spaCy</td>
+            </tr>
+            <tr>
+              <td>15</td><td><strong>Punct Density</strong></td>
+              <td>Punctuation token count ÷ word count.</td>
+              <td>Complex punctuation (semicolons, colons, dashes) correlates with elaborated syntax in <em>Evaluative</em> texts</td>
+              <td>spaCy</td>
+            </tr>
+            <tr>
+              <td>16</td><td><strong>Stopword Ratio</strong></td>
+              <td>Function word count ÷ total word count.</td>
+              <td>High stopword ratio = simple, conversational style (<em>Literal</em>); low ratio = dense, content-rich text</td>
+              <td>spaCy</td>
+            </tr>
+            <tr>
+              <td>25</td><td><strong>Discourse Connectors</strong></td>
+              <td>however / therefore / because / furthermore … ÷ word count.</td>
+              <td>Explicit logical connectors signal <em>Inferential / Evaluative</em> reasoning; rare in <em>Literal</em> passages</td>
+              <td>spaCy</td>
+            </tr>
+            <tr>
+              <td>26</td><td><strong>Passive Voice Ratio</strong></td>
+              <td>nsubjpass + auxpass dependency labels ÷ sentence count.</td>
+              <td>Academic/formal writing uses more passive; distinguishes <em>Evaluative</em> from narrative <em>Literal</em></td>
+              <td>spaCy</td>
+            </tr>
+            <tr>
+              <td>27</td><td><strong>Modal Verb Ratio</strong></td>
+              <td>MD POS tag count (can/should/might/would) ÷ word count.</td>
+              <td>Hedging and argumentation markers; high modal ratio = <em>Evaluative</em> opinion/analysis writing</td>
+              <td>spaCy</td>
+            </tr>
+            <tr>
+              <td>28</td><td><strong>Subordination Ratio</strong></td>
+              <td>SCONJ count (although/because/when…) ÷ sentence count.</td>
+              <td>Subordinate clauses add inferential complexity; key separator between <em>Literal</em> and <em>Inferential</em></td>
+              <td>spaCy</td>
+            </tr>
+            <tr>
+              <td>29</td><td><strong>Negation Ratio</strong></td>
+              <td>neg dependency label count ÷ word count.</td>
+              <td>Nuanced argumentation uses negation to contrast ideas; low in simple <em>Literal</em> narratives</td>
+              <td>spaCy</td>
+            </tr>
+            <tr>
+              <td>30</td><td><strong>Abstract Noun Ratio</strong></td>
+              <td>Nouns ending in -tion/-ness/-ity/-ment/-ance/-ence/-ism/-acy ÷ word count.</td>
+              <td>Abstract vocabulary is a hallmark of <em>Evaluative</em> academic writing; rare in simple <em>Literal</em> texts</td>
+              <td>spaCy</td>
+            </tr>
+            <tr><td colspan="5" style="background:#fff3e0;font-weight:700;color:#e65100;padding:6px 10px;">Readability Features</td></tr>
+            <tr>
+              <td>6</td><td><strong>Flesch-Kincaid GL</strong></td>
+              <td>(0.39 × ASL) + (11.8 × syllables/words) − 15.59. US grade reading level.</td>
+              <td>Higher grade level → more complex material → SVM separates <em>Inferential</em> from <em>Evaluative</em></td>
+              <td>Computed</td>
+            </tr>
+            <tr>
+              <td>7</td><td><strong>Gunning Fog</strong></td>
+              <td>0.4 × (ASL + 100 × complex_words/words). Years of education needed.</td>
+              <td>Complementary to FK; both readability scores together give the SVM two calibrated reading-level anchors</td>
+              <td>Computed</td>
+            </tr>
+            <tr><td colspan="5" style="background:#f3e5f5;font-weight:700;color:#6a1b9a;padding:6px 10px;">CEFR Level Features (English only — features 19–24 are 0 for Filipino essays)</td></tr>
+            <tr>
+              <td>5</td><td><strong>Advanced CEFR Ratio</strong></td>
+              <td>(C1 + C2 word count) ÷ total words. Fraction of mastery-level vocabulary.</td>
+              <td>Primary CEFR signal; heuristic weight ×3. High ratio strongly predicts <em>Evaluative</em> complexity.</td>
+              <td>cefrpy</td>
+            </tr>
+            <tr>
+              <td>19</td><td><strong>CEFR A1 Ratio</strong></td>
+              <td>A1 word count ÷ total words.</td>
+              <td>High A1 ratio = basic vocabulary dominance → <em>Literal / Nagsisimula</em></td>
+              <td>cefrpy</td>
+            </tr>
+            <tr>
+              <td>20</td><td><strong>CEFR A2 Ratio</strong></td>
+              <td>A2 word count ÷ total words.</td>
+              <td>Elementary level; combined with A1 forms the "basic" group used to flag beginning-level writing</td>
+              <td>cefrpy</td>
+            </tr>
+            <tr>
+              <td>21</td><td><strong>CEFR B1 Ratio</strong></td>
+              <td>B1 word count ÷ total words.</td>
+              <td>Intermediate words; dominant in <em>Papaunlad / Inferential</em> range essays</td>
+              <td>cefrpy</td>
+            </tr>
+            <tr>
+              <td>22</td><td><strong>CEFR B2 Ratio</strong></td>
+              <td>B2 word count ÷ total words.</td>
+              <td>Upper-intermediate; treated as "advanced" for Grade 7 context in proficiency boost calculation</td>
+              <td>cefrpy</td>
+            </tr>
+            <tr>
+              <td>23</td><td><strong>CEFR C1 Ratio</strong></td>
+              <td>C1 word count ÷ total words.</td>
+              <td>Advanced vocabulary; combined with C2 as the advanced_ratio driving <em>Evaluative</em> classification</td>
+              <td>cefrpy</td>
+            </tr>
+            <tr>
+              <td>24</td><td><strong>CEFR C2 Ratio</strong></td>
+              <td>C2 word count ÷ total words.</td>
+              <td>Mastery-level vocabulary; strongest single-feature predictor of <em>Evaluative / Mahusay</em></td>
+              <td>cefrpy</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>`;
 }
@@ -572,7 +813,7 @@ function buildSection3() {
   const asl_num  = complexityResult?.avgSentenceLength  != null ? parseFloat(complexityResult.avgSentenceLength)  : 0;
   const adv_num  = typeof advC === 'number' ? advC : 0;
   const cs = ((asl_num * 3) + (dwr_num * 4) + (adv_num * 3)).toFixed(1);
-  const csThreshold = parseFloat(cs) < 40 ? 'Literal (< 40)' : parseFloat(cs) < 75 ? 'Inferential (< 75)' : 'Evaluative (≥ 75)';
+  const csThreshold = parseFloat(cs) < 40 ? 'Independent (< 40)' : parseFloat(cs) < 75 ? 'Instructional (< 75)' : 'Frustration (≥ 75)';
   const dwrNum = dwr.replace('%','');
 
   return `
@@ -648,7 +889,7 @@ function buildSection3() {
       <div class="svm-box">
         <div class="svm-box-title">🤖 SVM Model Prediction</div>
         <div class="svm-box-code">
-          feature_vector[24] → StandardScaler.transform() → SVC(kernel="rbf", C=10, gamma="scale")<br>
+          feature_vector[30] → StandardScaler.transform() → SVC(kernel="rbf", C=10, gamma="scale")<br>
           predict() → label index → labels = ["Literal", "Inferential", "Evaluative"]
         </div>
         <div class="svm-verdict">
@@ -665,19 +906,25 @@ function buildSection4() {
   const level = complexityResult?.level || 'Literal';
   const proficiency = analysisResult?.proficiency || 'Nagsisimula';
   const cefr4 = analysisResult?.metrics?.cefrDistribution || {};
+  const vocabRich = analysisResult?.metrics?.vocabularyRichness ?? 0;
+  const structCoh = analysisResult?.metrics?.structureCohesion ?? 0;
+  const grammarAcc = analysisResult?.metrics?.grammarAccuracy ?? 70;
 
   const initAsl = complexityResult?.avgSentenceLength != null ? parseFloat(complexityResult.avgSentenceLength).toFixed(1) : '9.0';
   const initDwr = complexityResult?.difficultWordRatio != null ? parseFloat(complexityResult.difficultWordRatio).toFixed(1) : '15.0';
-  const initAdv = (cefr4.C1 || 0) + (cefr4.C2 || 0) || 2;
+  const initAdv = (cefr4.C1 || 0) + (cefr4.C2 || 0);
+  const cefrBoost = Math.min(20, initAdv * 4);
+  const calculatedScore = (vocabRich * 0.3) + (structCoh * 0.3) + (grammarAcc * 0.4) + cefrBoost;
+  const calculatedBand = calculatedScore >= 70 ? 'Mahusay (Proficient)' : calculatedScore >= 35 ? 'Papaunlad (Developing)' : 'Nagsisimula (Beginning)';
 
   const essay = document.getElementById('essayInput').value.trim();
   const words = essay.match(/\b\w+\b/g) || ['x'];
   const initTtr = (new Set(words.map(w => w.toLowerCase())).size / words.length).toFixed(2);
 
   const verdictBands = [
-    { cls:'vb-literal',     id:'vb-literal',    label:'Literal',     sub:'Direct, surface-level meaning · Phil-IRI: Instructional', g7:'→ Ready for Grade 7 use',   badge:'G7 Ready'   },
-    { cls:'vb-inferential', id:'vb-inferential', label:'Inferential', sub:'Reading between the lines · Phil-IRI: Frustration',      g7:'→ Use with Teacher Support', badge:'With Support'},
-    { cls:'vb-evaluative',  id:'vb-evaluative',  label:'Evaluative',  sub:'Critical judgment required · Phil-IRI: Independent',     g7:'→ Above Grade 7 Level',      badge:'Above G7'   },
+    { cls:'vb-literal',     id:'vb-literal',    label:'Literal',     sub:'Readable by Grade 7 independently · Phil-IRI: Independent',      g7:'→ G7 Ready — suitable for independent reading',  badge:'G7 Ready'      },
+    { cls:'vb-inferential', id:'vb-inferential', label:'Inferential', sub:'Readable by Grade 7 with teacher support · Phil-IRI: Instructional', g7:'→ Needs Guidance — use with teacher facilitation', badge:'Needs Guidance' },
+    { cls:'vb-evaluative',  id:'vb-evaluative',  label:'Evaluative',  sub:'Above Grade 7 level · Phil-IRI: Frustration',             g7:'→ Above G7 Level — too advanced for independent use', badge:'Above G7'       },
   ].map(b => `
     <div class="verdict-band ${b.cls} ${level === b.label ? 'active' : ''}" id="${b.id}">
       <span class="verdict-badge">${b.badge}</span>
@@ -765,6 +1012,16 @@ function buildSection4() {
             <div class="live-formula-result" id="lf-result">= ?</div>
             <div class="threshold-note">Threshold: &lt;40 Literal · &lt;75 Inferential · ≥75 Evaluative</div>
           </div>
+
+          <div class="live-formula-box" style="margin-top:10px;background:#f3e5f5;border-color:#ce93d8;">
+            <div class="live-formula-title" style="color:#6a1b9a;">EXACT PROFICIENCY CALCULATION</div>
+            <div class="live-formula-eq">calculated_score = (vocab × 0.3) + (structure × 0.3) + (grammar × 0.4) + min(20, advanced_count × 4)</div>
+            <div class="live-formula-eq">= (${vocabRich.toFixed(2)} × 0.3) + (${structCoh.toFixed(2)} × 0.3) + (${grammarAcc.toFixed(2)} × 0.4) + min(20, ${initAdv} × 4)</div>
+            <div class="live-formula-eq">= ${(vocabRich * 0.3).toFixed(2)} + ${(structCoh * 0.3).toFixed(2)} + ${(grammarAcc * 0.4).toFixed(2)} + ${cefrBoost.toFixed(2)}</div>
+            <div class="live-formula-result" style="color:#6a1b9a;">= ${calculatedScore.toFixed(2)} → ${calculatedBand}</div>
+            <div class="threshold-note">Model thresholds: ≥70 Mahusay · ≥35 Papaunlad · &lt;35 Nagsisimula</div>
+            <div class="threshold-note">Teacher rubric banding (overall 1.0–4.0): ≥3.5 Mahusay · ≥2.5 Papaunlad · &lt;2.5 Nagsisimula</div>
+          </div>
         </div>
       </div>
     </div>
@@ -807,7 +1064,7 @@ function buildSection5() {
   const pipeSteps = [
     { color:'#1565c0', title:'Teacher rates student essay',        detail:'Assigns rubric scores (Content, Organization, Vocab, Grammar, Mechanics) in ReadTrack app' },
     { color:'#1565c0', title:'Stored in Supabase',                 detail:'teacher_rubric_scores + diagnosis_result saved to student_grading_uploads table' },
-    { color:'#1565c0', title:'POST /train/proficiency triggered',   detail:'Fetches all rated essays · re-extracts 24-dim feature vectors for each' },
+    { color:'#1565c0', title:'POST /train/proficiency triggered',   detail:'Fetches all rated essays · re-extracts 30-dim feature vectors for each' },
     { color:'#00695c', title:'RobustScaler.fit_transform(X)',       detail:'Normalizes features using median + IQR — resistant to outliers in small datasets' },
     { color:'#00695c', title:'SVC.fit(X_scaled, y)',               detail:'Trains SVM: kernel="rbf", C=10, gamma="scale", class_weight="balanced", random_state=42' },
     { color:'#00695c', title:'Save .pkl + hot-reload',             detail:'New model serialized to disk and loaded into memory immediately — no server restart needed' },
@@ -1073,6 +1330,7 @@ function buildSection7() {
       <button class="ml-tab"        data-tab="ml-svm"        onclick="showMlTab('ml-svm')">3. SVM Prediction</button>
       <button class="ml-tab"        data-tab="ml-training"   onclick="showMlTab('ml-training')">4. Training Pipeline</button>
       <button class="ml-tab"        data-tab="ml-lang"       onclick="showMlTab('ml-lang')">5. Language Detection</button>
+      <button class="ml-tab"        data-tab="ml-eval"       onclick="showMlTab('ml-eval')">6. F1 &amp; Evaluation</button>
     </div>
 
     <!-- OVERVIEW -->
@@ -1093,7 +1351,7 @@ function buildSection7() {
           ${[
             ['Student submits essay', 'Plain text, OCR image, or PDF. Text is extracted and cleaned by <code>clean_text()</code> in <strong>preprocessing.py</strong>.', 'blue'],
             ['Language Detection', '<code>detect_language(text)</code> in <strong>grammar_service.py</strong> — Filipino function word heuristic first, then langdetect. Returns <code>"en"</code> or <code>"tl"</code>.', 'blue'],
-            ['Feature Extraction', '<code>extract_features(text, language)</code> in <strong>preprocessing.py</strong> — spaCy + cefrpy produce a 24-dimensional numeric vector describing the essay.', 'purple'],
+            ['Feature Extraction', '<code>extract_features(text, language)</code> in <strong>preprocessing.py</strong> — spaCy + cefrpy produce a 30-dimensional numeric vector describing the essay.', 'purple'],
             ['SVM Prediction (Complexity)', '<code>TextComplexitySVM.predict()</code> in <strong>svm_models.py</strong> — StandardScaler → SVC(rbf) → "Literal" / "Inferential" / "Evaluative".', 'orange'],
             ['SVM Prediction (Proficiency)', '<code>StudentProficiencySVM.predict()</code> in <strong>svm_models.py</strong> — same pipeline, language-specific model → "Nagsisimula" / "Papaunlad" / "Mahusay".', 'orange'],
             ['Teacher Rating → Retraining', 'Teacher rubric scores saved to Supabase. <code>POST /train/proficiency</code> fetches rated essays, re-extracts features, and calls <code>SVC.fit()</code> via <strong>train_utils.py</strong>.', 'green'],
@@ -1110,7 +1368,7 @@ function buildSection7() {
       <table class="ml-table">
         <tr><th>Component</th><th>File</th><th>Algorithm</th><th>Output</th></tr>
         <tr><td>Text Cleaning</td><td><code>preprocessing.py</code></td><td>Unicode NFC + Regex</td><td>Clean string</td></tr>
-        <tr><td>Feature Extraction</td><td><code>preprocessing.py</code></td><td>spaCy + cefrpy</td><td>24-dim float vector</td></tr>
+        <tr><td>Feature Extraction</td><td><code>preprocessing.py</code></td><td>spaCy + cefrpy</td><td>30-dim float vector</td></tr>
         <tr><td>Complexity SVM</td><td><code>svm_models.py</code></td><td>SVC(kernel=rbf, C=10)</td><td>Literal / Inferential / Evaluative</td></tr>
         <tr><td>Proficiency SVM</td><td><code>svm_models.py</code></td><td>SVC(kernel=rbf, C=10)</td><td>Nagsisimula / Papaunlad / Mahusay</td></tr>
         <tr><td>Training</td><td><code>train_utils.py</code></td><td>RobustScaler + SVC.fit()</td><td>.pkl model file</td></tr>
@@ -1180,7 +1438,7 @@ words     = [t.text <span class="c-kw">for</span> t <span class="c-kw">in</span>
 
     <!-- FEATURE EXTRACTION -->
     <div class="ml-panel" id="ml-features">
-      <div class="ml-step-desc" style="margin-bottom:14px;">All 24 features are computed by <code>extract_features(text, language)</code> in <strong>preprocessing.py</strong> and returned as a NumPy array used by the SVM.</div>
+      <div class="ml-step-desc" style="margin-bottom:14px;">All 30 features are computed by <code>extract_features(text, language)</code> in <strong>preprocessing.py</strong> and returned as a NumPy array used by the SVM.</div>
       <div class="ml-flow">
         <div class="ml-flow-step">
           <div class="ml-step-circle">A</div>
@@ -1201,7 +1459,7 @@ diff_ratio = (<span class="c-fn">len</span>(difficult_words) / word_count) * <sp
         <div class="ml-flow-step">
           <div class="ml-step-circle">B</div>
           <div class="ml-step-body">
-            <div class="ml-step-title">CEFR Features (Features 4–10, 22–24)</div>
+            <div class="ml-step-title">CEFR Features (Features 4–10, 25–30)</div>
             <div class="ml-step-desc">cefrpy assigns each word an A1–C2 level using a pre-built frequency dictionary. English only — Filipino text defaults these to 0.</div>
             <div class="ml-file-badge">preprocessing.py → get_cefr_distribution(), get_cefr_word_groups()</div>
             <div class="ml-code"><span class="c-kw">from</span> cefrpy <span class="c-kw">import</span> <span class="c-cls">CEFRSpaCyAnalyzer</span>, <span class="c-cls">CEFRLevel</span>
@@ -1257,7 +1515,7 @@ fk = (<span class="c-num">0.39</span> * asl) + (<span class="c-num">11.8</span> 
 <span class="c-cm"># Feature 19: Gunning Fog Index</span>
 fog = <span class="c-num">0.4</span> * (asl + <span class="c-num">100</span> * complex_words/words)
 
-<span class="c-cm"># Assembled into the 24-dim vector:</span>
+<span class="c-cm"># Assembled into the 30-dim vector:</span>
 feature_vector = np.<span class="c-fn">array</span>([
     ttr, avg_sentence_length, diff_ratio, clause_density,
     advanced_ratio, fk, fog, verb_ratio, noun_ratio, adj_ratio,
@@ -1286,7 +1544,7 @@ feature_vector = np.<span class="c-fn">array</span>([
             <div class="ml-step-title">Complexity Classification — TextComplexitySVM</div>
             <div class="ml-step-desc">Classifies reading material as Literal / Inferential / Evaluative. A heuristic formula is used as fallback if the .pkl model is missing.</div>
             <div class="ml-file-badge">svm_models.py → TextComplexitySVM.predict()</div>
-            <div class="ml-code">vector  = features_data[<span class="c-str">'vector'</span>]        <span class="c-cm"># 24-dim NumPy array</span>
+            <div class="ml-code">vector  = features_data[<span class="c-str">'vector'</span>]        <span class="c-cm"># 30-dim NumPy array</span>
 metrics = features_data[<span class="c-str">'metrics'</span>]
 
 <span class="c-cm"># ML path: load .pkl, scale, predict</span>
@@ -1458,6 +1716,113 @@ doc = <span class="c-fn">nlp_tl</span>(text)
       </div>
     </div>
 
+    <!-- F1 & EVALUATION METRICS -->
+    <div class="ml-panel" id="ml-eval">
+      <div class="ml-flow">
+
+        <div class="ml-flow-step">
+          <div class="ml-step-circle">1</div>
+          <div class="ml-step-body">
+            <div class="ml-step-title">What is F1 Score?</div>
+            <div class="ml-step-desc">F1 is the <strong>harmonic mean of Precision and Recall</strong>. It balances the cost of false positives (predicting Mahusay when student is Nagsisimula) against false negatives (missing a struggling student). Used because our classes (Nagsisimula / Papaunlad / Mahusay) are imbalanced — accuracy alone would be misleading.</div>
+            <div class="ml-code"><span class="c-cm"># Core formula</span>
+Precision = TP / (TP + FP)   <span class="c-cm"># of all predicted Mahusay, how many really are?</span>
+Recall    = TP / (TP + FN)   <span class="c-cm"># of all actual Mahusay, how many did we catch?</span>
+
+F1 = 2 × (Precision × Recall) / (Precision + Recall)
+
+<span class="c-cm"># Range: 0.0 (worst) → 1.0 (perfect)</span></div>
+          </div>
+        </div>
+
+        <div class="ml-flow-step">
+          <div class="ml-step-circle">2</div>
+          <div class="ml-step-body">
+            <div class="ml-step-title">Context 1 — Training Scripts (Weighted F1)</div>
+            <div class="ml-step-desc">Computed <strong>once</strong> when the model is trained on the held-out test split. Result saved to <code>models/evaluation_metrics.json</code> and served via <code>GET /evaluation/metrics</code>.</div>
+            <div class="ml-file-badge">scripts/train_proficiency.py · scripts/train_complexity.py</div>
+            <div class="ml-code"><span class="c-kw">from</span> sklearn.metrics <span class="c-kw">import</span> precision_recall_fscore_support
+
+precision, recall, f1, _ = <span class="c-fn">precision_recall_fscore_support</span>(
+    y_test, y_pred,
+    average=<span class="c-str">'weighted'</span>,   <span class="c-cm"># weight each class by its sample count</span>
+    zero_division=<span class="c-num">0</span>
+)
+<span class="c-cm"># Saved to evaluation_metrics.json:</span>
+{ <span class="c-str">"f1"</span>: <span class="c-fn">round</span>(f1, <span class="c-num">2</span>), <span class="c-str">"precision"</span>: <span class="c-fn">round</span>(precision, <span class="c-num">2</span>),
+  <span class="c-str">"recall"</span>: <span class="c-fn">round</span>(recall, <span class="c-num">2</span>), <span class="c-str">"matrix"</span>: cm.<span class="c-fn">tolist</span>() }</div>
+            <div style="margin-top:8px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:6px;padding:8px 12px;font-size:11px;color:#1b5e20;line-height:1.7;">
+              <strong>Weighted F1</strong> — each class F1 is multiplied by its support (sample count), summed, divided by total. Majority class has more influence. Reports overall model quality.
+            </div>
+          </div>
+        </div>
+
+        <div class="ml-flow-step">
+          <div class="ml-step-circle">3</div>
+          <div class="ml-step-body">
+            <div class="ml-step-title">Context 2 — Live Runtime (Macro F1 vs Teacher Ratings)</div>
+            <div class="ml-step-desc">Computed <strong>on demand</strong> comparing SVM predictions against teacher rubric ratings stored in Supabase. Triggered by <code>GET /train/status</code>.</div>
+            <div class="ml-file-badge">main.py → /train/status endpoint</div>
+            <div class="ml-code"><span class="c-kw">from</span> sklearn.metrics <span class="c-kw">import</span> classification_report
+
+report = <span class="c-fn">classification_report</span>(
+    teacher_labels, system_labels,   <span class="c-cm"># ground truth vs SVM</span>
+    labels=[<span class="c-str">"Mahusay"</span>, <span class="c-str">"Papaunlad"</span>, <span class="c-str">"Nagsisimula"</span>],
+    output_dict=<span class="c-kw">True</span>, zero_division=<span class="c-num">0</span>
+)
+macro_f1 = report[<span class="c-str">"macro avg"</span>][<span class="c-str">"f1-score"</span>]   <span class="c-cm"># equal weight per class</span>
+
+<span class="c-cm"># Per-class breakdown also returned:</span>
+per_class[<span class="c-str">"Mahusay"</span>]     = { <span class="c-str">"precision"</span>: ..., <span class="c-str">"recall"</span>: ..., <span class="c-str">"f1"</span>: ... }
+per_class[<span class="c-str">"Papaunlad"</span>]   = { <span class="c-str">"precision"</span>: ..., <span class="c-str">"recall"</span>: ..., <span class="c-str">"f1"</span>: ... }
+per_class[<span class="c-str">"Nagsisimula"</span>] = { <span class="c-str">"precision"</span>: ..., <span class="c-str">"recall"</span>: ..., <span class="c-str">"f1"</span>: ... }</div>
+            <div style="margin-top:8px;background:#fff8e1;border:1px solid #ffe082;border-radius:6px;padding:8px 12px;font-size:11px;color:#6d4c00;line-height:1.7;">
+              <strong>Macro F1</strong> — computes F1 per class independently then simple-averages. Every class weighted equally. Better for imbalanced PH student data where one proficiency level may dominate.
+            </div>
+          </div>
+        </div>
+
+        <div class="ml-flow-step">
+          <div class="ml-step-circle">4</div>
+          <div class="ml-step-body">
+            <div class="ml-step-title">Weighted vs Macro — Summary</div>
+            <table class="ml-table" style="margin-top:8px;">
+              <thead><tr><th>Property</th><th>Weighted F1</th><th>Macro F1</th></tr></thead>
+              <tbody>
+                <tr><td>Where</td><td>Training scripts → saved to .json</td><td>Live in /train/status</td></tr>
+                <tr><td>Compared against</td><td>Held-out test split</td><td>Teacher rubric ratings (Supabase)</td></tr>
+                <tr><td>Class weighting</td><td>By sample count</td><td>Equal per class</td></tr>
+                <tr><td>Good for</td><td>Overall model quality report</td><td>Detecting bias toward one proficiency level</td></tr>
+                <tr><td>File</td><td><code>train_proficiency.py</code></td><td><code>main.py → /train/status</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="ml-flow-step">
+          <div class="ml-step-circle">5</div>
+          <div class="ml-step-body">
+            <div class="ml-step-title">Confusion Matrix — Saved at Training Time</div>
+            <div class="ml-step-desc">Shows exactly where the model makes mistakes — which classes get confused with each other. Diagonal = correct. Off-diagonal = errors (e.g. Mahusay predicted as Papaunlad).</div>
+            <div class="ml-file-badge">scripts/train_proficiency.py · train_complexity.py</div>
+            <div class="ml-code"><span class="c-kw">from</span> sklearn.metrics <span class="c-kw">import</span> confusion_matrix
+
+cm = <span class="c-fn">confusion_matrix</span>(y_test, y_pred)
+<span class="c-cm"># cm[i][j] = times class i was predicted as class j</span>
+<span class="c-cm"># Diagonal  = correct predictions</span>
+<span class="c-cm"># Example 3×3 for proficiency:</span>
+<span class="c-cm">#              Mahusay  Papaunlad  Nagsisimula</span>
+<span class="c-cm"># Mahusay    [   12,        1,          0    ]</span>
+<span class="c-cm"># Papaunlad  [    2,       18,          1    ]</span>
+<span class="c-cm"># Nagsisimula[    0,        2,          9    ]</span>
+
+<span class="c-cm"># Saved as PNG heatmap + stored in evaluation_metrics.json</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
   </div>`;
 }
 
@@ -1518,9 +1883,8 @@ function detectLangLabel(essayText) {
   ]);
   const words = (essayText || '').toLowerCase().match(/\b\w+\b/g) || [];
   const filCount = words.filter(w => filipino.has(w)).length;
-  // Scale threshold with text length: 1 hit for short texts, up to 3 for long
-  const threshold = words.length <= 6 ? 1 : words.length <= 15 ? 2 : 3;
-  return filCount >= threshold ? 'Filipino (TL)' : 'English (EN)';
+  // Match backend grammar_service.py detect_language(): flat >= 3 threshold
+  return filCount >= 3 ? 'Filipino (TL)' : 'English (EN)';
 }
 
 async function runAnalysis() {
@@ -1548,10 +1912,13 @@ async function runAnalysis() {
     const studentOk = studentRes.status === 'fulfilled' && !studentRes.value?.error;
     const complexityOk = complexityRes.status === 'fulfilled' && !complexityRes.value?.error;
 
+    // Always update detectedLang from the submitted text — not gated on backend success
+    const langLabel = detectLangLabel(text);
+    detectedLang = langLabel === 'Filipino (TL)' ? 'tl' : 'en';
+    document.getElementById('langBadge').textContent = `🌐 Language: ${langLabel}`;
+
     if (studentOk) {
       analysisResult = studentRes.value;
-      detectedLang = detectLangLabel(text) === 'Filipino (TL)' ? 'tl' : 'en';
-      document.getElementById('langBadge').textContent = `🌐 Language: ${detectLangLabel(text)}`;
     }
     if (complexityOk) {
       complexityResult = complexityRes.value;
@@ -1851,6 +2218,128 @@ confidence = svm_model.<span class="c-fn">predict_proba</span>([features]).<span
   </div>`;
 }
 
+function buildSection10() {
+  return `
+  <div class="section-card s10" id="sec10">
+    <div class="section-header">
+      <div class="section-number">10</div>
+      <div>
+        <div class="section-title">Material Complexity — Full Calculation Breakdown</div>
+        <div class="section-subtitle">POST /analyze/complexity · same 30-dim NLP pipeline as essay · outputs Literal / Inferential / Evaluative</div>
+      </div>
+    </div>
+    <div class="section-body">
+
+      <!-- Pipeline badges -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;align-items:center;">
+        <span class="ml-badge blue">extract_features(text)</span>
+        <span style="color:#aaa;font-size:13px;">→</span>
+        <span class="ml-badge purple">30-dim vector</span>
+        <span style="color:#aaa;font-size:13px;">→</span>
+        <span class="ml-badge orange">TextComplexitySVM.predict()</span>
+        <span style="color:#aaa;font-size:13px;">→</span>
+        <span class="ml-badge green">Literal / Inferential / Evaluative</span>
+      </div>
+
+      <!-- Shared pipeline note -->
+      <div style="background:#e0f7fa;border:1px solid #80deea;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:12px;color:#006064;line-height:1.7;">
+        The material complexity check reuses the <strong>exact same <code>extract_features()</code> function</strong> as the student essay checker — producing the same 30-dimensional feature vector. The difference is the <strong>model</strong> and <strong>output labels</strong>: material uses <code>TextComplexitySVM</code> (Literal/Inferential/Evaluative) while essays use <code>StudentProficiencySVM</code> (Nagsisimula/Papaunlad/Mahusay).
+      </div>
+
+      <!-- Comparison table -->
+      <div class="subsection-label" style="margin-bottom:10px;">Essay vs Material — Side-by-Side</div>
+      <table class="ml-table" style="margin-bottom:20px;">
+        <thead>
+          <tr><th>Step</th><th>Student Essay</th><th>Reading Material</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Endpoint</td><td><code>POST /analyze/student</code></td><td><code>POST /analyze/complexity</code></td></tr>
+          <tr><td>Feature extraction</td><td><code>extract_features(text, lang)</code> → 30-dim</td><td><code>extract_features(text, lang)</code> → 30-dim</td></tr>
+          <tr><td>SVM model</td><td><code>StudentProficiencySVM</code> (EN or TL)</td><td><code>TextComplexitySVM</code> (shared)</td></tr>
+          <tr><td>Model file</td><td><code>proficiency_model_en.pkl</code> / <code>proficiency_model_tl.pkl</code></td><td><code>complexity_model.pkl</code></td></tr>
+          <tr><td>Output labels</td><td>Nagsisimula · Papaunlad · Mahusay</td><td>Literal · Inferential · Evaluative</td></tr>
+          <tr><td>Grammar used?</td><td>Yes — dynamic grammar score feeds into heuristic</td><td>No — complexity only, no grammar pass</td></tr>
+          <tr><td>Heuristic fallback</td><td><code>(vocab×0.3) + (struct×0.3) + (grammar×0.4) + cefrBoost</code></td><td><code>(ASL×3) + (DWR×4) + (AdvCEFR×3)</code></td></tr>
+          <tr><td>Trained on</td><td>Teacher-rated PH essays + ASAP2 benchmark (EN)</td><td>CommonLit dataset + teacher-labelled materials</td></tr>
+        </tbody>
+      </table>
+
+      <!-- Heuristic formula -->
+      <div class="subsection-label" style="margin-bottom:10px;">Complexity Score — Heuristic Formula (fallback when no .pkl model)</div>
+      <div class="formula-grid" style="margin-bottom:20px;">
+        <div class="formula-block" style="grid-column:span 2">
+          <div class="formula-title" style="color:#00838f">📐 Complexity Score (CS)</div>
+          <div class="formula-eq">CS = (ASL × 3) + (DWR × 4) + (AdvCEFR_count × 3)</div>
+          <div class="formula-sub">ASL  = avg sentence length (words / sentences)</div>
+          <div class="formula-sub">DWR  = difficult word ratio = (words &gt; 9 chars / total words) × 100</div>
+          <div class="formula-sub">AdvCEFR = count of C1 + C2 level words (English only; 0 for Filipino)</div>
+          <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
+            <div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:6px;padding:8px 14px;font-size:12px;">
+              <strong style="color:#2e7d32">CS &lt; 40</strong><br>→ Literal<br><span style="font-size:10px;color:#555">Surface-level, direct meaning</span>
+            </div>
+            <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:6px;padding:8px 14px;font-size:12px;">
+              <strong style="color:#f57f17">40 ≤ CS &lt; 75</strong><br>→ Inferential<br><span style="font-size:10px;color:#555">Read between the lines</span>
+            </div>
+            <div style="background:#fce4ec;border:1px solid #f8bbd0;border-radius:6px;padding:8px 14px;font-size:12px;">
+              <strong style="color:#c62828">CS ≥ 75</strong><br>→ Evaluative<br><span style="font-size:10px;color:#555">Critical judgment required</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="formula-block">
+          <div class="formula-title" style="color:#00838f">📐 Difficult Word Ratio (DWR)</div>
+          <div class="formula-eq">DWR = (words &gt; 9 chars / total words) × 100</div>
+          <div class="formula-sub" style="color:#c62828;">⚠ Backend uses character length &gt; 9, not syllable count ≥ 3</div>
+          <div class="formula-sub">Example: "communication" (13 chars) → difficult</div>
+          <div class="formula-sub">Example: "beautiful" (9 chars) → NOT difficult</div>
+          <div class="formula-result" style="font-size:12px;">Implemented in: <code>get_difficult_words()</code> — preprocessing.py</div>
+        </div>
+
+        <div class="formula-block">
+          <div class="formula-title" style="color:#00838f">📐 ML Path (when complexity_model.pkl exists)</div>
+          <div class="formula-eq">vector[30] → StandardScaler → SVC(rbf, C=1.0)</div>
+          <div class="formula-sub">All 30 features fed to the trained model</div>
+          <div class="formula-sub">Model trained on CommonLit CSV + teacher samples</div>
+          <div class="formula-sub">If ML result exists → use it; heuristic CS still computed</div>
+          <div class="formula-result" style="font-size:12px;">File: <code>models/complexity_model.pkl</code></div>
+        </div>
+      </div>
+
+      <!-- 13 features returned in response -->
+      <div class="subsection-label" style="margin-bottom:10px;">13 Key Features Exposed in the API Response (<code>result.features</code>)</div>
+      <table class="ml-table">
+        <thead>
+          <tr><th>#</th><th>Field</th><th>Formula / Source</th><th>Why Exposed</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>1</td><td><code>avg_word_length</code></td><td>Mean char length of difficult words</td><td>Vocabulary sophistication signal for the material card UI</td></tr>
+          <tr><td>2</td><td><code>avg_sentence_length</code></td><td>word_count ÷ sentence_count</td><td>Primary complexity driver; shown to teacher in material review</td></tr>
+          <tr><td>3</td><td><code>ttr</code></td><td>unique_words ÷ total_words</td><td>Vocabulary diversity — helps teacher judge appropriateness for G7</td></tr>
+          <tr><td>4</td><td><code>cefr_ratio</code></td><td>(B2 + C1 + C2 count) ÷ total CEFR-tagged words</td><td>Upper-level vocabulary fraction; differs from essay which uses only C1+C2</td></tr>
+          <tr><td>5</td><td><code>fkgl</code></td><td>(0.39 × ASL) + (11.8 × syl/word) − 15.59</td><td>US-grade reading level anchor; cross-checks SVM output</td></tr>
+          <tr><td>6</td><td><code>gunning_fog</code></td><td>0.4 × (ASL + 100 × complex_words/words)</td><td>Second readability index; paired with FK for confidence</td></tr>
+          <tr><td>7</td><td><code>dependency_depth</code></td><td>mean |token.i − token.head.i|</td><td>Syntactic tree complexity — deep trees = hard for G7 readers</td></tr>
+          <tr><td>8</td><td><code>subordination_ratio</code></td><td>SCONJ count ÷ sentence count</td><td>Embedded clause density — key <em>Inferential</em> vs <em>Literal</em> separator</td></tr>
+          <tr><td>9</td><td><code>discourse_connector_ratio</code></td><td>logical connectors ÷ word count</td><td>however/therefore/because — signals evaluative or argumentative structure</td></tr>
+          <tr><td>10</td><td><code>passive_ratio</code></td><td>nsubjpass + auxpass ÷ sentence count</td><td>Formal/academic register marker; high in <em>Evaluative</em> materials</td></tr>
+          <tr><td>11</td><td><code>modal_ratio</code></td><td>MD tag count ÷ word count</td><td>Hedging/possibility language — common in analytical or opinion texts</td></tr>
+          <tr><td>12</td><td><code>negation_ratio</code></td><td>neg dependency count ÷ word count</td><td>Nuanced argumentation; low in simple <em>Literal</em> narratives</td></tr>
+          <tr><td>13</td><td><code>abstract_noun_ratio</code></td><td>-tion/-ness/-ity/-ment nouns ÷ word count</td><td>Academic vocabulary density; strongest <em>Evaluative</em> lexical marker</td></tr>
+        </tbody>
+      </table>
+
+      <!-- Training data note -->
+      <div style="margin-top:16px;background:#f3e5f5;border:1px solid #ce93d8;border-radius:8px;padding:12px 16px;font-size:12px;color:#444;line-height:1.7;">
+        <strong style="color:#6a1b9a;">Training Data — TextComplexitySVM</strong><br>
+        Primary: <strong>CommonLit Readability Prize dataset</strong> (CSV) — passages labelled by US reading difficulty.<br>
+        Secondary: <strong>Teacher-labelled materials</strong> stored via <code>POST /complexity/train-sample</code> → appended to <code>data/teacher_samples.jsonl</code> → triggers <code>retrain_complexity_model()</code>.<br>
+        PH teacher samples are <strong>not weighted ×2</strong> (unlike the proficiency model) — all samples treated equally.
+      </div>
+
+    </div>
+  </div>`;
+}
+
 function renderSections() {
   const main = document.getElementById('main');
   main.insertAdjacentHTML('beforeend', buildSection1());
@@ -1859,10 +2348,19 @@ function renderSections() {
 document.addEventListener('DOMContentLoaded', () => {
   checkBackend();
   renderSections();
+
+  // Pre-load demo data so sections 2–6 render on page load (backend not required)
+  analysisResult   = DEMO_ANALYSIS;
+  complexityResult = DEMO_COMPLEXITY;
+  detectedLang     = 'en';
+  document.getElementById('langBadge').textContent = '🌐 Language: English (EN)';
+  renderResults();   // builds sections 2–6 with demo values
+
   // Section 7 is static — render immediately, no API data needed
   document.getElementById('main').insertAdjacentHTML('beforeend', buildSection7());
   document.getElementById('main').insertAdjacentHTML('beforeend', buildSection8());
   document.getElementById('main').insertAdjacentHTML('beforeend', buildSection9());
+  document.getElementById('main').insertAdjacentHTML('beforeend', buildSection10());
 });
 </script>
 </body>

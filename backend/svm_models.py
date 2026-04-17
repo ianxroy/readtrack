@@ -242,7 +242,7 @@ class StudentProficiencySVM(BaseModel):
 class TextComplexitySVM(BaseModel):
     def __init__(self):
         super().__init__()
-        self.labels = ["Literal", "Inferential", "Evaluative"]
+        self.labels = ["Independent", "Instructional", "Frustration"]
 
     def get_performance_metrics(self):
         return self._load_metrics("complexity")

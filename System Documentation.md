@@ -14,7 +14,7 @@ The system supports English and Filipino workflows, uses Supabase for authentica
 
 Primary objectives:
 - Classify student writing proficiency (DepEd-aligned levels).
-- Classify reading material complexity (Literal, Inferential, Evaluative).
+- Classify reading material complexity (Independent, Instructional, Frustration).
 - Provide rubric-based AI feedback for student writing.
 - Support grammar and spelling checks using hybrid NLP + AI processing.
 - Ingest text from images and PDFs for downstream analysis.
@@ -54,7 +54,7 @@ Benefits:
 | Capability | Description | Status |
 | --- | --- | --- |
 | Student Proficiency Classification | HistGradientBoosting predicts Frustration, Instructional, Independent | Implemented |
-| Text Complexity Analysis | SVM predicts Literal, Inferential, Evaluative | Implemented |
+| Text Complexity Analysis | SVM predicts Independent, Instructional, Frustration | Implemented |
 | Rubric-Based Grading | AI-generated criterion-level feedback and summary | Implemented |
 | Grammar and Spelling | LanguageTool + SymSpell + Gemini enhancements | Implemented |
 | Material Library | Upload, detect language, filter by language/complexity | Implemented |
@@ -145,9 +145,9 @@ Security model:
 1. Teacher pastes or uploads text.
 2. Complexity endpoint returns predicted level + readability metrics.
 3. Verdict mapping is applied:
-   - Literal: Ready for Grade 7
-   - Inferential: Use with Teacher Support
-   - Evaluative: Above Grade 7 Level
+   - Independent: Ready for Grade 7
+   - Instructional: Use with Teacher Support
+   - Frustration: Above Grade 7 Level
 4. Phil-IRI display level is shown as informational context.
 
 ### 8.5 Grammar Checking

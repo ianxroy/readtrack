@@ -115,7 +115,7 @@ def load_asap_data(path, sample_size=None):
 def load_teacher_samples(path: str):
     """Load teacher-verified samples from JSONL. Returns (X, y) numpy arrays."""
     X, y = [], []
-    label_map = {"Literal": 0, "Inferential": 1, "Evaluative": 2}
+    label_map = {"Independent": 0, "Instructional": 1, "Frustration": 2}
     if not os.path.exists(path):
         return np.array(X), np.array(y, dtype=int)
     with open(path, 'r') as f:
@@ -143,7 +143,7 @@ def load_commonlit_features(base_dir: str = None):
         punct_density, stopword_ratio, avg_word_length, syllables_per_word,
         cefr_a1_ratio, cefr_a2_ratio, cefr_b1_ratio, cefr_b2_ratio,
         cefr_c1_ratio, cefr_c2_ratio
-      Label col: label_id  (0=Literal, 1=Inferential, 2=Evaluative)
+      Label col: label_id  (0=Independent, 1=Instructional, 2=Frustration)
       Ignored:   label_name
     """
     if base_dir is None:

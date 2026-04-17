@@ -15,7 +15,7 @@ import {
   IoInformationCircleOutline,
 } from 'react-icons/io5';
 import { LibraryMaterial, TextComplexityResult, ComplexityLevel, OriginalFile } from '../types';
-import { classifyTextComplexityAPI, extractTextFromImageAPI, detectLanguageAPI, addTrainingSampleAPI, ingestReferenceAPI } from '../services/pythonService';
+import { classifyTextComplexityAPI, extractTextFromImageAPI, detectLanguageAPI, addTrainingSampleAPI, ingestReferenceAPI, detectLanguageClientSide } from '../services/pythonService';
 import { saveMaterialUpload, loadMaterialUploads, deleteMaterialUpload, saveMaterialTeacherVerification } from '../services/supabaseService';
 import { useEffect } from 'react';
 import { IoDocumentOutline } from 'react-icons/io5';
@@ -61,17 +61,17 @@ const levelMeta = {
   [ComplexityLevel.LITERAL]: {
     bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-200',
     dot: 'bg-green-500', badge: 'bg-green-50 text-green-700 border-green-200',
-    label: 'Literal', desc: 'Easy — G7 Readable',
+    label: 'Independent', desc: 'Easy — G7 Readable',
   },
   [ComplexityLevel.INFERENTIAL]: {
     bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-200',
     dot: 'bg-orange-500', badge: 'bg-orange-50 text-orange-700 border-orange-200',
-    label: 'Inferential', desc: 'Moderate — G7 Borderline',
+    label: 'Instructional', desc: 'Moderate — G7 Borderline',
   },
   [ComplexityLevel.EVALUATIVE]: {
     bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-200',
     dot: 'bg-red-500', badge: 'bg-red-50 text-red-700 border-red-200',
-    label: 'Evaluative', desc: 'Difficult — Above G7',
+    label: 'Frustration', desc: 'Difficult — Above G7',
   },
 };
 
@@ -100,11 +100,54 @@ const REASONING_SUMMARIES: Record<ComplexityLevel, string> = {
   [ComplexityLevel.EVALUATIVE]: 'This material uses complex ideas and language that are above Grade 7 level — scaffolding is recommended.',
 };
 
-const LEVEL_DESCRIPTIONS: Record<ComplexityLevel, string> = {
-  [ComplexityLevel.LITERAL]: 'Easy for independent Grade 7 reading.',
-  [ComplexityLevel.INFERENTIAL]: 'Moderate difficulty; may need teacher guidance.',
-  [ComplexityLevel.EVALUATIVE]: 'Difficult and abstract; scaffolding recommended.',
+const REASONING_SUMMARIES_FIL: Record<ComplexityLevel, string> = {
+  [ComplexityLevel.LITERAL]: 'Gumagamit ang materyal na ito ng payak na salita at maiikling pangungusap na kayang basahin ng Grade 7 nang mag-isa.',
+  [ComplexityLevel.INFERENTIAL]: 'Kailangang maghinuha ng mga mag-aaral sa materyal na ito; maaaring kailanganin ang gabay ng guro.',
+  [ComplexityLevel.EVALUATIVE]: 'Mas masalimuot ang ideya at wika ng materyal na ito para sa Grade 7 kaya inirerekomenda ang scaffolding.',
 };
+
+const LEVEL_DESCRIPTIONS: Record<ComplexityLevel, string> = {
+  [ComplexityLevel.LITERAL]: 'Independent: suitable for independent Grade 7 reading.',
+  [ComplexityLevel.INFERENTIAL]: 'Instructional: may need teacher guidance.',
+  [ComplexityLevel.EVALUATIVE]: 'Frustration: likely needs strong teacher support.',
+};
+
+const LEVEL_DESCRIPTIONS_FIL: Record<ComplexityLevel, string> = {
+  [ComplexityLevel.LITERAL]: 'Independent (Mahusay): akma sa independiyenteng pagbasa ng Grade 7.',
+  [ComplexityLevel.INFERENTIAL]: 'Instructional (Papaunlad): maaaring kailanganin ng gabay ng guro.',
+  [ComplexityLevel.EVALUATIVE]: 'Frustration (Nagsisimula): nangangailangan ng mas matinding suporta ng guro.',
+};
+
+const getMaterialUiLanguage = (material: LibraryMaterial): 'eng' | 'fil' => {
+  return material.language === 'eng' ? 'eng' : 'fil';
+};
+
+const LEVEL_DISPLAY: Record<ComplexityLevel, { primary: string; secondary: string }> = {
+  [ComplexityLevel.LITERAL]: { primary: 'Independent', secondary: 'Mahusay' },
+  [ComplexityLevel.INFERENTIAL]: { primary: 'Instructional', secondary: 'Papaunlad' },
+  [ComplexityLevel.EVALUATIVE]: { primary: 'Frustration', secondary: 'Nagsisimula' },
+};
+
+function getLevelDisplay(level: ComplexityLevel, uiLang: 'eng' | 'fil' = 'eng'): string {
+  const mapped = LEVEL_DISPLAY[level] ?? LEVEL_DISPLAY[ComplexityLevel.LITERAL];
+  return uiLang === 'eng' ? mapped.primary : mapped.secondary;
+}
+
+function getLevelLabel(level: ComplexityLevel, uiLang: 'eng' | 'fil' = 'eng'): string {
+  const mapped = LEVEL_DISPLAY[level] ?? LEVEL_DISPLAY[ComplexityLevel.LITERAL];
+  return uiLang === 'eng' ? mapped.primary : mapped.secondary;
+}
+
+function getLevelDesc(level: ComplexityLevel, uiLang: 'eng' | 'fil' = 'eng'): string {
+  if (uiLang === 'eng') {
+    if (level === ComplexityLevel.LITERAL) return 'Easy — G7 Readable';
+    if (level === ComplexityLevel.INFERENTIAL) return 'Moderate — G7 Borderline';
+    return 'Difficult — Above G7';
+  }
+  if (level === ComplexityLevel.LITERAL) return 'Madali — Akma sa G7';
+  if (level === ComplexityLevel.INFERENTIAL) return 'Katamtaman — Hangganan ng G7';
+  return 'Mahirap — Higit sa G7';
+}
 
 const ADVANCED_METRIC_HELP: Record<string, string> = {
   'Complexity Score': 'Model score for how difficult the passage is. Higher values mean the text is more complex and usually needs more support.',
@@ -115,7 +158,7 @@ const ADVANCED_METRIC_HELP: Record<string, string> = {
   'Gunning Fog Index': 'Estimated grade level based on sentence length and complex words. Higher values mean harder text.',
 };
 
-const PHIL_IRI_HELP = 'Phil-IRI stands for Philippine Informal Reading Inventory. In ReadTrack, it is used as a quick Grade 7 reading guide: Literal means easy and direct, Inferential means borderline and may need teacher support, and Evaluative means above Grade 7 and usually needs scaffolding.';
+const PHIL_IRI_HELP = 'Phil-IRI stands for Philippine Informal Reading Inventory. In ReadTrack, level labels use: Independent (Mahusay), Instructional (Papaunlad), and Frustration (Nagsisimula).';
 
 const REASONING_KEYWORDS: Record<ComplexityLevel, Array<{ pattern: RegExp; tag: string }>> = {
   [ComplexityLevel.LITERAL]: [
@@ -140,8 +183,9 @@ const REASONING_KEYWORDS: Record<ComplexityLevel, Array<{ pattern: RegExp; tag: 
   ],
 };
 
-function parseReasoning(reasoning: string | undefined, level: ComplexityLevel): ReasoningResult {
-  const summary = REASONING_SUMMARIES[level] ?? REASONING_SUMMARIES[ComplexityLevel.LITERAL];
+function parseReasoning(reasoning: string | undefined, level: ComplexityLevel, uiLang: 'eng' | 'fil' = 'eng'): ReasoningResult {
+  const summaries = uiLang === 'eng' ? REASONING_SUMMARIES : REASONING_SUMMARIES_FIL;
+  const summary = summaries[level] ?? summaries[ComplexityLevel.LITERAL];
   if (!reasoning || reasoning.trim().length === 0) {
     return { summary, tags: [] };
   }
@@ -175,6 +219,7 @@ function base64ToBlobUrl(base64: string, mimeType: string): string {
 }
 
 const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, onUpdate, onVerify }) => {
+  const uiLang = getMaterialUiLanguage(material);
   const [editedText, setEditedText] = useState(material.text);
   const [isSavingText, setIsSavingText] = useState(false);
   const [textMessage, setTextMessage] = useState<string | null>(null);
@@ -187,9 +232,11 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
   const [activeTab, setActiveTab] = useState<'original' | 'analysis'>('original');
   const [activeMetricHelp, setActiveMetricHelp] = useState<string | null>(null);
   const meta = levelMeta[material.complexityResult.level] ?? levelMeta[ComplexityLevel.LITERAL];
+  const levelLabel = getLevelLabel(material.complexityResult.level, uiLang);
   const cr = material.complexityResult;
+  const levelDescriptions = uiLang === 'eng' ? LEVEL_DESCRIPTIONS : LEVEL_DESCRIPTIONS_FIL;
   const { summary: reasoningSummary, tags: reasoningTags } = parseReasoning(
-    cr.reasoning, material.complexityResult.level
+    cr.reasoning, material.complexityResult.level, uiLang
   );
 
   const allImages = material.originalFiles?.length
@@ -255,7 +302,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
           <div className="flex-1 min-w-0 pr-4">
             <div className="flex items-center gap-3 mb-2">
               <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${meta.badge}`}>
-                {meta.label}
+                {levelLabel}
               </span>
               {material.language && (
                 <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${
@@ -300,7 +347,9 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              {tab === 'original' ? 'Original Submission' : 'Analysis'}
+              {tab === 'original'
+                ? (uiLang === 'eng' ? 'Original Submission' : 'Orihinal na Isinumite')
+                : (uiLang === 'eng' ? 'Analysis' : 'Pagsusuri')}
             </button>
           ))}
         </div>
@@ -310,14 +359,14 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
           {activeTab === 'original' && (
             <div>
               <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4 flex items-center gap-2">
-                <IoBookOutline /> Original File
+                <IoBookOutline /> {uiLang === 'eng' ? 'Original File' : 'Orihinal na File'}
               </h4>
               {(allImages.length > 0 || material.originalFile) ? (
                 <div className="flex gap-4">
                   {/* Left: original file(s) */}
                   <div className="flex-1 min-w-0">
                     <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">
-                      Original File{allImages.length > 1 ? `s (${allImages.length})` : ''}
+                      {uiLang === 'eng' ? `Original File${allImages.length > 1 ? `s (${allImages.length})` : ''}` : `Orihinal na File${allImages.length > 1 ? ` (${allImages.length})` : ''}`}
                     </p>
                     {allImages.length > 1 ? (
                       <div className="space-y-3">
@@ -364,7 +413,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
                   </div>
                   {/* Right: extracted text */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">Extracted Text</p>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">{uiLang === 'eng' ? 'Extracted Text' : 'Nakuha na Teksto'}</p>
                     <textarea
                       className="w-full min-h-[280px] bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs text-gray-700 leading-relaxed outline-none focus:ring-1 focus:ring-teal-500"
                       value={editedText}
@@ -380,7 +429,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
                             : 'bg-teal-600 text-white hover:bg-teal-700'
                         }`}
                       >
-                        {isSavingText ? 'Saving…' : 'Save Text'}
+                        {isSavingText ? (uiLang === 'eng' ? 'Saving…' : 'Sine-save…') : (uiLang === 'eng' ? 'Save Text' : 'I-save ang Teksto')}
                       </button>
                       {textMessage && (
                         <p className={`text-[10px] font-medium ${textError ? 'text-red-500' : 'text-green-600'}`}>
@@ -392,7 +441,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
                 </div>
               ) : (
                 <div>
-                  <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">Extracted Text</p>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">{uiLang === 'eng' ? 'Extracted Text' : 'Nakuha na Teksto'}</p>
                   <textarea
                     className="w-full min-h-[320px] bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs text-gray-700 leading-relaxed outline-none focus:ring-1 focus:ring-teal-500"
                     value={editedText}
@@ -408,7 +457,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
                           : 'bg-teal-600 text-white hover:bg-teal-700'
                       }`}
                     >
-                      {isSavingText ? 'Saving…' : 'Save Text'}
+                      {isSavingText ? (uiLang === 'eng' ? 'Saving…' : 'Sine-save…') : (uiLang === 'eng' ? 'Save Text' : 'I-save ang Teksto')}
                     </button>
                     {textMessage && (
                       <p className={`text-[10px] font-medium ${textError ? 'text-red-500' : 'text-green-600'}`}>
@@ -427,7 +476,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
               {/* Teacher verification */}
               <div className="rounded-xl border border-teal-100 bg-teal-50/60 p-4">
                 <div className="text-[10px] font-bold uppercase tracking-widest text-teal-700 mb-2">
-                  Teacher Verification (Improves Model Reliability)
+                  {uiLang === 'eng' ? 'Teacher Verification (Improves Model Reliability)' : 'Beripikasyon ng Guro (Pinapabuti ang pagiging maaasahan ng modelo)'}
                 </div>
                 <div className="flex flex-wrap gap-2 mb-2">
                   {(Object.values(ComplexityLevel) as ComplexityLevel[]).map(level => (
@@ -440,15 +489,15 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
                           : 'bg-white text-teal-700 border-teal-200 hover:border-teal-400'
                       }`}
                     >
-                      {level}
+                      {getLevelDisplay(level, uiLang)}
                     </button>
                   ))}
                 </div>
-                <p className="text-[11px] text-teal-700 mb-2">{LEVEL_DESCRIPTIONS[teacherLevel]}</p>
+                <p className="text-[11px] text-teal-700 mb-2">{levelDescriptions[teacherLevel]}</p>
                 <textarea
                   value={verificationComment}
                   onChange={e => setVerificationComment(e.target.value)}
-                  placeholder="Optional note on why this level is correct"
+                  placeholder={uiLang === 'eng' ? 'Optional note on why this level is correct' : 'Opsyonal na tala kung bakit tama ang level na ito'}
                   className="w-full min-h-[70px] bg-white border border-teal-100 rounded-lg p-2 text-xs text-gray-700 outline-none focus:ring-1 focus:ring-teal-400"
                 />
                 <div className="mt-2 flex items-center justify-between gap-3">
@@ -461,7 +510,9 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
                         : 'bg-teal-600 text-white hover:bg-teal-700'
                     }`}
                   >
-                    {isSavingVerification ? 'Saving…' : 'Save & Improve Model'}
+                    {isSavingVerification
+                      ? (uiLang === 'eng' ? 'Saving…' : 'Sine-save…')
+                      : (uiLang === 'eng' ? 'Save & Improve Model' : 'I-save at Pagbutihin ang Modelo')}
                   </button>
                   {verifyMessage && (
                     <p className={`text-[10px] font-medium ${verifyError ? 'text-red-500' : 'text-green-700'}`}>
@@ -476,7 +527,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
                 <summary className={`flex items-center justify-between cursor-pointer list-none ${meta.text}`}>
                   <div>
                     <div className="text-[10px] font-bold uppercase tracking-widest opacity-70">Advanced Info</div>
-                    <p className="text-[11px] mt-0.5 opacity-80">Click the i beside any label to see what it means.</p>
+                    <p className="text-[11px] mt-0.5 opacity-80">{uiLang === 'eng' ? 'Click the i beside any label to see what it means.' : 'I-click ang i sa tabi ng label para makita ang paliwanag.'}</p>
                   </div>
                   <IoChevronDownOutline className="text-sm shrink-0" />
                 </summary>
@@ -566,7 +617,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
               {/* Reasoning */}
               <div className={`rounded-xl border p-4 ${meta.bg} ${meta.border}`}>
                 <div className={`text-[10px] font-bold uppercase tracking-widest mb-1.5 ${meta.text}`}>
-                  Why is this {meta.label}?
+                  {uiLang === 'eng' ? `Why is this ${levelLabel}?` : `Bakit ito ${levelLabel}?`}
                 </div>
                 <p className={`text-xs leading-relaxed mb-2 ${meta.text}`}>{reasoningSummary}</p>
                 {reasoningTags.length > 0 && (
@@ -606,6 +657,7 @@ const UploadCompareModal: React.FC<UploadVerificationModalProps> = ({
   onCancel,
   onContinue,
 }) => {
+  const uiLang = getMaterialUiLanguage(material);
   const safeImageMime = material.originalFile?.mimeType && SAFE_IMAGE_TYPES.has(material.originalFile.mimeType)
     ? material.originalFile.mimeType
     : null;
@@ -622,17 +674,17 @@ const UploadCompareModal: React.FC<UploadVerificationModalProps> = ({
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden">
         <div className="flex items-start justify-between px-6 pt-6 pb-4 border-b border-gray-100">
           <div className="flex-1 min-w-0 pr-3">
-            <h3 className="text-lg font-black text-gray-900">Confirm Material Level</h3>
+            <h3 className="text-lg font-black text-gray-900">{uiLang === 'eng' ? 'Confirm Material Level' : 'Kumpirmahin ang Antas ng Materyal'}</h3>
             <p className="text-xs text-gray-500 mt-1">
-              Model predicted: <span className="font-semibold">{material.complexityResult.level}</span>
+              {uiLang === 'eng' ? 'Model predicted:' : 'Prediksyon ng modelo:'} <span className="font-semibold">{getLevelDisplay(material.complexityResult.level, uiLang)}</span>
             </p>
             <div className="mt-3">
-              <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Material Title</label>
+              <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">{uiLang === 'eng' ? 'Material Title' : 'Pamagat ng Materyal'}</label>
               <input
                 type="text"
                 value={materialName}
                 onChange={(e) => onChangeName(e.target.value)}
-                placeholder="Enter material title"
+                placeholder={uiLang === 'eng' ? 'Enter material title' : 'Ilagay ang pamagat ng materyal'}
                 className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-teal-300"
               />
             </div>
@@ -645,7 +697,7 @@ const UploadCompareModal: React.FC<UploadVerificationModalProps> = ({
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div>
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Original File</p>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">{uiLang === 'eng' ? 'Original File' : 'Orihinal na File'}</p>
               {material.originalFile ? (
                 safeImageMime ? (
                   <img
@@ -680,7 +732,7 @@ const UploadCompareModal: React.FC<UploadVerificationModalProps> = ({
             </div>
 
             <div>
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Extracted Text</p>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">{uiLang === 'eng' ? 'Extracted Text' : 'Nakuha na Teksto'}</p>
               <textarea
                 value={material.text}
                 readOnly
@@ -695,13 +747,13 @@ const UploadCompareModal: React.FC<UploadVerificationModalProps> = ({
             onClick={onCancel}
             className="px-4 py-2 text-xs font-semibold rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50"
           >
-            Cancel
+            {uiLang === 'eng' ? 'Cancel' : 'Kanselahin'}
           </button>
           <button
             onClick={onContinue}
             className="px-5 py-2 text-xs font-black rounded-xl bg-teal-600 text-white hover:bg-teal-700 transition-colors"
           >
-            Save & Continue
+            {uiLang === 'eng' ? 'Save & Continue' : 'I-save at Magpatuloy'}
           </button>
         </div>
       </div>
@@ -730,13 +782,15 @@ const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = (
   onCancel,
   onConfirm,
 }) => {
+  const uiLang = getMaterialUiLanguage(material);
   const predicted = material.complexityResult.level;
   const isManualChoice = selectedLevel !== predicted;
   const [decisionMode, setDecisionMode] = useState<'confirm' | 'manual'>('confirm');
   const [previewOpen, setPreviewOpen] = useState(false);
   const predMeta = levelMeta[predicted] ?? levelMeta[ComplexityLevel.LITERAL];
   const selMeta = levelMeta[selectedLevel] ?? levelMeta[ComplexityLevel.LITERAL];
-  const { summary: reasoningSummary } = parseReasoning(material.complexityResult.reasoning, predicted);
+  const levelDescriptions = uiLang === 'eng' ? LEVEL_DESCRIPTIONS : LEVEL_DESCRIPTIONS_FIL;
+  const { summary: reasoningSummary } = parseReasoning(material.complexityResult.reasoning, predicted, uiLang);
 
   const safeImageMime = material.originalFile?.mimeType && SAFE_IMAGE_TYPES.has(material.originalFile.mimeType)
     ? material.originalFile.mimeType
@@ -756,7 +810,7 @@ const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = (
         {/* Header */}
         <div className="flex items-start justify-between px-6 pt-6 pb-4 border-b border-gray-100">
           <div className="flex-1 min-w-0 pr-3">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">New Material</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">{uiLang === 'eng' ? 'New Material' : 'Bagong Materyal'}</p>
             <h3 className="text-base font-black text-gray-900 truncate">{material.name}</h3>
             {material.language && (
               <span className={`inline-block mt-1 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${
@@ -780,11 +834,11 @@ const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = (
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1">
                 <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${predMeta.text} opacity-70`}>
-                  Model Recommendation
+                  {uiLang === 'eng' ? 'Model Recommendation' : 'Rekomendasyon ng Modelo'}
                 </p>
                 <div className="flex items-center gap-2 mb-1.5">
                   <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${predMeta.dot}`} />
-                  <span className={`text-xl font-black ${predMeta.text}`}>{predicted}</span>
+                  <span className={`text-xl font-black ${predMeta.text}`}>{getLevelDisplay(predicted, uiLang)}</span>
                 </div>
                 <p className={`text-[11px] leading-relaxed ${predMeta.text} opacity-80`}>{reasoningSummary}</p>
               </div>
@@ -794,8 +848,8 @@ const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = (
           {/* Teacher decision */}
           <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 space-y-3">
             <div>
-              <p className="text-sm font-bold text-gray-800">Is this recommendation correct?</p>
-              <p className="text-[11px] text-gray-500 mt-1">Keep the model suggestion, or choose a different level manually.</p>
+              <p className="text-sm font-bold text-gray-800">{uiLang === 'eng' ? 'Is this recommendation correct?' : 'Tama ba ang rekomendasyong ito?'}</p>
+              <p className="text-[11px] text-gray-500 mt-1">{uiLang === 'eng' ? 'Keep the model suggestion, or choose a different level manually.' : 'Panatilihin ang mungkahi ng modelo, o pumili ng ibang antas nang manu-mano.'}</p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -810,7 +864,7 @@ const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = (
                     : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
                 }`}
               >
-                Keep {predicted}
+                {uiLang === 'eng' ? `Keep ${getLevelDisplay(predicted, uiLang)}` : `Panatilihin ang ${getLevelDisplay(predicted, uiLang)}`}
               </button>
               <button
                 onClick={() => setDecisionMode('manual')}
@@ -820,23 +874,23 @@ const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = (
                     : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
                 }`}
               >
-                Choose manually
+                {uiLang === 'eng' ? 'Choose manually' : 'Manu-manong pumili'}
               </button>
             </div>
 
             {decisionMode === 'manual' && (
               <div className="pt-1 space-y-2 animate-in slide-in-from-top-2 duration-150">
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Select the manual level:</p>
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">{uiLang === 'eng' ? 'Select the manual level:' : 'Piliin ang manu-manong antas:'}</p>
                 <select
                   value={selectedLevel}
                   onChange={(e) => onSelectLevel(e.target.value as ComplexityLevel)}
                   className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-semibold text-gray-700 outline-none focus:ring-2 focus:ring-indigo-400"
                 >
                   {(Object.values(ComplexityLevel) as ComplexityLevel[]).map(level => (
-                    <option key={level} value={level}>{level}</option>
+                    <option key={level} value={level}>{getLevelDisplay(level, uiLang)}</option>
                   ))}
                 </select>
-                <p className={`text-[11px] font-medium ${selMeta.text}`}>{LEVEL_DESCRIPTIONS[selectedLevel]}</p>
+                <p className={`text-[11px] font-medium ${selMeta.text}`}>{levelDescriptions[selectedLevel]}</p>
               </div>
             )}
           </div>
@@ -846,7 +900,7 @@ const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = (
             <div className={`rounded-xl border px-4 py-2.5 flex items-center gap-2 ${selMeta.bg} ${selMeta.border}`}>
               <span className={`w-2 h-2 rounded-full shrink-0 ${selMeta.dot}`} />
               <span className={`text-[11px] font-bold ${selMeta.text}`}>
-                Will be saved as: <span className="font-black">{selectedLevel}</span>
+                {uiLang === 'eng' ? 'Will be saved as:' : 'Ise-save bilang:'} <span className="font-black">{getLevelDisplay(selectedLevel, uiLang)}</span>
               </span>
             </div>
           )}
@@ -854,12 +908,12 @@ const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = (
           {/* Optional comment */}
           <div>
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1.5">
-              Note <span className="normal-case font-normal">(optional)</span>
+              {uiLang === 'eng' ? 'Note' : 'Tala'} <span className="normal-case font-normal">{uiLang === 'eng' ? '(optional)' : '(opsyonal)'}</span>
             </p>
             <textarea
               value={comment}
               onChange={e => onChangeComment(e.target.value)}
-              placeholder="e.g. Grade 7 Section Rizal uses this for inferential practice"
+              placeholder={uiLang === 'eng' ? 'e.g. Grade 7 Section Rizal uses this for instructional practice' : 'hal. Ginagamit ito ng Grade 7 Section Rizal para sa instructional na pagsasanay'}
               className="w-full min-h-[64px] bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-gray-700 outline-none focus:ring-1 focus:ring-teal-400 resize-none"
             />
           </div>
@@ -871,7 +925,9 @@ const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = (
               className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-400 hover:text-gray-600 uppercase tracking-widest"
             >
               {previewOpen ? <IoChevronUpOutline /> : <IoChevronDownOutline />}
-              {previewOpen ? 'Hide' : 'Show'} extracted text ({material.text.split(/\s+/).length} words)
+              {previewOpen
+                ? (uiLang === 'eng' ? 'Hide' : 'Itago')
+                : (uiLang === 'eng' ? 'Show' : 'Ipakita')} {uiLang === 'eng' ? 'extracted text' : 'nakuha na teksto'} ({material.text.split(/\s+/).length} {uiLang === 'eng' ? 'words' : 'salita'})
             </button>
             {previewOpen && (
               <textarea
@@ -890,7 +946,7 @@ const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = (
             disabled={saving}
             className="px-4 py-2 text-xs font-semibold rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50"
           >
-            Cancel
+            {uiLang === 'eng' ? 'Cancel' : 'Kanselahin'}
           </button>
           <button
             onClick={onConfirm}
@@ -903,7 +959,11 @@ const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = (
                   : 'bg-teal-600 text-white hover:bg-teal-700'
             }`}
           >
-            {saving ? 'Saving…' : isManualChoice ? `Save as ${selectedLevel}` : `Keep ${predicted} & Save`}
+            {saving
+              ? (uiLang === 'eng' ? 'Saving…' : 'Sine-save…')
+              : isManualChoice
+                ? (uiLang === 'eng' ? `Save as ${getLevelDisplay(selectedLevel, uiLang)}` : `I-save bilang ${getLevelDisplay(selectedLevel, uiLang)}`)
+                : (uiLang === 'eng' ? `Keep ${getLevelDisplay(predicted, uiLang)} & Save` : `Panatilihin ang ${getLevelDisplay(predicted, uiLang)} at I-save`)}
           </button>
         </div>
       </div>
@@ -950,7 +1010,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
           try {
             langs = await Promise.all(data.map(m => detectLanguageAPI(m.text)));
           } catch {
-            langs = data.map(() => 'fil' as const);
+            langs = data.map(m => detectLanguageClientSide(m.text));
           }
           const withLangs = data.map((m, i) => ({ ...m, language: langs[i] }));
           setMaterials(withLangs);
@@ -971,7 +1031,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
       try {
         langs = await Promise.all(data.map(m => detectLanguageAPI(m.text)));
       } catch {
-        langs = data.map(() => 'fil' as const);
+        langs = data.map(m => detectLanguageClientSide(m.text));
       }
       setMaterials(data.map((m, i) => ({ ...m, language: langs[i] })));
     } else {
@@ -1225,11 +1285,11 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
         originalFile: base64 ? { base64, mimeType, name: file.name } : undefined,
       };
       // Detect language for the new material
-      let detectedLang: 'eng' | 'fil' = 'fil';
+      let detectedLang: 'eng' | 'fil' = detectLanguageClientSide(extractedText);
       try {
         detectedLang = await detectLanguageAPI(extractedText);
       } catch {
-        // detectLanguageAPI is fail-safe but wrapping as extra guard
+        // detectLanguageAPI is fail-safe; client-side heuristic already set above
       }
       const materialWithLang: LibraryMaterial = { ...material, language: detectedLang };
 
@@ -1274,7 +1334,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
         if (ingestResult?.text?.trim()) extractedText = normalizeMaterialText(ingestResult.text.trim());
       } catch { /* keep fallback */ }
 
-      let detectedLang: 'eng' | 'fil' = 'fil';
+      let detectedLang: 'eng' | 'fil' = detectLanguageClientSide(extractedText);
       try { detectedLang = await detectLanguageAPI(extractedText); } catch { /* keep fallback */ }
 
       const material: LibraryMaterial = {
@@ -1466,9 +1526,9 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
                   </p>
                 ) : (
                   <p className="text-xs text-blue-700 leading-relaxed">
-                    <span className="font-semibold">Literal</span> = Easy, students can read independently.{' '}
-                    <span className="font-semibold">Inferential</span> = Borderline, may need teacher support.{' '}
-                    <span className="font-semibold">Evaluative</span> = Above G7, not recommended without scaffolding.
+                    <span className="font-semibold">Mahusay</span> = Independent.{' '}
+                    <span className="font-semibold">Papaunlad</span> = Instructional.{' '}
+                    <span className="font-semibold">Nagsisimula</span> = Frustration.
                   </p>
                 )}
               </div>
@@ -1571,9 +1631,9 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
               </p>
             ) : (
               <p className="text-xs text-blue-700 leading-relaxed">
-                <span className="font-semibold">Literal</span> = Easy, students can read independently.{' '}
-                <span className="font-semibold">Inferential</span> = Borderline, may need teacher support.{' '}
-                <span className="font-semibold">Evaluative</span> = Above G7, not recommended without scaffolding.
+                <span className="font-semibold">Mahusay</span> = Independent.{' '}
+                <span className="font-semibold">Papaunlad</span> = Instructional.{' '}
+                <span className="font-semibold">Nagsisimula</span> = Frustration.
               </p>
             )}
           </div>
@@ -1644,9 +1704,9 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
             {/* Complexity filters */}
             {([
               { key: 'all' as const, label: 'All', meta: null },
-              { key: ComplexityLevel.LITERAL, label: 'Literal', meta: levelMeta[ComplexityLevel.LITERAL] },
-              { key: ComplexityLevel.INFERENTIAL, label: 'Inferential', meta: levelMeta[ComplexityLevel.INFERENTIAL] },
-              { key: ComplexityLevel.EVALUATIVE, label: 'Evaluative', meta: levelMeta[ComplexityLevel.EVALUATIVE] },
+              { key: ComplexityLevel.LITERAL, label: getLevelDisplay(ComplexityLevel.LITERAL, 'eng'), meta: levelMeta[ComplexityLevel.LITERAL] },
+              { key: ComplexityLevel.INFERENTIAL, label: getLevelDisplay(ComplexityLevel.INFERENTIAL, 'eng'), meta: levelMeta[ComplexityLevel.INFERENTIAL] },
+              { key: ComplexityLevel.EVALUATIVE, label: getLevelDisplay(ComplexityLevel.EVALUATIVE, 'eng'), meta: levelMeta[ComplexityLevel.EVALUATIVE] },
             ]).map(({ key, label, meta: m }) => {
               const count = counts[key];
               const isActive = filter === key;
@@ -1697,6 +1757,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {displayed.map(mat => {
                 const meta = levelMeta[mat.complexityResult.level] ?? levelMeta[ComplexityLevel.LITERAL];
+                const cardUiLang = getMaterialUiLanguage(mat);
                 const cr = mat.complexityResult;
                 return (
                   <div
@@ -1712,7 +1773,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
                         <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
                           <div className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${meta.badge}`}>
                             <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
-                            {meta.label}
+                            {getLevelLabel(mat.complexityResult.level, cardUiLang)}
                           </div>
                           {mat.language && (
                             <span className={`inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
@@ -1769,7 +1830,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
 
                     {/* G7 readability note */}
                     <div className={`mt-3 pt-3 border-t border-gray-50 text-[10px] font-medium ${meta.text}`}>
-                      {meta.desc}
+                      {getLevelDesc(mat.complexityResult.level, cardUiLang)}
                     </div>
                   </div>
                 );

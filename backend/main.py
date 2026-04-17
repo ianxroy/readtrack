@@ -218,7 +218,7 @@ class RetrainRequest(BaseModel):
 
 class TrainingSampleRequest(BaseModel):
     text: str
-    level: str  # "Literal" | "Inferential" | "Evaluative"
+    level: str  # "Independent" | "Instructional" | "Frustration"
 
 
 def _confidence_level(count: int) -> str:
@@ -970,9 +970,9 @@ def retrain_model(request: RetrainRequest):
 
 @app.post("/training/add-sample")
 async def add_training_sample(request: TrainingSampleRequest):
-    valid_levels = {"Literal", "Inferential", "Evaluative"}
+    valid_levels = {"Independent", "Instructional", "Frustration"}
     if request.level not in valid_levels:
-        raise HTTPException(status_code=400, detail="Invalid level. Must be Literal, Inferential, or Evaluative.")
+        raise HTTPException(status_code=400, detail="Invalid level. Must be Independent, Instructional, or Frustration.")
     if not request.text or len(request.text.strip()) < 20:
         raise HTTPException(status_code=400, detail="Text too short to be a useful training sample (minimum 20 characters).")
 

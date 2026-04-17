@@ -113,6 +113,32 @@ export const StudentGrid: React.FC<StudentGridProps> = ({
       </span>
     : null;
 
+  const getProficiencyChipLabel = (level: ProficiencyLevel): string => {
+    if (selectedSubject?.language === 'english') {
+      if (level === ProficiencyLevel.MAHUSAY) return 'Proficient';
+      if (level === ProficiencyLevel.PAPAUNLAD) return 'Developing';
+      if (level === ProficiencyLevel.NAGSISIMULA) return 'Beginning';
+    }
+    return level;
+  };
+
+  const getProficiencyLabel = (level: ProficiencyLevel | 'all'): string => {
+    const isEnglish = selectedSubject?.language === 'english';
+    if (level === 'all') {
+      return isEnglish ? 'All' : 'All (Lahat)';
+    }
+    if (level === ProficiencyLevel.MAHUSAY) {
+      return isEnglish ? '🟢 Proficient' : '🟢 Mahusay';
+    }
+    if (level === ProficiencyLevel.PAPAUNLAD) {
+      return isEnglish ? '🟡 Developing' : '🟡 Papaunlad';
+    }
+    if (level === ProficiencyLevel.NAGSISIMULA) {
+      return isEnglish ? '🔴 Beginning' : '🔴 Nagsisimula';
+    }
+    return '';
+  };
+
   return (
     <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
       {/* Toolbar */}
@@ -159,7 +185,7 @@ export const StudentGrid: React.FC<StudentGridProps> = ({
                 : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
             }`}
           >
-            {f === 'all' ? 'All (Lahat)' : f === ProficiencyLevel.MAHUSAY ? '🟢 Mahusay' : f === ProficiencyLevel.PAPAUNLAD ? '🟡 Papaunlad' : '🔴 Nagsisimula'}
+            {getProficiencyLabel(f)}
           </button>
         ))}
       </div>
@@ -203,7 +229,7 @@ export const StudentGrid: React.FC<StudentGridProps> = ({
                   {prof && meta && (
                     <div className="mt-2">
                       <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${meta.badge}`}>
-                        {prof}
+                        {getProficiencyChipLabel(prof as ProficiencyLevel)}
                       </span>
                     </div>
                   )}

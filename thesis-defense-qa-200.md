@@ -39,7 +39,7 @@ A: It predicts classes like proficiency level and complexity level.
 A: Independent, Instructional, and Frustration.
 
 12. Q: What are ReadTrack complexity labels?
-A: Literal, Inferential, and Evaluative.
+A: Independent, Instructional, and Frustration.
 
 13. Q: Why use NLP before ML?
 A: NLP converts raw text into numeric features for the model.

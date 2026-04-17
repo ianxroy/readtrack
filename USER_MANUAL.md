@@ -59,7 +59,7 @@ The Dashboard gives you a bird's-eye view of all student analyses performed in y
 ### What You See
 
 - **Proficiency Distribution** — bar chart showing how many students fall in each level (Independent, Instructional, Frustration)
-- **Complexity Distribution** — breakdown of uploaded materials by Literal / Inferential / Evaluative
+- **Complexity Distribution** — breakdown of uploaded materials by Independent / Instructional / Frustration
 - **Recent Activity** — latest essay uploads and their results
 
 ### How to Use It
@@ -153,7 +153,7 @@ After analysis, clicking an essay opens the **Detail View** with several tabs.
 | **Learning Band** | Enhancement / Consolidation / Intervention — the instructional action recommended |
 | **Phil-IRI Level** | Estimated grade-level reading equivalent |
 | **NAT Score** | National Achievement Test score estimate |
-| **Complexity** | Literal / Inferential / Evaluative — the detected difficulty level of the student's writing |
+| **Complexity** | Independent / Instructional / Frustration — the detected difficulty level of the student's writing |
 
 #### Analysis Tab
 
@@ -241,11 +241,11 @@ The Material Library stores and rates reading passages for classroom use.
 5. Click **Analyze & Save**.
 
 ReadTrack will:
-- Classify the passage as **Literal**, **Inferential**, or **Evaluative**
+- Classify the passage as **Independent**, **Instructional**, or **Frustration**
 - Rate its **Grade 7 suitability**:
-  - Literal → Ready for independent use
-  - Inferential → Use with teacher support
-  - Evaluative → Above Grade 7 level
+  - Independent → Ready for independent use
+  - Instructional → Use with teacher support
+  - Frustration → Above Grade 7 level
 
 ### Filtering and Browsing
 
@@ -340,9 +340,9 @@ These map to **Phil-IRI** oral and silent reading level designations.
 
 | Level | Phil-IRI Grade | Meaning |
 |-------|---------------|---------|
-| **Literal** | G4–G6 | Direct recall; concrete, straightforward language |
-| **Inferential** | G7 | Reading between the lines; causal connectors present |
-| **Evaluative** | G8–G10 | Critical thinking; abstract nouns, modal verbs, argumentation |
+| **Independent** | G4–G6 | Direct recall; concrete, straightforward language |
+| **Instructional** | G7 | Reading between the lines; causal connectors present |
+| **Frustration** | G8–G10 | Critical thinking; abstract nouns, modal verbs, argumentation |
 
 ### Learning Bands
 

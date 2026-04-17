@@ -32,6 +32,19 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f4f6fb; colo
 }
 .jump-link:hover { background: rgba(255,255,255,0.25); color: white; }
 
+.view-tabs { display: flex; gap: 8px; margin-top: 8px; }
+.view-tab-btn {
+  font-size: 10px;
+  border: 1px solid rgba(255,255,255,0.45);
+  color: rgba(255,255,255,0.9);
+  background: rgba(255,255,255,0.12);
+  border-radius: 999px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-weight: 700;
+}
+.view-tab-btn.active { background: rgba(255,255,255,0.32); color: #fff; }
+
 .container { max-width: 1100px; margin: 0 auto; padding: 24px 20px; display: flex; flex-direction: column; gap: 20px; }
 
 /* ── Section Cards ── */
@@ -65,6 +78,12 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f4f6fb; colo
 .ml-code .c-num { color: #fab387; }
 .ml-code .c-cm  { color: #6c7086; font-style: italic; }
 .ml-file-badge { display: inline-block; font-size: 10px; font-weight: 600; background: #e0f7fa; color: #006064; border-radius: 4px; padding: 2px 8px; margin-bottom: 6px; font-family: monospace; }
+
+/* Overview/Code tab behavior */
+body.mode-overview .ml-code,
+body.mode-overview .ml-file-badge { display: none !important; }
+body.mode-code .ml-code { display: block !important; }
+body.mode-code .ml-file-badge { display: inline-block !important; }
 
 /* ── Tables ── */
 .ml-table { width: 100%; border-collapse: collapse; font-size: 11.5px; margin-top: 10px; }
@@ -101,6 +120,7 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f4f6fb; colo
 .verdict-band-label { font-size: 15px; font-weight: 700; }
 .verdict-band-sub   { font-size: 11px; margin-top: 3px; color: #555; }
 .verdict-badge { float: right; display: inline-block; border-radius: 12px; padding: 3px 12px; font-size: 10px; font-weight: 700; color: white; }
+/* DepEd Reading Complexity Scale */
 .vb-literal     { background: #e8f5e9; border-color: #c8e6c9; }
 .vb-literal     .verdict-band-label { color: #2e7d32; }
 .vb-literal     .verdict-badge      { background: #2e7d32; }
@@ -110,6 +130,17 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f4f6fb; colo
 .vb-evaluative  { background: #fce4ec; border-color: #f8bbd0; }
 .vb-evaluative  .verdict-band-label { color: #c62828; }
 .vb-evaluative  .verdict-badge      { background: #c62828; }
+
+/* Phil-IRI Reading Levels (Legacy) */
+.vb-independent     { background: #e8f5e9; border-color: #c8e6c9; }
+.vb-independent     .verdict-band-label { color: #2e7d32; }
+.vb-independent     .verdict-badge      { background: #2e7d32; }
+.vb-instructional { background: #fff8e1; border-color: #ffecb3; }
+.vb-instructional .verdict-band-label { color: #f57f17; }
+.vb-instructional .verdict-badge      { background: #f57f17; }
+.vb-frustration  { background: #fce4ec; border-color: #f8bbd0; }
+.vb-frustration  .verdict-band-label { color: #c62828; }
+.vb-frustration  .verdict-badge      { background: #c62828; }
 
 /* ── SVM box ── */
 .svm-box { background: #f3e5f5; border: 1px solid #ce93d8; border-radius: 10px; padding: 14px 16px; margin-top: 12px; }
@@ -163,12 +194,16 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f4f6fb; colo
   <div class="header-top">
     <div>
       <h1>ReadTrack — Material Complexity Checker</h1>
-      <div class="tagline">How a teacher-uploaded reading material is classified as Literal / Inferential / Evaluative</div>
+      <div class="tagline">How a teacher-uploaded reading material is classified as Independent / Instructional / Frustration</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;">
       <div class="backend-badge disconnected" id="backendBadge">⬤ Checking backend…</div>
       <button class="btn-export-pdf" type="button" onclick="downloadPdf()">Download PDF</button>
     </div>
+  </div>
+  <div class="view-tabs" role="tablist" aria-label="Visualizer view tabs">
+    <button id="modeOverviewBtn" class="view-tab-btn active" type="button" role="tab" aria-selected="true">Overview</button>
+    <button id="modeCodeBtn" class="view-tab-btn" type="button" role="tab" aria-selected="false">Code Snippets</button>
   </div>
   <div class="jump-links">
     <a class="jump-link" href="#sec1">① Upload</a>
@@ -193,6 +228,21 @@ const API = 'http://localhost:8000';
 let complexityResult = null;
 let printTabState = null;
 let printTitleState = null;
+
+function setVisualizerMode(mode) {
+  const isCode = mode === 'code';
+  document.body.classList.toggle('mode-code', isCode);
+  document.body.classList.toggle('mode-overview', !isCode);
+
+  const overviewBtn = document.getElementById('modeOverviewBtn');
+  const codeBtn = document.getElementById('modeCodeBtn');
+  if (overviewBtn && codeBtn) {
+    overviewBtn.classList.toggle('active', !isCode);
+    codeBtn.classList.toggle('active', isCode);
+    overviewBtn.setAttribute('aria-selected', String(!isCode));
+    codeBtn.setAttribute('aria-selected', String(isCode));
+  }
+}
 
 function preparePrintExport() {
   if (!printTitleState) {
@@ -289,6 +339,7 @@ function renderResults() {
   const main = document.getElementById('main');
   main.insertAdjacentHTML('beforeend', buildFeaturesResult());
   main.insertAdjacentHTML('beforeend', buildSVMResult());
+  main.insertAdjacentHTML('beforeend', buildCalculationResult());
   main.insertAdjacentHTML('beforeend', buildVerdictResult());
 }
 
@@ -296,20 +347,21 @@ function fmt(v, d=2) { return (typeof v === 'number') ? v.toFixed(d) : (v ?? '�
 
 function buildFeaturesResult() {
   const f = complexityResult?.features ?? {};
+  const m = complexityResult?.metrics ?? {};
   const chips = [
-    { cls:'fc-teal',   name:'Avg Word Len',    val: fmt(f.avg_word_length,1),   desc:'chars per word' },
-    { cls:'fc-teal',   name:'Avg Sent Len',    val: fmt(f.avg_sentence_length,1),desc:'words per sentence' },
-    { cls:'fc-green',  name:'TTR',             val: fmt(f.ttr,3),               desc:'type-token ratio' },
-    { cls:'fc-green',  name:'CEFR Ratio',      val: fmt(f.cefr_ratio,3),        desc:'B2+ vocab fraction' },
-    { cls:'fc-orange', name:'FKGL',            val: fmt(f.fkgl,1),              desc:'Flesch-Kincaid grade' },
-    { cls:'fc-orange', name:'Gunning Fog',     val: fmt(f.gunning_fog,1),       desc:'fog index' },
-    { cls:'fc-purple', name:'Dep Depth',       val: fmt(f.dependency_depth,1),  desc:'avg parse depth' },
-    { cls:'fc-purple', name:'Subordination',   val: fmt(f.subordination_ratio,3),desc:'SCONJ / sentences' },
-    { cls:'fc-purple', name:'Discourse Conn',  val: fmt(f.discourse_connector_ratio,3), desc:'however/therefore/because…' },
-    { cls:'fc-purple', name:'Passive Voice',   val: fmt(f.passive_ratio,3),     desc:'passive constructions / sent' },
-    { cls:'fc-purple', name:'Modal Verbs',     val: fmt(f.modal_ratio,3),       desc:'can/should/might/would' },
-    { cls:'fc-purple', name:'Negation',        val: fmt(f.negation_ratio,3),    desc:'negation tokens / words' },
-    { cls:'fc-purple', name:'Abstract Nouns',  val: fmt(f.abstract_noun_ratio,3),desc:'-tion/-ness/-ity suffixes' },
+    { cls:'fc-teal',   name:'Avg Word Length',    val: fmt(f.avg_word_length ?? m.avg_word_length,1),   desc:'chars per word' },
+    { cls:'fc-teal',   name:'Avg Sentence Len',    val: fmt(f.avg_sentence_length ?? m.avgSentenceLength,1),desc:'words per sentence' },
+    { cls:'fc-green',  name:'TTR',             val: fmt(f.ttr ?? m.vocabularyRichness,2),               desc:'type-token ratio' },
+    { cls:'fc-green',  name:'Advanced CEFR',      val: fmt(m.advancedWordCount ? (m.advancedWordCount/m.wordCount) : 0,3),        desc:'C1+C2 vocab fraction' },
+    { cls:'fc-orange', name:'Flesch-Kincaid Grade',            val: fmt(f.fkgl ?? m.readabilityIndices?.flesch_kincaid,1),              desc:'US grade reading level' },
+    { cls:'fc-orange', name:'Gunning Fog Index',     val: fmt(f.gunning_fog ?? m.readabilityIndices?.gunning_fog,1),       desc:'education years needed' },
+    { cls:'fc-purple', name:'Avg Dep Distance',       val: fmt(f.avgDepDistance ?? m.avgDepDistance,3),  desc:'parse tree complexity' },
+    { cls:'fc-purple', name:'Subordination Ratio',   val: fmt(f.subordinationRatio ?? m.subordinationRatio,3),desc:'embedded clauses' },
+    { cls:'fc-purple', name:'Discourse Connectors',  val: fmt(f.discourseConnectorRatio ?? m.discourseConnectorRatio,3), desc:'however/therefore/because' },
+    { cls:'fc-purple', name:'Passive Voice',   val: fmt(f.passiveRatio ?? m.passiveRatio,3),     desc:'formal constructions' },
+    { cls:'fc-purple', name:'Modal Verbs',     val: fmt(f.modalRatio ?? m.modalRatio,3),       desc:'can/should/might/would' },
+    { cls:'fc-purple', name:'Negation Ratio',        val: fmt(f.negationRatio ?? m.negationRatio,3),    desc:'hedging/negation density' },
+    { cls:'fc-purple', name:'Abstract Nouns',  val: fmt(f.abstractNounRatio ?? m.abstractNounRatio,3),desc:'-tion/-ness/-ity suffixes' },
   ];
   return `<div id="sec2r" style="background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06);padding:18px 20px;">
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#00838f;margin-bottom:12px;">Extracted NLP Features (from /analyze/complexity)</div>
@@ -331,12 +383,143 @@ function buildSVMResult() {
   </div>`;
 }
 
+function buildCalculationResult() {
+  const f   = complexityResult?.features ?? {};
+  const m   = complexityResult?.metrics ?? {};
+  const asl = Number(f.avg_sentence_length ?? m.avgSentenceLength ?? 0);
+  const dwr = Number(f.diff_ratio ?? m.difficultWordRatio ?? 0);
+  const wc  = Number(f.wordCount ?? m.wordCount ?? 0);
+  const advCount  = Number(m.advancedWordCount ?? 0);
+
+  const aslPart = asl * 3;
+  const dwrPart = dwr * 4;
+  const advPart = advCount * 3;
+  const cs      = aslPart + dwrPart + advPart;
+  const apiScore   = Number(complexityResult?.score);
+  const finalScore = Number.isFinite(apiScore) ? apiScore : cs;
+  const level      = finalScore < 40 ? 'Independent' : finalScore < 75 ? 'Instructional' : 'Frustration';
+  const levelColor = level === 'Independent' ? '#2e7d32' : level === 'Instructional' ? '#f57f17' : '#c62828';
+
+  const fkgl  = Number(f.fkgl ?? m.readabilityIndices?.flesch_kincaid ?? 0);
+  const fog   = Number(f.gunning_fog ?? m.readabilityIndices?.gunning_fog ?? 0);
+  const ttr   = Number(f.ttr ?? (m.vocabularyRichness ? m.vocabularyRichness / 100 : 0));
+  const depD  = Number(f.avgDepDistance ?? m.avgDepDistance ?? 0);
+  const subR  = Number(f.subordinationRatio ?? m.subordinationRatio ?? 0);
+  const discR = Number(f.discourseConnectorRatio ?? m.discourseConnectorRatio ?? 0);
+  const passR = Number(f.passiveRatio ?? m.passiveRatio ?? 0);
+  const modalR= Number(f.modalRatio ?? m.modalRatio ?? 0);
+  const negR  = Number(f.negationRatio ?? m.negationRatio ?? 0);
+  const abstR = Number(f.abstractNounRatio ?? m.abstractNounRatio ?? 0);
+
+  const mlNote = (Number.isFinite(apiScore) && Math.abs(apiScore - cs) > 0.5)
+    ? `<div style="margin-top:8px;background:#f3e5f5;border:1px solid #ce93d8;border-radius:6px;padding:8px 12px;font-size:11px;color:#6a1b9a;">
+        <strong>ML Path Active</strong> — TextComplexitySVM used the full 30-dim vector → score ${apiScore.toFixed(2)}.
+        Heuristic CS = ${cs.toFixed(2)} shown above for reference only.
+       </div>`
+    : `<div style="margin-top:6px;font-size:10px;color:#888;">Score matches heuristic — complexity_model.pkl may be absent; heuristic used as primary classifier.</div>`;
+
+  return `<div id="sec5r" style="background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06);overflow:hidden;">
+    <div style="padding:13px 20px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #eef0f5;border-left:4px solid #00838f;">
+      <div style="width:28px;height:28px;border-radius:50%;background:#00838f;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:white;flex-shrink:0;">CS</div>
+      <div>
+        <div style="font-size:14px;font-weight:600;">Complexity Score — Step-by-Step Calculation</div>
+        <div style="font-size:11px;color:#666;margin-top:1px;">Heuristic formula with actual values · svm_models.py → TextComplexitySVM.predict()</div>
+      </div>
+    </div>
+    <div style="padding:18px 20px;">
+
+      <div style="background:#fff3e0;border:1px solid #ffcc80;border-radius:8px;padding:14px 16px;margin-bottom:16px;font-family:monospace;">
+        <div style="font-size:11px;font-weight:700;color:#e65100;margin-bottom:8px;">HEURISTIC COMPLEXITY FORMULA</div>
+        <div style="font-size:13px;margin-bottom:4px;">CS = (ASL × 3) + (DWR × 4) + (AdvCEFR_count × 3)</div>
+        <div style="font-size:12px;color:#555;margin-bottom:2px;">= (${asl.toFixed(2)} × 3) + (${dwr.toFixed(2)} × 4) + (${advCount} × 3)</div>
+        <div style="font-size:12px;color:#555;margin-bottom:6px;">= ${aslPart.toFixed(2)} + ${dwrPart.toFixed(2)} + ${advPart.toFixed(2)}</div>
+        <div style="font-size:18px;font-weight:800;color:${levelColor};">= ${finalScore.toFixed(2)} → ${level}</div>
+        <div style="font-size:10px;color:#888;margin-top:4px;">Threshold: &lt; 40 Literal · 40–74 Inferential · ≥ 75 Evaluative</div>
+        ${mlNote}
+      </div>
+
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#555;margin-bottom:10px;">Component Breakdown</div>
+      <table class="ml-table" style="margin-bottom:16px;">
+        <thead><tr><th>Component</th><th>Value</th><th>Weight</th><th>Contribution</th><th>What It Measures</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>ASL</strong> — Avg Sentence Length</td>
+            <td>${asl.toFixed(2)} words/sent</td><td>× 3</td><td><strong>${aslPart.toFixed(2)}</strong></td>
+            <td>Longer sentences → more complex syntax</td>
+          </tr>
+          <tr>
+            <td><strong>DWR</strong> — Difficult Word Ratio</td>
+            <td>${dwr.toFixed(2)}%</td><td>× 4</td><td><strong>${dwrPart.toFixed(2)}</strong></td>
+            <td>Words &gt; 9 characters ÷ total words × 100. Highest weight.</td>
+          </tr>
+          <tr>
+            <td><strong>AdvCEFR</strong> — C1+C2 count</td>
+            <td>≈ ${advCount} words</td><td>× 3</td><td><strong>${advPart.toFixed(2)}</strong></td>
+            <td>Mastery-level vocabulary. English only — 0 for Filipino.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:11px;color:#6d4c00;line-height:1.7;">
+        <strong>⚠ DWR uses character length, not syllables:</strong> <code>get_difficult_words()</code> in <code>preprocessing.py</code> flags words where <code>len(word) &gt; 9</code>.
+        "communication" (13 chars) = difficult. "beautiful" (9 chars) = NOT difficult.
+      </div>
+
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#555;margin-bottom:10px;">Complete Feature Vector (30 dimensions — SVM classifier input)</div>
+      <table class="ml-table">
+        <thead><tr><th style="width:35%;">Feature</th><th style="width:20%;">Value</th><th style="width:45%;">Role in SVM Classification</th></tr></thead>
+        <tbody>
+          <tr style="background:#f5f5f5;"><td colspan="3"><strong>📊 Readability Metrics (2)</strong></td></tr>
+          <tr><td>Flesch-Kincaid Grade</td><td>${fkgl.toFixed(2)}</td><td>US grade reading level — primary readability anchor (0=easy, 18+=very difficult)</td></tr>
+          <tr><td>Gunning Fog Index</td><td>${fog.toFixed(2)}</td><td>Education years needed — reflects complex word density</td></tr>
+          <tr style="background:#f5f5f5;"><td colspan="3"><strong>📚 Lexical Features (5)</strong></td></tr>
+          <tr><td>Type-Token Ratio</td><td>${ttr.toFixed(3)}</td><td>Vocabulary diversity — low = repetitive/simple; high = varied/complex</td></tr>
+          <tr><td>Difficult Word Ratio</td><td>${dwr.toFixed(1)}%</td><td>Words > 9 characters — primary heuristic discriminator (weight ×4)</td></tr>
+          <tr><td>Average Word Length</td><td>${Number(complexityResult?.metrics?.avg_word_length || 0).toFixed(1)} chars</td><td>Longer words indicate academic vocabulary and complexity</td></tr>
+          <tr><td>Syllables per Word</td><td>${Number(complexityResult?.metrics?.syllablesPerWord || 0).toFixed(2)}</td><td>Polysyllabic words signal advanced/formal text</td></tr>
+          <tr><td>Advanced CEFR Count</td><td>${advCount} (${fmt((advCount/wc)*100,1)}%)</td><td>C1+C2 mastery-level words — English only feature</td></tr>
+          <tr style="background:#f5f5f5;"><td colspan="3"><strong>🔗 Syntactic Complexity (4)</strong></td></tr>
+          <tr><td>Average Dep Distance</td><td>${depD.toFixed(3)}</td><td>Parse tree span — deeper trees indicate more embedded clauses</td></tr>
+          <tr><td>Clause Density</td><td>${Number(complexityResult?.metrics?.clauseDensity || 0).toFixed(3)}</td><td>Verbs per sentence — more clauses = more structural complexity</td></tr>
+          <tr><td>Sentence Length Std Dev</td><td>${Number(complexityResult?.metrics?.sentLenStdDev || 0).toFixed(3)}</td><td>Variation in sentence length — stylistic diversity marker</td></tr>
+          <tr><td>Avg Sentence Length</td><td>${asl.toFixed(1)} words</td><td>Longer sentences = complex syntax (heuristic weight: ×3)</td></tr>
+          <tr style="background:#f5f5f5;"><td colspan="3"><strong>🔄 Subordination &amp; Connectivity (2)</strong></td></tr>
+          <tr><td>Subordination Ratio</td><td>${subR.toFixed(3)}</td><td>SCONJ density (because/although/when) — key Inferential marker</td></tr>
+          <tr><td>Discourse Connector Ratio</td><td>${discR.toFixed(3)}</td><td>however/therefore/moreover — evaluative/argumentative reasoning signals</td></tr>
+          <tr style="background:#f5f5f5;"><td colspan="3"><strong>🎭 Register &amp; Modality (3)</strong></td></tr>
+          <tr><td>Passive Voice Ratio</td><td>${passR.toFixed(3)}</td><td>Formal register marker — high in academic Evaluative materials</td></tr>
+          <tr><td>Modal Verb Ratio</td><td>${modalR.toFixed(3)}</td><td>can/should/might/would — hedging and conditionality signals</td></tr>
+          <tr><td>Negation Ratio</td><td>${negR.toFixed(3)}</td><td>Nuanced argument marker — low in simple Literal texts</td></tr>
+          <tr style="background:#f5f5f5;"><td colspan="3"><strong>✨ Semantic Abstractness (1)</strong></td></tr>
+          <tr><td>Abstract Noun Ratio</td><td>${Number(complexityResult?.metrics?.abstractNounRatio || 0).toFixed(3)}</td><td>-tion/-ness/-ity/-ment/-ance/-ence — strongest Evaluative lexical marker</td></tr>
+          <tr style="background:#f5f5f5;"><td colspan="3"><strong>🏷️ Part-of-Speech Distribution (3)</strong></td></tr>
+          <tr><td>Verb Ratio</td><td>${Number(complexityResult?.metrics?.verbRatio || 0).toFixed(3)}</td><td>VERB count / total words — action vs. description orientation</td></tr>
+          <tr><td>Noun Ratio</td><td>${Number(complexityResult?.metrics?.nounRatio || 0).toFixed(3)}</td><td>NOUN count / total words — concept/object density</td></tr>
+          <tr><td>Adjective Ratio</td><td>${Number(complexityResult?.metrics?.adjRatio || 0).toFixed(3)}</td><td>ADJ count / total words — descriptive language density</td></tr>
+          <tr style="background:#f5f5f5;"><td colspan="3"><strong>📏 Structural Metrics (3)</strong></td></tr>
+          <tr><td>Punctuation Density</td><td>${Number(complexityResult?.metrics?.punctDensity || 0).toFixed(3)}</td><td>Punctuation marks / words — indicates clause and sentence complexity</td></tr>
+          <tr><td>Stopword Ratio</td><td>${Number(complexityResult?.metrics?.stopwordRatio || 0).toFixed(3)}</td><td>Common word proportion — low = more content words (complex)</td></tr>
+          <tr><td>Word Count</td><td>${wc} words</td><td>Passage length — provides context for scale and normalization</td></tr>
+          <tr style="background:#f5f5f5;"><td colspan="3"><strong>🌍 CEFR Vocabulary Distribution (6)</strong></td></tr>
+          <tr><td>A1 Ratio (Beginner)</td><td>${Number(complexityResult?.metrics?.cefrRatios?.[0] || 0).toFixed(3) || '—'}</td><td>Fraction of A1 (beginner level) vocabulary</td></tr>
+          <tr><td>A2 Ratio (Elementary)</td><td>${Number(complexityResult?.metrics?.cefrRatios?.[1] || 0).toFixed(3) || '—'}</td><td>Fraction of A2 (elementary level) vocabulary</td></tr>
+          <tr><td>B1 Ratio (Intermediate)</td><td>${Number(complexityResult?.metrics?.cefrRatios?.[2] || 0).toFixed(3) || '—'}</td><td>Fraction of B1 (intermediate level) vocabulary</td></tr>
+          <tr><td>B2 Ratio (Upper-Intermediate)</td><td>${Number(complexityResult?.metrics?.cefrRatios?.[3] || 0).toFixed(3) || '—'}</td><td>Fraction of B2 (upper-intermediate level) vocabulary</td></tr>
+          <tr><td>C1 Ratio (Advanced)</td><td>${Number(complexityResult?.metrics?.cefrRatios?.[4] || 0).toFixed(3) || '—'}</td><td>Fraction of C1 (advanced level) vocabulary — Frustration signal</td></tr>
+          <tr><td>C2 Ratio (Mastery)</td><td>${Number(complexityResult?.metrics?.cefrRatios?.[5] || 0).toFixed(3) || '—'}</td><td>Fraction of C2 (mastery level) vocabulary — strongest Frustration indicator</td></tr>
+          <tr style="background:#f5f5f5;"><td colspan="3"><strong>Context: Sentence Count = ${Number(complexityResult?.metrics?.sentenceCount || 0)}</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
 function buildVerdictResult() {
   const verdict = complexityResult?.level ?? complexityResult?.complexity ?? complexityResult?.verdict ?? '';
   const bands = [
-    { key:'Literal',      cls:'vb-literal',      grade:'Grade 1–3',    desc:'Concrete facts, directly stated. Surface-level recall.' },
-    { key:'Inferential',  cls:'vb-inferential',  grade:'Grade 4–6',    desc:'Implied meaning, cause-effect, prediction.' },
-    { key:'Evaluative',   cls:'vb-evaluative',   grade:'Grade 7–10',   desc:'Critical thinking, author purpose, judgment.' },
+    { key:'Literal',      cls:'vb-literal',      grade:'G7 Ready',          desc:'Readable by Grade 7 independently. Simple vocabulary, short sentences, directly stated facts. Phil-IRI: Independent level.' },
+    { key:'Inferential',  cls:'vb-inferential',  grade:'Needs Guidance',    desc:'Readable by Grade 7 but requires teacher support. Implied meaning, cause-effect, reading between the lines. Phil-IRI: Instructional level.' },
+    { key:'Evaluative',   cls:'vb-evaluative',   grade:'Above G7 Level',    desc:'Advanced — too complex for independent Grade 7 reading. Critical thinking, author purpose, academic vocabulary. Phil-IRI: Frustration level.' },
   ];
   const bandsHtml = bands.map(b => `
     <div class="verdict-band ${b.cls}${verdict===b.key?' active':''}" style="${verdict===b.key?'border-color:#1565c0;':''}" >
@@ -345,7 +528,7 @@ function buildVerdictResult() {
       <div class="verdict-band-sub">${b.desc}</div>
     </div>`).join('');
   return `<div id="sec4r" style="background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06);padding:18px 20px;">
-    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#e65100;margin-bottom:12px;">DepEd Reading Level</div>
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#e65100;margin-bottom:12px;">DepEd Reading Complexity Level</div>
     ${bandsHtml}
   </div>`;
 }
@@ -591,7 +774,7 @@ X = scaler.<span class="c-fn">transform</span>([features])  <span class="c-cm">#
 verdict    = svm_model.<span class="c-fn">predict</span>(X)[<span class="c-num">0</span>]
 confidence = svm_model.<span class="c-fn">predict_proba</span>(X).<span class="c-fn">max</span>()
 
-<span class="c-cm"># verdict → "Literal" | "Inferential" | "Evaluative"</span>
+<span class="c-cm"># verdict → "Independent" | "Instructional" | "Frustration"</span>
 <span class="c-kw">return</span> {
     <span class="c-str">"complexity"</span>:  verdict,
     <span class="c-str">"confidence"</span>: <span class="c-fn">float</span>(confidence),
@@ -600,7 +783,7 @@ confidence = svm_model.<span class="c-fn">predict_proba</span>(X).<span class="c
           <div style="margin-top:12px;background:#f3e5f5;border:1px solid #ce93d8;border-radius:8px;padding:10px 13px;font-size:11px;color:#4a148c;line-height:1.7;">
             <strong>Model:</strong> SVC (RBF kernel, C=10, gamma=0.1)<br>
             <strong>Scaler:</strong> StandardScaler (fitted on training corpus)<br>
-            <strong>Classes:</strong> Literal · Inferential · Evaluative<br>
+            <strong>Classes:</strong> Independent · Instructional · Frustration<br>
             <strong>Training:</strong> DepEd-graded Philippine reading passages
           </div>
         </div>
@@ -609,9 +792,9 @@ confidence = svm_model.<span class="c-fn">predict_proba</span>(X).<span class="c
           <table class="ml-table">
             <thead><tr><th>Feature Range</th><th>Typical Class</th></tr></thead>
             <tbody>
-              <tr><td>FKGL &lt; 4, short sentences, simple vocab</td><td><span class="ml-badge green">Literal</span></td></tr>
-              <tr><td>FKGL 4–7, moderate TTR, mixed clause types</td><td><span class="ml-badge orange">Inferential</span></td></tr>
-              <tr><td>FKGL &gt; 7, high dep_depth, B2+ heavy vocab</td><td><span class="ml-badge purple">Evaluative</span></td></tr>
+              <tr><td>FKGL &lt; 4, short sentences, simple vocab</td><td><span class="ml-badge green">Independent</span></td></tr>
+              <tr><td>FKGL 4–7, moderate TTR, mixed clause types</td><td><span class="ml-badge orange">Instructional</span></td></tr>
+              <tr><td>FKGL &gt; 7, high dep_depth, B2+ heavy vocab</td><td><span class="ml-badge purple">Frustration</span></td></tr>
             </tbody>
           </table>
           <div style="margin-top:14px;" class="subsection-label">Retraining (Teacher Feedback Loop)</div>
@@ -631,26 +814,26 @@ function buildSection6() {
       <div class="section-number">6</div>
       <div>
         <div class="section-title">DepEd Reading Complexity Scale</div>
-        <div class="section-subtitle">Philippine curriculum levels — Literal → Inferential → Evaluative</div>
+        <div class="section-subtitle">Philippine curriculum levels — Independent → Instructional → Frustration</div>
       </div>
     </div>
     <div class="section-body">
       <div class="two-col">
         <div>
           <div class="verdict-band vb-literal">
-            <span class="verdict-badge">Grade 1–3</span>
+            <span class="verdict-badge">G7 Ready</span>
             <div class="verdict-band-label">Literal</div>
-            <div class="verdict-band-sub">Directly stated facts. Students recall what the text explicitly says. Simple vocabulary, short sentences.</div>
+            <div class="verdict-band-sub">Readable by Grade 7 independently. Directly stated facts, simple vocabulary, short sentences. Phil-IRI: Independent level.</div>
           </div>
           <div class="verdict-band vb-inferential">
-            <span class="verdict-badge">Grade 4–6</span>
+            <span class="verdict-badge">Needs Guidance</span>
             <div class="verdict-band-label">Inferential</div>
-            <div class="verdict-band-sub">Implied meaning, cause and effect, prediction. Students read between the lines. Moderate complexity.</div>
+            <div class="verdict-band-sub">Readable by Grade 7 but requires teacher support. Implied meaning, cause-effect, reading between the lines. Phil-IRI: Instructional level.</div>
           </div>
           <div class="verdict-band vb-evaluative">
-            <span class="verdict-badge">Grade 7–10</span>
+            <span class="verdict-badge">Above G7 Level</span>
             <div class="verdict-band-label">Evaluative</div>
-            <div class="verdict-band-sub">Critical thinking, author's purpose, judgment. Students evaluate and form opinions. Academic vocabulary, complex syntax.</div>
+            <div class="verdict-band-sub">Advanced — too complex for independent Grade 7 reading. Critical judgment, academic vocabulary, deep syntax. Phil-IRI: Frustration level.</div>
           </div>
         </div>
         <div>
@@ -658,13 +841,13 @@ function buildSection6() {
           <table class="ml-table" style="margin-top:6px;">
             <thead><tr><th>SVM Output</th><th>DepEd Level</th><th>Matching Signal</th></tr></thead>
             <tbody>
-              <tr><td><span class="ml-badge green">Literal</span></td><td>Beginning / Nagsisimula</td><td>Low FKGL, short sentences, common words</td></tr>
-              <tr><td><span class="ml-badge orange">Inferential</span></td><td>Developing / Papaunlad</td><td>Mid FKGL, moderate TTR, some complex clauses</td></tr>
-              <tr><td><span class="ml-badge purple">Evaluative</span></td><td>Proficient / Mahusay</td><td>High FKGL, deep parse trees, B2+ vocabulary</td></tr>
+              <tr><td><span class="ml-badge green">Independent</span></td><td>G7 Ready — Independent</td><td>Low FKGL, short sentences, common words · G7 can read alone</td></tr>
+              <tr><td><span class="ml-badge orange">Instructional</span></td><td>Needs Guidance — Instructional</td><td>Mid FKGL, moderate TTR, some complex clauses · G7 needs teacher support</td></tr>
+              <tr><td><span class="ml-badge purple">Frustration</span></td><td>Above G7 — Frustration</td><td>High FKGL, deep parse trees, B2+ vocabulary · too advanced for G7 independently</td></tr>
             </tbody>
           </table>
           <div style="margin-top:14px;background:#e3f2fd;border:1px solid #90caf9;border-radius:8px;padding:10px 13px;font-size:11px;color:#0d47a1;line-height:1.7;">
-            This scale is used for <em>both</em> the material complexity checker (classifying the text difficulty) and the student essay proficiency checker (measuring the student's writing level against the same scale). A student essay scored "Mahusay" is at the Evaluative level.
+            This scale is used for <em>both</em> the material complexity checker (classifying the text difficulty) and the student essay proficiency checker (measuring the student's writing level against the same scale). A student essay scored "Mahusay" is at the Frustration level.
           </div>
         </div>
       </div>
@@ -732,6 +915,12 @@ function buildSection7() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  setVisualizerMode('overview');
+  const overviewBtn = document.getElementById('modeOverviewBtn');
+  const codeBtn = document.getElementById('modeCodeBtn');
+  if (overviewBtn) overviewBtn.addEventListener('click', () => setVisualizerMode('overview'));
+  if (codeBtn) codeBtn.addEventListener('click', () => setVisualizerMode('code'));
+
   checkBackend();
   const main = document.getElementById('main');
   main.insertAdjacentHTML('beforeend', buildSection1());

@@ -54,7 +54,7 @@ export interface MaterialUpload {
 }
 
 export interface MaterialTeacherVerification {
-  level: 'Literal' | 'Inferential' | 'Evaluative';
+  level: 'Independent' | 'Instructional' | 'Frustration';
   comment?: string;
 }
 
@@ -598,7 +598,7 @@ export async function loadDashboardStats(): Promise<{
     totalStudents: 0, totalEssays: 0, totalMaterials: 0,
     ratedEssays: 0, avgTeacherRating: 'N/A',
     proficiencyCounts: { Nagsisimula: 0, Papaunlad: 0, Mahusay: 0 },
-    complexityCounts: { Literal: 0, Inferential: 0, Evaluative: 0 },
+    complexityCounts: { Independent: 0, Instructional: 0, Frustration: 0 },
     error: null as string | null,
   };
   if (!user) return { ...empty, error: 'Not authenticated' };
@@ -630,7 +630,7 @@ export async function loadDashboardStats(): Promise<{
     }
   });
 
-  const complexityCounts: Record<string, number> = { Literal: 0, Inferential: 0, Evaluative: 0 };
+  const complexityCounts: Record<string, number> = { Independent: 0, Instructional: 0, Frustration: 0 };
   (materials ?? []).forEach((m: any) => {
     if (m.complexity_level && m.complexity_level in complexityCounts) {
       complexityCounts[m.complexity_level] += 1;
