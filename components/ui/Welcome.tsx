@@ -62,7 +62,7 @@ const Welcome: React.FC = () => {
                          drop-shadow-[0_0_15px_rgba(20,184,166,0.3)]">ReadTrack</span>
           </h2>
           <p className="text-lg text-gray-400 max-w-md mx-auto">
-            Select an AI-powered tool to begin analyzing student performance.
+            Select a classroom tool to review student work and reading materials.
           </p>
         </header>
 
@@ -70,7 +70,7 @@ const Welcome: React.FC = () => {
         <div className="grid md:grid-cols-2 gap-8">
           <ToolCard 
             title="Complexity Detection"
-            description="Analyze linguistic features and determine reading complexity level."
+            description="Check whether a reading material is suitable for your Grade 7 class."
             icon="📊"
             hoverColor="blue"
             onClick={() => navigate("/material")}
@@ -78,7 +78,7 @@ const Welcome: React.FC = () => {
           
           <ToolCard 
             title="Essay Scoring"
-            description="Automatically evaluate essays using our trained scoring architecture."
+            description="Review student essays, adjust ratings, and save teacher feedback."
             icon="📝"
             hoverColor="green"
             onClick={() => navigate("/student")}

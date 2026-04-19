@@ -143,6 +143,7 @@ export interface LibraryMaterial {
   // Distinct from the Language enum ('English'/'Filipino') used elsewhere.
   // 'eng' = English, 'fil' = Filipino (default/fallback).
   language?: 'eng' | 'fil';
+  subject?: string;
 }
 
 export interface ReferenceFile {

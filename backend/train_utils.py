@@ -37,16 +37,16 @@ def process_single_essay(row):
         score = row['score']
         features = extract_features(essay_text)
         
-        # Map Score (1-6) to Phil-IRI Levels (Refined Mapping)
-        # Score 6 → Independent (elite writers only)
-        # Score 3-5 → Instructional (broader middle range)
-        # Score 1-2 → Frustration (struggling writers)
-        if score >= 6:
-            label = 0 # Independent
+        # Map Score (1-6) to Phil-IRI Levels
+        # Score 5-6 → Mahusay / Independent
+        # Score 3-4 → Papaunlad / Instructional
+        # Score 1-2 → Nagsisimula / Frustration
+        if score >= 5:
+            label = 0 # Mahusay
         elif score >= 3:
-            label = 1 # Instructional
+            label = 1 # Papaunlad
         else:
-            label = 2 # Frustration
+            label = 2 # Nagsisimula
             
         return features['vector'][0], label
     except Exception:

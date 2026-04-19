@@ -67,21 +67,81 @@ class BaseModel:
         self.model.fit(X_scaled, y)
         print("Model training complete.")
 
+    def _prepare_vector(self, vector):
+        """Scales and pads/trims vector to match trained model dimensions. Returns scaled array or None."""
+        if not (self.model and hasattr(self.model, 'predict')):
+            return None
+        try:
+            v = np.asarray(vector)
+            if v.ndim == 1:
+                v = v.reshape(1, -1)
+            if self.feature_idx is not None:
+                v = v[:, self.feature_idx]
+
+            expected_features = getattr(self.scaler, 'n_features_in_', None)
+            if expected_features is None:
+                expected_features = getattr(self.model, 'n_features_in_', None)
+            if expected_features is None:
+                scaler_mean = getattr(self.scaler, 'mean_', None)
+                if scaler_mean is not None:
+                    expected_features = len(scaler_mean)
+            if expected_features is None:
+                scaler_scale = getattr(self.scaler, 'scale_', None)
+                if scaler_scale is not None:
+                    expected_features = len(scaler_scale)
+            if expected_features is None:
+                support_vectors = getattr(self.model, 'support_vectors_', None)
+                if support_vectors is not None and len(getattr(support_vectors, 'shape', [])) == 2:
+                    expected_features = int(support_vectors.shape[1])
+
+            # Backward compatibility for older saved models trained on fewer features.
+            # If current extractor returns more features, trim extras; if fewer, zero-pad.
+            if expected_features is not None and v.shape[1] != expected_features:
+                if v.shape[1] > expected_features:
+                    v = v[:, :expected_features]
+                else:
+                    pad_width = expected_features - v.shape[1]
+                    v = np.pad(v, ((0, 0), (0, pad_width)), mode='constant')
+
+            return self.scaler.transform(v)
+        except Exception as exc:
+            print(f"Warning: ML inference skipped, falling back to heuristics ({exc})")
+            return None
+
     def ml_predict(self, vector):
+        v_scaled = self._prepare_vector(vector)
+        if v_scaled is None:
+            return None
+        try:
+            idx = self.model.predict(v_scaled)[0]
+        except Exception as exc:
+            print(f"Warning: ML predict failed ({exc})")
+            return None
+        if isinstance(idx, (int, np.integer)):
+            return self.labels[idx]
+        return idx
 
-        if self.model and hasattr(self.model, 'predict'):
-            try:
-                v = vector[:, self.feature_idx] if self.feature_idx is not None else vector
-                vector_scaled = self.scaler.transform(v)
-                idx = self.model.predict(vector_scaled)[0]
-            except Exception as exc:
-                print(f"Warning: ML inference skipped, falling back to heuristics ({exc})")
-                return None
-
-            if isinstance(idx, (int, np.integer)):
-                return self.labels[idx]
-            return idx
-        return None
+    def ml_predict_proba(self, vector):
+        """Returns (label, confidence) or (None, 0) if unavailable."""
+        v_scaled = self._prepare_vector(vector)
+        if v_scaled is None:
+            return None, 0.0
+        if not hasattr(self.model, 'predict_proba'):
+            return self.ml_predict(vector), 0.0
+        try:
+            proba = self.model.predict_proba(v_scaled)[0]
+            best_idx = int(np.argmax(proba))
+            confidence = float(proba[best_idx])
+            classes = getattr(self.model, 'classes_', None)
+            if classes is not None:
+                raw = classes[best_idx]
+                label = self.labels[raw] if isinstance(raw, (int, np.integer)) else raw
+            else:
+                label = self.labels[best_idx] if best_idx < len(self.labels) else None
+            return label, confidence
+        except Exception as exc:
+            print(f"Warning: predict_proba failed ({exc})")
+            return None, 0.0
 
     def _load_metrics(self, model_key):
         base_dir = os.path.dirname(__file__)
@@ -118,7 +178,6 @@ class StudentProficiencySVM(BaseModel):
         """
         Refactored to integrate real grammar results and Grade 7 specific scaling.
         """
-        vector = features_data['vector']
         metrics = features_data['metrics']
 
         # 1. Grammar Score (0–100) — less punishing for G7 Filipino writers
@@ -161,27 +220,20 @@ class StudentProficiencySVM(BaseModel):
             cefr_n        * 0.05     # Advanced vocabulary      5%
         )
 
-        # 3. Hybrid ML-Heuristic Decision
-        ml_result = self.ml_predict(vector)
-        
-        # Less strict classification thresholds for Grade 7
-        # Independent: 70+ (was 75) | Instructional: 35+ (was 45)
-        if ml_result:
-            proficiency = ml_result
-            if proficiency == "Mahusay":
-                nat = max(70, calculated_score)
-            elif proficiency == "Papaunlad":
-                nat = max(35, min(74, calculated_score))
-            else:
-                nat = min(34, calculated_score)
+        # 3. Heuristic-primary classification
+        # The ASAP2-trained SVM is overconfident (0.78–0.84) for out-of-domain
+        # Filipino/G7 essays and collapses predictions to Nagsisimula. The
+        # calculated_score is language-agnostic and more reliable here.
+        # G7 thresholds calibrated from bilingual evaluation corpus (wc ~80–280 words).
+        # Empirical score ranges: Mahusay 55–59, Papaunlad 43–49, Nagsisimula 34–42.
+        # Boundaries: Mahusay ≥52 | Papaunlad 42–51 | Nagsisimula <42
+        if calculated_score >= 52:
+            proficiency = "Mahusay"
+        elif calculated_score >= 42:
+            proficiency = "Papaunlad"
         else:
-            if calculated_score >= 70:
-                proficiency = "Mahusay"
-            elif calculated_score >= 35:
-                proficiency = "Papaunlad"
-            else:
-                proficiency = "Nagsisimula"
-            nat = calculated_score
+            proficiency = "Nagsisimula"
+        nat = calculated_score
 
         band_map = {
             "Mahusay":     ("Enhancement",   "Independent"),
@@ -195,9 +247,9 @@ class StudentProficiencySVM(BaseModel):
         if rubric_score is not None:
             rubric_nat = round((rubric_score / 4.0) * 100, 2)
             nat = round((rubric_nat * 0.6) + (nat * 0.4), 2)
-            if nat >= 70:
+            if nat >= 52:
                 proficiency = "Mahusay"
-            elif nat >= 35:
+            elif nat >= 42:
                 proficiency = "Papaunlad"
             else:
                 proficiency = "Nagsisimula"
@@ -264,7 +316,7 @@ class TextComplexitySVM(BaseModel):
         vector = features_data['vector']
         metrics = features_data['metrics']
 
-        ml_result = self.ml_predict(vector)
+        ml_label, ml_confidence = self.ml_predict_proba(vector)
 
         avg_len    = metrics['avgSentenceLength']
         diff_ratio = metrics['difficultWordRatio']
@@ -298,21 +350,39 @@ class TextComplexitySVM(BaseModel):
             sub_n  * 0.05     # Clause complexity
         )
 
-        if ml_result:
-            level = ml_result
+        # Use the trained SVM when confidence is acceptable; otherwise fall back
+        # to explicit readability bands tuned for Grade 7 classroom passages.
+        if (
+            avg_len >= 28
+            or diff_ratio >= 20
+            or fkgl >= 23
+        ):
+            heuristic_level = "Frustration"
+        elif (
+            avg_len >= 14
+            or diff_ratio >= 8
+            or fkgl >= 13
+        ):
+            heuristic_level = "Instructional"
         else:
-            if complexity_score < 40:
-                level = "Literal"
-            elif complexity_score < 75:
-                level = "Inferential"
-            else:
-                level = "Evaluative"
+            heuristic_level = "Independent"
+
+        if ml_label and ml_confidence >= 0.55:
+            level = ml_label
+            reasoning_label = f"SVM confidence {ml_confidence:.2f}"
+        else:
+            level = heuristic_level
+            reasoning_label = "readability fallback"
 
         return {
             "level": level,
             "score": min(100, round(complexity_score, 2)),
-            "reasoning": f"Classified as {level} based on linguistic analysis (L:{avg_len:.1f}, D:{diff_ratio:.1f}%).",
+            "reasoning": (
+                f"Classified as {level} using {reasoning_label} "
+                f"(L:{avg_len:.1f}, D:{diff_ratio:.1f}%, FK:{fkgl:.1f})."
+            ),
             "readabilityScore": max(0, round(100 - complexity_score, 2)),
+            "modelConfidence": round(ml_confidence, 4),
             "wordCount": metrics['wordCount'],
             "keywords": metrics['difficultWords'][:5],
             "fixationDuration": min(90, round(30 + (complexity_score * 0.5), 1)),

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { IoMenuOutline, IoCloudUploadOutline } from 'react-icons/io5';
+
 
 import { Section, Subject, Student, StudentEssay, TeacherRubricScores } from './types';
 import {
@@ -22,7 +22,7 @@ import { ModelPerformancePage } from './ModelPerformancePage';
 import { ProficiencyLevel, CachedAnalysis, StudentDiagnosisResult, DepEdRubricScore, OriginalFile } from '../../types';
 import { IoRefreshOutline } from 'react-icons/io5';
 import { analyzeStudentWorkAPI, classifyTextComplexityAPI, evaluateDepEdRubricAPI, getTrainStatusAPI, triggerRetrainAPI, TrainStatusResponse } from '../../services/pythonService';
-import { saveStudentGradingUpload, saveTeacherRubricScores, lookupEssayIdByText, deleteStudentUpload, deleteStudentAllUploads, updateStudentEssayText, deleteSection as deleteSectionRemote } from '../../services/supabaseService';
+import { saveStudentGradingUpload, saveTeacherRubricScores, lookupEssayIdByText, deleteStudentUpload, deleteStudentAllUploads, updateStudentEssayText, updateStudentUploadAnalysis, deleteSection as deleteSectionRemote } from '../../services/supabaseService';
 
 interface StudentGradingProps {
   onMenuClick?: () => void;
@@ -72,7 +72,8 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
 
   // ── UI state ──────────────────────────────────────────
   const [proficiencyFilter, setProficiencyFilter] = useState<ProficiencyLevel | 'all'>('all');
-  const [sortKey, setSortKey] = useState<'newest' | 'oldest' | 'name' | 'essays'>('newest');
+  const [sortKey, setSortKey] = useState<'newest' | 'oldest' | 'name' | 'essays' | 'level' | 'rating'>('newest');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [searchQuery, setSearchQuery] = useState('');
   const [showSubjectManager, setShowSubjectManager] = useState(false);
   const [showAddStudent, setShowAddStudent] = useState(false);
@@ -105,6 +106,17 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
   const updateStudents = useCallback((next: Student[]) => { setStudents(next); saveStudents(next); }, []);
   const isUuid = useCallback((value: string) => {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+  }, []);
+
+  const updateEssayInState = useCallback((essayId: string, updater: (essay: StudentEssay) => StudentEssay): void => {
+    setStudents(prev => {
+      const updated = prev.map(s => ({
+        ...s,
+        essays: s.essays.map(e => (e.id === essayId ? updater(e) : e)),
+      }));
+      saveStudents(updated);
+      return updated;
+    });
   }, []);
 
   // ── Setup completion ──────────────────────────────────
@@ -303,47 +315,36 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
     setSelectedEssayId(null);
   };
 
+  const handleSortChange = (key: 'newest' | 'oldest' | 'name' | 'essays' | 'level' | 'rating') => {
+    setSortKey(key);
+    if (key === 'newest') setSortDirection('desc');
+    else if (key === 'oldest') setSortDirection('asc');
+    else setSortDirection('desc');
+  };
+
+  const handleSortRequest = (key: 'name' | 'essays' | 'level' | 'rating') => {
+    if (sortKey === key) {
+      setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
+      return;
+    }
+    setSortKey(key);
+    setSortDirection('desc');
+  };
+
   // ── Essay upload ──────────────────────────────────────
-  const handleUpload = async (params: {
+  const handleUpload = (params: {
     studentId: string; subjectId: string; title: string; text: string;
     originalFiles?: OriginalFile[];
   }) => {
-    const primaryImage = params.originalFiles?.[0];
-    const [diagnosisResult, comp] = await Promise.all([
-      analyzeStudentWorkAPI(params.text, primaryImage?.base64),
-      classifyTextComplexityAPI(params.text, primaryImage?.base64),
-    ]);
-
-    // Non-blocking rubric evaluation
     const selectedSubjectForUpload = subjects.find(s => s.id === params.subjectId);
-    let rubricScore: DepEdRubricScore | undefined;
-    try {
-      rubricScore = await evaluateDepEdRubricAPI(
-        params.text,
-        selectedSubjectForUpload?.language ?? 'filipino',
-        'Grade 7'
-      );
-    } catch (err) {
-      console.warn('Rubric evaluation failed (non-blocking):', err);
-    }
-
-    const rubricProficiency = (overall: number): ProficiencyLevel =>
-      overall >= 3.5 ? ProficiencyLevel.MAHUSAY
-      : overall >= 2.5 ? ProficiencyLevel.PAPAUNLAD
-      : ProficiencyLevel.NAGSISIMULA;
-
-    const diag: StudentDiagnosisResult = rubricScore
-      ? { ...diagnosisResult, rubricScore, proficiency: rubricProficiency(rubricScore.overallScore) }
-      : diagnosisResult;
-
+    const tempEssayId = Date.now().toString();
     const essay: StudentEssay = {
-      id: Date.now().toString(),
+      id: tempEssayId,
       title: params.title,
       text: params.text,
       subjectId: params.subjectId,
       uploadedAt: new Date(),
-      diagnosisResult: diag,
-      complexityResult: comp,
+      analysisStatus: 'processing',
       originalFile: params.originalFiles?.[0],
       originalFiles: params.originalFiles,
     };
@@ -355,67 +356,124 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
     );
     updateStudents(next);
 
-    const targetStudent = next.find(s => s.id === params.studentId);
-    const sectionName = sections.find(sec => sec.id === targetStudent?.sectionId)?.name;
-    let persistedEssayId = essay.id;
-    const { data, error } = await saveStudentGradingUpload({
-      student_name: targetStudent?.name ?? 'Unknown Student',
-      essay_title: essay.title,
-      essay_text: essay.text,
-      proficiency_level: essay.diagnosisResult?.proficiency,
-      nat_score: essay.diagnosisResult?.natScore,
-      diagnosis_result: essay.diagnosisResult,
-      complexity_result: essay.complexityResult,
-      section_name: sectionName,
-      subject_name: selectedSubjectForUpload?.name,
-      subject_language: selectedSubjectForUpload?.language === 'english' ? 'en' : 'tl',
-      original_file: essay.originalFiles?.[0] ?? essay.originalFile ?? null,
-    });
-
-    if (error) {
-      console.error('saveStudentGradingUpload failed:', error);
-    }
-
-    let realId: string | null = data?.id ?? null;
-    if (!realId) {
-      // Fallback: resolve by text in case insert completed but id was not returned.
-      realId = await lookupEssayIdByText(essay.text);
-    }
-
-    if (realId) {
-      persistedEssayId = realId;
-      // Replace temp timestamp ID with the real Supabase UUID — persist to localStorage too
-      setStudents(prev => {
-        const updated = prev.map(s => ({
-          ...s,
-          essays: s.essays.map(e => e.id === essay.id ? { ...e, id: realId } : e),
-        }));
-        saveStudents(updated);
-        return updated;
-      });
-
-      // If teacher saved while ID was still temporary, persist the queued rubric now.
-      flushPendingRubricSave(essay.id, realId).catch(console.error);
-    }
-
     setSelectedStudentId(params.studentId);
-    setSelectedEssayId(persistedEssayId);
+    setSelectedEssayId(tempEssayId);
     const student = next.find(s => s.id === params.studentId);
     if (student) setSelectedSectionId(student.sectionId);
     setSelectedSubjectId(params.subjectId);
-
-    if (onSaveAnalysis) {
-      onSaveAnalysis({
-        id: persistedEssayId,
-        timestamp: essay.uploadedAt,
-        title: essay.title,
-        studentText: essay.text,
-        diagnosisResult: diag,
-        complexityResult: comp,
-      });
-    }
-
     onDataChanged?.();
+
+    void (async () => {
+      let persistedEssayId = tempEssayId;
+      try {
+        const targetStudent = next.find(s => s.id === params.studentId);
+        const sectionName = sections.find(sec => sec.id === targetStudent?.sectionId)?.name;
+        const { data, error } = await saveStudentGradingUpload({
+          student_name: targetStudent?.name ?? 'Unknown Student',
+          essay_title: essay.title,
+          essay_text: essay.text,
+          proficiency_level: null,
+          nat_score: null,
+          diagnosis_result: null,
+          complexity_result: null,
+          section_name: sectionName,
+          subject_name: selectedSubjectForUpload?.name,
+          subject_language: selectedSubjectForUpload?.language === 'english' ? 'en' : 'tl',
+          original_file: essay.originalFiles?.[0] ?? essay.originalFile ?? null,
+        });
+
+        if (error) {
+          console.error('saveStudentGradingUpload failed:', error);
+        }
+
+        let realId: string | null = data?.id ?? null;
+        if (!realId) {
+          realId = await lookupEssayIdByText(essay.text);
+        }
+
+        if (realId) {
+          persistedEssayId = realId;
+          setStudents(prev => {
+            const updated = prev.map(s => ({
+              ...s,
+              essays: s.essays.map(e => e.id === tempEssayId ? { ...e, id: realId } : e),
+            }));
+            saveStudents(updated);
+            return updated;
+          });
+
+          flushPendingRubricSave(tempEssayId, realId).catch(console.error);
+          setSelectedEssayId(id => id === tempEssayId ? realId : id);
+        }
+
+        const primaryImage = params.originalFiles?.[0];
+        const [diagnosisResult, comp] = await Promise.all([
+          analyzeStudentWorkAPI(params.text, primaryImage?.base64),
+          classifyTextComplexityAPI(params.text, primaryImage?.base64),
+        ]);
+
+        let rubricScore: DepEdRubricScore | undefined;
+        try {
+          rubricScore = await evaluateDepEdRubricAPI(
+            params.text,
+            selectedSubjectForUpload?.language ?? 'filipino',
+            'Grade 7'
+          );
+        } catch (err) {
+          console.warn('Rubric evaluation failed (non-blocking):', err);
+        }
+
+        const rubricProficiency = (overall: number): ProficiencyLevel =>
+          overall >= 3.5 ? ProficiencyLevel.MAHUSAY
+          : overall >= 2.5 ? ProficiencyLevel.PAPAUNLAD
+          : ProficiencyLevel.NAGSISIMULA;
+
+        const diag: StudentDiagnosisResult = rubricScore
+          ? { ...diagnosisResult, rubricScore, proficiency: rubricProficiency(rubricScore.overallScore) }
+          : diagnosisResult;
+
+        updateEssayInState(persistedEssayId, existing => ({
+          ...existing,
+          diagnosisResult: diag,
+          complexityResult: comp,
+          analysisStatus: 'ready',
+          analysisError: undefined,
+        }));
+
+        if (isUuid(persistedEssayId)) {
+          const { error: updateError } = await updateStudentUploadAnalysis(persistedEssayId, {
+            proficiency_level: diag.proficiency,
+            nat_score: diag.natScore ?? null,
+            diagnosis_result: diag,
+            complexity_result: comp,
+          });
+          if (updateError) {
+            console.error('updateStudentUploadAnalysis failed:', updateError);
+          }
+        }
+
+        if (onSaveAnalysis) {
+          onSaveAnalysis({
+            id: persistedEssayId,
+            timestamp: essay.uploadedAt,
+            title: essay.title,
+            studentText: essay.text,
+            diagnosisResult: diag,
+            complexityResult: comp,
+          });
+        }
+        onDataChanged?.();
+      } catch (err) {
+        console.error('Background analysis failed:', err);
+        updateEssayInState(persistedEssayId, existing => ({
+          ...existing,
+          analysisStatus: 'failed',
+          analysisError: 'Analysis failed. Please try uploading again.',
+        }));
+      }
+    })();
+
+    return Promise.resolve();
   };
 
   // ── Retrain action ────────────────────────────────────
@@ -586,7 +644,7 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
   }
 
   return (
-    <div className="flex flex-col h-full bg-[#F2F2F7]">
+    <div className="flex h-full bg-[#F5F4F0]">
       {showMigration && sections.length > 0 && subjects.length > 0 && (
         <MigrationModal
           students={students}
@@ -594,48 +652,6 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
           subjects={subjects}
           onComplete={handleMigrationComplete}
         />
-      )}
-
-      <header className="h-14 flex items-center justify-between px-5 border-b border-gray-100 bg-white shadow-sm flex-shrink-0">
-        <div className="flex items-center gap-2">
-          {onMenuClick && (
-            <button onClick={onMenuClick} className="md:hidden text-gray-500 hover:text-gray-700">
-              <IoMenuOutline className="text-2xl" />
-            </button>
-          )}
-          <span className="text-sm font-black text-gray-900">
-            Student Grading <span className="text-gray-400 font-normal text-xs">(Pagmamarka ng Mag-aaral)</span>
-          </span>
-          <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-            {students.length}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowUpload(true)}
-            disabled={showMigration}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-colors ${
-              showMigration
-                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                : 'bg-teal-500 hover:bg-teal-600 text-white'
-            }`}
-          >
-            <IoCloudUploadOutline className="text-base" />
-            Upload Essay
-          </button>
-        </div>
-      </header>
-
-      {sectionDeleteNotice && (
-        <div className="px-5 py-2 bg-amber-50 border-b border-amber-100 text-[11px] text-amber-700 flex items-center justify-between">
-          <span>{sectionDeleteNotice}</span>
-          <button
-            onClick={() => setSectionDeleteNotice(null)}
-            className="text-[11px] font-semibold text-amber-700 hover:text-amber-900"
-          >
-            Dismiss
-          </button>
-        </div>
       )}
 
       <div className="flex flex-1 overflow-hidden">
@@ -650,6 +666,11 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
           onRenameSection={handleRenameSection}
           onDeleteSection={handleDeleteSection}
           onManageSubjects={() => setShowSubjectManager(true)}
+          onUploadEssay={() => setShowUpload(true)}
+          onMenuClick={onMenuClick}
+          uploadDisabled={showMigration}
+          sectionDeleteNotice={sectionDeleteNotice}
+          onDismissNotice={() => setSectionDeleteNotice(null)}
         />
 
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
@@ -657,30 +678,34 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
           {trainStatus && (
             <div className="flex items-center gap-4 px-4 py-2 bg-white border-b border-gray-100 flex-shrink-0 flex-wrap">
               <div className="flex items-center gap-2">
-                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Katumpakan ng Modelo</span>
+                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Grading Accuracy</span>
                 <button
                   onClick={() => setShowPerformance(true)}
                   className="text-[9px] text-teal-600 hover:text-teal-800 font-semibold underline"
                 >
-                  Tingnan →
+                  View details →
                 </button>
               </div>
               {(['english', 'filipino'] as const).map(lang => {
                 const stat = trainStatus[lang];
-                const flag = lang === 'english' ? '🇺🇸' : '🇵🇭';
+                const langLabel = lang === 'english' ? 'EN' : 'FIL';
                 const dot = stat.confidence_level === 'Kumpiyansa' || stat.confidence_level === 'Kalibrado'
                   ? 'bg-green-400' : stat.confidence_level === 'Papaunlad' ? 'bg-yellow-400' : 'bg-red-400';
+                const confidenceLabel = stat.confidence_level === 'Kumpiyansa' ? 'Accurate'
+                  : stat.confidence_level === 'Kalibrado' ? 'Learning'
+                  : stat.confidence_level === 'Papaunlad' ? 'Improving'
+                  : 'Getting started';
                 const tiers = [
-                  { max: 5,   label: 'magsimulang mag-suggest' },
-                  { max: 30,  label: 'Kalibrado' },
-                  { max: 100, label: 'Kumpiyansa' },
+                  { max: 5,   label: 'getting started' },
+                  { max: 30,  label: 'Learning' },
+                  { max: 100, label: 'Accurate' },
                 ];
                 const tier = tiers.find(t => stat.rated_essays < t.max);
                 const pct = tier ? Math.round((stat.rated_essays / tier.max) * 100) : 100;
                 return (
                   <div key={lang} className="flex items-center gap-2">
                     <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dot}`} />
-                    <span className="text-[10px] text-gray-600 font-medium">{flag} {stat.confidence_level}</span>
+                    <span className="text-[10px] text-gray-600 font-medium">{langLabel} · {confidenceLabel}</span>
                     <span className="text-[9px] text-gray-400">{stat.rated_essays} rated</span>
                     {tier && (
                       <div className="flex items-center gap-1">
@@ -697,7 +722,7 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
                         className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold disabled:opacity-50 transition-colors ${lang === 'english' ? 'bg-blue-50 text-blue-700 hover:bg-blue-100' : 'bg-pink-50 text-pink-700 hover:bg-pink-100'}`}
                       >
                         <IoRefreshOutline className={isRetraining ? 'animate-spin' : ''} />
-                        I-retrain ({stat.new_since_retrain} bago)
+                        Retrain ({stat.new_since_retrain} new)
                       </button>
                     )}
                   </div>
@@ -714,13 +739,15 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
             selectedStudentId={selectedStudentId}
             proficiencyFilter={proficiencyFilter}
             sortKey={sortKey}
+            sortDirection={sortDirection}
             searchQuery={searchQuery}
             onSelectStudent={handleSelectStudent}
             onAddStudent={() => setShowAddStudent(true)}
             onMoveStudent={handleMoveStudent}
             onDeleteStudent={handleDeleteStudent}
             onProficiencyFilter={setProficiencyFilter}
-            onSortChange={setSortKey}
+            onSortChange={handleSortChange}
+            onSortRequest={handleSortRequest}
             onSearchChange={setSearchQuery}
           />
         </div>
@@ -772,7 +799,7 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
         />
       )}
 
-      {selectedEssay && selectedStudent && (
+      {selectedEssay && selectedStudent && selectedEssay.diagnosisResult && (
         <EssayViewerModal
           student={selectedStudent}
           essay={selectedEssay}

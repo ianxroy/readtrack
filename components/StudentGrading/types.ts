@@ -28,6 +28,8 @@ export interface StudentEssay {
   text: string;
   subjectId: string;
   uploadedAt: Date;
+  analysisStatus?: 'processing' | 'ready' | 'failed';
+  analysisError?: string;
   diagnosisResult?: StudentDiagnosisResult;
   complexityResult?: TextComplexityResult;
   teacherRating?: number;

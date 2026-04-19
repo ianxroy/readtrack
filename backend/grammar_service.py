@@ -1096,7 +1096,7 @@ async def check_grammar_enhanced(request: GeminiEnhancedRequest):
         except Exception as e:
             print(f"Gemini enhancement error: {e}")
 
-            enhanced_issues = [GeminiEnhancedIssue(**issue.dict()) for issue in basic_check.issues]
+            enhanced_issues = [GeminiEnhancedIssue(**issue.model_dump()) for issue in basic_check.issues]
             ai_feedback = None
 
     return GeminiEnhancedResponse(

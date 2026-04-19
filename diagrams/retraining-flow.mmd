@@ -1,0 +1,50 @@
+flowchart TD
+    A[Teacher actions or rated essays available] --> B{Which retraining path?}
+
+    A_DESC[Start: Teacher ratings or teacher sample updates trigger retraining flow]
+    A -.plain language.-> A_DESC
+
+    B -->|Proficiency model| C[POST /train/retrain<br/>FastAPI]
+    C --> D[_get_training_rows from Supabase<br/>supabase-py]
+    D --> E[_extract_training_matrix<br/>NumPy + custom feature extraction]
+    E --> F{At least 5 rated essays?}
+    F -->|No| G[Return status: skipped]
+    F -->|Yes| H{Language is English?}
+    H -->|Yes| I[Load ASAP2 CSV and blend with PH essays weighted 2x<br/>pandas or CSV loader + NumPy]
+    H -->|No| J[Use PH essays only]
+    I --> K[RobustScaler fit_transform<br/>scikit-learn]
+    J --> K
+    K --> L[Train SVC RBF C=10 gamma=scale class_weight=balanced<br/>scikit-learn SVC]
+    L --> M[Save model: proficiency_model_en.pkl or proficiency_model_tl.pkl<br/>pickle]
+    M --> N[Hot-reload in-memory model]
+    N --> O[Update retrain_status.json last_retrain and rated_at_retrain<br/>JSON]
+
+    B -->|Complexity model| P[POST /training/add-sample<br/>FastAPI]
+    P --> Q[Validate level and text length<br/>Pydantic + Python checks]
+    Q --> R[Extract features and append to teacher_samples.jsonl<br/>NumPy + JSONL]
+    R --> S[Call retrain_complexity_model in background thread<br/>asyncio.to_thread + threading]
+    S --> T{Retrain lock available?}
+    T -->|No| U[Return sample_saved; apply next retrain]
+    T -->|Yes| V[Load CommonLit features plus teacher samples<br/>CSV pipeline + JSONL reader]
+    V --> W{Any training data?}
+    W -->|No| X[RuntimeError: no training data]
+    W -->|Yes| Y[Train TextComplexitySVM<br/>scikit-learn + custom wrapper]
+    Y --> Z[Save complexity_model.pkl and swap global in-memory model<br/>pickle + in-process reload]
+    Z --> AA[Return status ok]
+
+    subgraph SIMPLE_GUIDE[Easy Guide]
+        G1[Proficiency retrain: updates essay rating model using teacher-rated essays]
+        G2[Complexity retrain: updates reading-level model using verified training samples]
+        G3[If not enough data, system skips safely and waits for more samples]
+        G4[After retrain, new model file is saved and loaded immediately]
+    end
+
+    O -.result.-> G4
+    AA -.result.-> G4
+    G -.skip reason.-> G3
+    X -.skip reason.-> G3
+
+    classDef guide fill:#eef7ff,stroke:#3b82f6,stroke-width:1px,color:#0f172a;
+    classDef note fill:#f6f7f9,stroke:#9ca3af,stroke-width:1px,color:#111827;
+    class G1,G2,G3,G4 guide;
+    class A_DESC note;

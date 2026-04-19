@@ -7,6 +7,9 @@ import logging
 import threading
 import asyncio
 import pickle
+import functools
+import concurrent.futures
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional, cast
@@ -31,6 +34,51 @@ from tagalog_service import router as tagalog_router
 from grammar_service import router as grammar_router
 
 logger = logging.getLogger(__name__)
+
+def _available_cpu_count() -> int:
+    """Return effective CPU count, respecting affinity masks when available."""
+    try:
+        return len(os.sched_getaffinity(0))
+    except Exception:
+        return os.cpu_count() or 4
+
+
+def _resolve_cpu_workers() -> int:
+    """Resolve worker count from env override or auto-detected defaults."""
+    raw = os.getenv("ANALYSIS_CPU_WORKERS")
+    if raw is not None and raw.strip() != "":
+        try:
+            parsed = int(raw)
+            if parsed > 0:
+                return parsed
+        except ValueError:
+            pass
+
+    # Auto mode: leave one core for event loop/OS, cap to avoid oversubscription.
+    cores = _available_cpu_count()
+    return max(2, min(8, cores - 1 if cores > 2 else cores))
+
+
+def _resolve_spacy_gpu_mode() -> str:
+    """Return 'auto', 'on', or 'off' based on USE_SPACY_GPU env."""
+    raw = os.getenv("USE_SPACY_GPU")
+    if raw is None or raw.strip() == "":
+        return "auto"
+
+    val = raw.strip().lower()
+    if val in {"1", "true", "yes", "on"}:
+        return "on"
+    if val in {"0", "false", "no", "off"}:
+        return "off"
+    if val == "auto":
+        return "auto"
+    return "auto"
+
+
+# Bounded worker pool for CPU-heavy work so independent tasks can use multiple cores
+# without oversubscribing the host.
+CPU_WORKERS = _resolve_cpu_workers()
+CPU_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=CPU_WORKERS)
 
 import struct as _struct
 
@@ -92,11 +140,15 @@ else:
 async def lifespan(app: FastAPI):
 
     try:
-        if False:  # GPU check disabled — torch not required
-            spacy.prefer_gpu()
-            print("GPU acceleration enabled for spaCy")
+        gpu_mode = _resolve_spacy_gpu_mode()
+        if gpu_mode == "off":
+            print("spaCy GPU disabled by USE_SPACY_GPU=off")
+        elif spacy.prefer_gpu():
+            print(f"GPU acceleration enabled for spaCy (mode={gpu_mode})")
         else:
-            print("GPU not available, using CPU for spaCy")
+            print("GPU not available for spaCy, using CPU")
+
+        print(f"CPU analysis workers: {CPU_WORKERS} (override with ANALYSIS_CPU_WORKERS)")
     except Exception as e:
         print(f"Could not enable GPU: {e}")
 
@@ -140,6 +192,13 @@ app.add_middleware(
 
 app.include_router(tagalog_router, tags=["Tagalog NLP"])
 app.include_router(grammar_router, tags=["Grammar & Spell Check"])
+
+
+async def run_cpu_bound(func, *args, **kwargs):
+    """Run blocking CPU or I/O-bound functions off the event loop."""
+    loop = asyncio.get_running_loop()
+    call = functools.partial(func, *args, **kwargs)
+    return await loop.run_in_executor(CPU_EXECUTOR, call)
 
 models_dir = os.path.join(os.path.dirname(__file__), 'models')
 _teacher_samples_path = os.path.join(os.path.dirname(__file__), 'data', 'teacher_samples.jsonl')
@@ -203,6 +262,13 @@ class TextRequest(BaseModel):
     text: str
     image: Optional[str] = None
     mimeType: Optional[str] = None
+
+
+class BenchmarkRequest(BaseModel):
+    text: str
+    image: Optional[str] = None
+    mimeType: Optional[str] = None
+    iterations: int = 3
 
 class OCRRequest(BaseModel):
     image: str
@@ -649,6 +715,265 @@ Respond ONLY with valid JSON in this exact format:
     return data
 
 
+def _clamp(value: float, low: float, high: float) -> float:
+    return max(low, min(high, value))
+
+
+def _band_to_overall_score(band: str) -> float:
+    # Center each proficiency band in the DepEd 1-4 scale.
+    if band == "Mahusay":
+        return 3.6
+    if band == "Papaunlad":
+        return 2.8
+    if band == "Nagsisimula":
+        return 1.8
+    return 2.8
+
+
+def _to_rubric_score(value_0_100: float) -> int:
+    # Convert normalized feature score to DepEd rubric 1-4 band.
+    if value_0_100 >= 80:
+        return 4
+    if value_0_100 >= 60:
+        return 3
+    if value_0_100 >= 40:
+        return 2
+    return 1
+
+
+def _normalize_rubric_language(value: str) -> str:
+    v = str(value or "").strip().lower()
+    if v in {"english", "en", "eng"}:
+        return "english"
+    return "filipino"
+
+
+def _build_ml_rubric_feedback(overall_score: float, content: int, organization: int, language_vocab: int, grammar: int, mechanics: int) -> str:
+    strengths = []
+    needs = []
+
+    dimension_labels = {
+        "content": (content, "idea development"),
+        "organization": (organization, "organization and flow"),
+        "language_vocab": (language_vocab, "word choice and language range"),
+        "grammar": (grammar, "grammar control"),
+        "mechanics": (mechanics, "mechanics and conventions"),
+    }
+
+    for _, (score, label) in dimension_labels.items():
+        if score >= 3:
+            strengths.append(label)
+        else:
+            needs.append(label)
+
+    if overall_score >= 3.5:
+        opener = "The essay is performing at a proficient level for Grade 7 English tasks."
+    elif overall_score >= 2.5:
+        opener = "The essay is approaching proficiency and shows a workable Grade 7 foundation."
+    else:
+        opener = "The essay is still in the beginning range and needs focused support."
+
+    strength_line = (
+        f"Strongest areas: {', '.join(strengths[:3])}."
+        if strengths
+        else "No strong dimensions are consistent yet."
+    )
+    need_line = (
+        f"Priority next steps: strengthen {', '.join(needs[:3])}."
+        if needs
+        else "Next step is to sustain the current quality across longer tasks."
+    )
+    return f"{opener} {strength_line} {need_line}"
+
+
+def _safe_float_metric(value: Any, default: float = 0.0) -> float:
+    try:
+        parsed = float(value)
+        if np.isnan(parsed) or np.isinf(parsed):
+            return default
+        return parsed
+    except Exception:
+        return default
+
+
+def _safe_model_dump(obj: Any) -> dict:
+    if obj is None:
+        return {}
+    if hasattr(obj, "model_dump"):
+        try:
+            return cast(dict, obj.model_dump())
+        except Exception:
+            return {}
+    if hasattr(obj, "dict"):
+        try:
+            return cast(dict, obj.dict())
+        except Exception:
+            return {}
+    if isinstance(obj, dict):
+        return obj
+    return {}
+
+
+def _build_reliable_fallback_rubric(grade_level: str, reason: str) -> dict:
+    neutral_score = 2
+    return {
+        "content": {
+            "score": neutral_score,
+            "rationale": "Not enough stable signal yet; using a conservative baseline score.",
+        },
+        "organization": {
+            "score": neutral_score,
+            "rationale": "Not enough stable signal yet; using a conservative baseline score.",
+        },
+        "language_vocab": {
+            "score": neutral_score,
+            "rationale": "Not enough stable signal yet; using a conservative baseline score.",
+        },
+        "grammar": {
+            "score": neutral_score,
+            "rationale": "Not enough stable signal yet; using a conservative baseline score.",
+        },
+        "mechanics": {
+            "score": neutral_score,
+            "rationale": "Not enough stable signal yet; using a conservative baseline score.",
+        },
+        "overall_score": 2.0,
+        "overall_feedback": (
+            "The system returned a reliability-safe baseline because analysis inputs were incomplete "
+            f"or unstable ({reason}). Please provide a longer essay and try again for a more precise score."
+        ),
+        "grade_level": grade_level,
+        "language": "english",
+    }
+
+
+async def evaluate_rubric_with_ml_english(text: str, grade_level: str) -> dict:
+    """Local ML rubric scoring for English only (no Gemini dependency)."""
+    from grammar_service import GrammarCheckRequest, check_grammar
+
+    cleaned_text = (text or "").strip()
+    if len(cleaned_text.split()) < 10:
+        return _build_reliable_fallback_rubric(grade_level, "text too short")
+
+    features_task = asyncio.create_task(run_cpu_bound(extract_features, cleaned_text, language="en"))
+    grammar_task = asyncio.create_task(check_grammar(GrammarCheckRequest(text=cleaned_text, language="en")))
+    feature_result, grammar_result = await asyncio.gather(features_task, grammar_task, return_exceptions=True)
+
+    if isinstance(feature_result, Exception):
+        logger.warning(f"ML rubric feature extraction failed: {feature_result}")
+        return _build_reliable_fallback_rubric(grade_level, "feature extraction failed")
+
+    features = feature_result if isinstance(feature_result, dict) else {}
+    grammar_data = _safe_model_dump(None if isinstance(grammar_result, Exception) else grammar_result)
+
+    metrics = features.get("metrics", {})
+    vector = features.get("vector")
+
+    # Use trained English proficiency model signal as the global anchor.
+    model_band = student_model_en.ml_predict(vector) if vector is not None else None
+    anchored_overall = _band_to_overall_score(str(model_band or "Papaunlad"))
+
+    word_count = _safe_float_metric(metrics.get("wordCount", 0), 0.0)
+    vocab = _safe_float_metric(metrics.get("vocabularyRichness", 0), 0.0)
+    structure = _safe_float_metric(metrics.get("structureCohesion", 0), 0.0)
+    sentence_complexity = _safe_float_metric(metrics.get("sentenceComplexity", 0), 0.0)
+    discourse_ratio = _safe_float_metric(metrics.get("discourseConnectorRatio", 0), 0.0)
+    advanced_count = _safe_float_metric(metrics.get("advancedWordCount", 0), 0.0)
+    sent_variety = _safe_float_metric(metrics.get("sentLenStdDev", 0), 0.0)
+    difficult_ratio = _safe_float_metric(metrics.get("difficultWordRatio", 0), 0.0)
+
+    grammar_issues = grammar_data.get("issues", []) if isinstance(grammar_data.get("issues", []), list) else []
+    issue_count = _safe_float_metric(grammar_data.get("issue_count", len(grammar_issues)), float(len(grammar_issues)))
+    error_count = float(len([
+        i for i in grammar_issues
+        if isinstance(i, dict) and str(i.get("severity", "")).lower() == "error"
+    ]))
+
+    if word_count <= 0:
+        per_100_words_issues = 0.0
+    else:
+        per_100_words_issues = (issue_count / word_count) * 100.0
+    grammar_quality = _clamp(100.0 - (per_100_words_issues * 8.0), 0.0, 100.0)
+
+    # NLP/grammar feature composites (0-100), then projected to DepEd 1-4.
+    content_base = (
+        _clamp(word_count / 2.5, 0.0, 100.0) * 0.25
+        + _clamp(discourse_ratio * 220.0, 0.0, 100.0) * 0.25
+        + _clamp(structure, 0.0, 100.0) * 0.25
+        + _clamp(vocab, 0.0, 100.0) * 0.25
+    )
+    organization_base = (
+        _clamp(structure, 0.0, 100.0) * 0.45
+        + _clamp(sentence_complexity, 0.0, 100.0) * 0.35
+        + _clamp(sent_variety / 12.0 * 100.0, 0.0, 100.0) * 0.20
+    )
+    language_base = (
+        _clamp(vocab, 0.0, 100.0) * 0.55
+        + _clamp((advanced_count / max(word_count, 1.0)) * 1400.0, 0.0, 100.0) * 0.30
+        + _clamp((1.0 - difficult_ratio) * 100.0, 0.0, 100.0) * 0.15
+    )
+    grammar_base = (
+        grammar_quality * 0.75
+        + _clamp(structure, 0.0, 100.0) * 0.25
+    )
+    mechanics_base = _clamp(100.0 - (error_count / max(word_count, 1.0) * 900.0), 0.0, 100.0)
+
+    # Keep per-dimension scores consistent with the model's overall proficiency signal.
+    anchor_0_100 = (anchored_overall - 1.0) / 3.0 * 100.0
+    blend = lambda raw: _clamp((raw * 0.65) + (anchor_0_100 * 0.35), 0.0, 100.0)
+
+    content_score = _to_rubric_score(blend(content_base))
+    organization_score = _to_rubric_score(blend(organization_base))
+    language_score = _to_rubric_score(blend(language_base))
+    grammar_score = _to_rubric_score(blend(grammar_base))
+    mechanics_score = _to_rubric_score(blend(mechanics_base))
+
+    overall_score = round((
+        content_score
+        + organization_score
+        + language_score
+        + grammar_score
+        + mechanics_score
+    ) / 5.0, 2)
+    overall_score = round(_clamp(overall_score, 1.0, 4.0), 2)
+
+    overall_feedback = _build_ml_rubric_feedback(
+        overall_score,
+        content_score,
+        organization_score,
+        language_score,
+        grammar_score,
+        mechanics_score,
+    )
+
+    return {
+        "content": {
+            "score": content_score,
+            "rationale": f"ML signals show content depth and support at a score-{content_score} level for this grade.",
+        },
+        "organization": {
+            "score": organization_score,
+            "rationale": f"Cohesion and sentence-flow features place organization at score {organization_score}.",
+        },
+        "language_vocab": {
+            "score": language_score,
+            "rationale": f"Vocabulary richness and lexical range features map to score {language_score}.",
+        },
+        "grammar": {
+            "score": grammar_score,
+            "rationale": f"Error-rate and syntax-control features indicate grammar performance at score {grammar_score}.",
+        },
+        "mechanics": {
+            "score": mechanics_score,
+            "rationale": f"Convention-level issue density aligns with mechanics score {mechanics_score}.",
+        },
+        "overall_score": overall_score,
+        "overall_feedback": overall_feedback,
+        "grade_level": grade_level,
+        "language": "english",
+    }
+
+
 @app.get("/")
 def read_root():
     return {"message": "FastAPI backend is running!"}
@@ -681,6 +1006,199 @@ def get_evaluation_metrics():
         "complexity": complexity_model.get_performance_metrics()
     }
 
+
+@app.post("/analyze/benchmark")
+async def benchmark_analysis_pipeline(request: BenchmarkRequest):
+    """Benchmark analysis stages and compare sequential vs concurrent execution."""
+    try:
+        iterations = max(1, min(int(request.iterations or 1), 20))
+        text_to_analyze = request.text or ""
+
+        ocr_ms = 0.0
+        if request.image:
+            ocr_start = time.perf_counter()
+            mime = (request.mimeType or "").lower()
+            if mime == "application/pdf":
+                ocr_text = await run_cpu_bound(extract_text_from_pdf, request.image)
+                if not ocr_text.strip():
+                    ocr_result = await run_cpu_bound(
+                        extract_text_from_image,
+                        request.image,
+                        get_gemini_api_key(),
+                        mime_type="application/pdf"
+                    )
+                    ocr_text = ocr_result.get("text", "")
+            else:
+                ocr_result = await run_cpu_bound(
+                    extract_text_from_image,
+                    request.image,
+                    get_gemini_api_key(),
+                    mime_type=mime
+                )
+                ocr_text = ocr_result.get("text", "")
+
+            if ocr_text:
+                text_to_analyze = (text_to_analyze + "\n" + ocr_text).strip()
+            ocr_ms = round((time.perf_counter() - ocr_start) * 1000.0, 2)
+
+        from grammar_service import detect_language, check_grammar, GrammarCheckRequest
+
+        lang_start = time.perf_counter()
+        detected_lang = detect_language(text_to_analyze)
+        detect_language_ms = round((time.perf_counter() - lang_start) * 1000.0, 2)
+
+        student_model = student_model_en if detected_lang == 'en' else student_model_tl
+
+        # Sequential baseline (single run)
+        seq_grammar_start = time.perf_counter()
+        seq_grammar = await check_grammar(GrammarCheckRequest(text=text_to_analyze, language=detected_lang))
+        seq_grammar_ms = (time.perf_counter() - seq_grammar_start) * 1000.0
+
+        seq_features_start = time.perf_counter()
+        seq_features = await run_cpu_bound(extract_features, text_to_analyze, language=detected_lang)
+        seq_features_ms = (time.perf_counter() - seq_features_start) * 1000.0
+
+        seq_model_start = time.perf_counter()
+        await run_cpu_bound(
+            student_model.predict,
+            seq_features,
+            text_to_analyze,
+            grammar_data=seq_grammar.model_dump(),
+            language=detected_lang
+        )
+        seq_model_ms = (time.perf_counter() - seq_model_start) * 1000.0
+        sequential_total_ms = seq_grammar_ms + seq_features_ms + seq_model_ms
+
+        # Sequential complexity baseline (single run)
+        seq_complexity_features_start = time.perf_counter()
+        seq_complexity_features = await run_cpu_bound(extract_features, text_to_analyze, language=detected_lang)
+        seq_complexity_features_ms = (time.perf_counter() - seq_complexity_features_start) * 1000.0
+
+        seq_complexity_model_start = time.perf_counter()
+        await run_cpu_bound(complexity_model.predict, seq_complexity_features, text_to_analyze)
+        seq_complexity_model_ms = (time.perf_counter() - seq_complexity_model_start) * 1000.0
+        sequential_complexity_total_ms = seq_complexity_features_ms + seq_complexity_model_ms
+
+        runs = []
+        for i in range(iterations):
+            run_start = time.perf_counter()
+
+            # Student analysis (concurrent grammar + features)
+            student_start = time.perf_counter()
+            grammar_task = asyncio.create_task(check_grammar(GrammarCheckRequest(
+                text=text_to_analyze,
+                language=detected_lang
+            )))
+            features_task = asyncio.create_task(run_cpu_bound(
+                extract_features,
+                text_to_analyze,
+                language=detected_lang
+            ))
+
+            grammar_result, student_features = await asyncio.gather(grammar_task, features_task)
+
+            student_model_start = time.perf_counter()
+            await run_cpu_bound(
+                student_model.predict,
+                student_features,
+                text_to_analyze,
+                grammar_data=grammar_result.model_dump(),
+                language=detected_lang
+            )
+            student_model_ms = (time.perf_counter() - student_model_start) * 1000.0
+            student_total_ms = (time.perf_counter() - student_start) * 1000.0
+
+            # Complexity analysis
+            complexity_start = time.perf_counter()
+            complexity_features = await run_cpu_bound(extract_features, text_to_analyze, language=detected_lang)
+
+            complexity_model_start = time.perf_counter()
+            await run_cpu_bound(complexity_model.predict, complexity_features, text_to_analyze)
+            complexity_model_ms = (time.perf_counter() - complexity_model_start) * 1000.0
+            complexity_total_ms = (time.perf_counter() - complexity_start) * 1000.0
+
+            run_total_ms = (time.perf_counter() - run_start) * 1000.0
+            runs.append({
+                "run": i + 1,
+                "student_total_ms": round(student_total_ms, 2),
+                "student_model_ms": round(student_model_ms, 2),
+                "complexity_total_ms": round(complexity_total_ms, 2),
+                "complexity_model_ms": round(complexity_model_ms, 2),
+                "combined_total_ms": round(run_total_ms, 2),
+            })
+
+        def _avg(key: str) -> float:
+            vals = [r[key] for r in runs]
+            return round(sum(vals) / len(vals), 2) if vals else 0.0
+
+        avg_student_ms = _avg("student_total_ms")
+        avg_complexity_ms = _avg("complexity_total_ms")
+        avg_combined_ms = _avg("combined_total_ms")
+
+        old_student_ms = round(sequential_total_ms, 2)
+        old_complexity_ms = round(sequential_complexity_total_ms, 2)
+        old_combined_ms = round(sequential_total_ms + sequential_complexity_total_ms, 2)
+
+        def _improvement(old: float, new: float) -> float:
+            if old <= 0:
+                return 0.0
+            return round(((old - new) / old) * 100.0, 2)
+
+        old_vs_new = {
+            "student": {
+                "old_ms": old_student_ms,
+                "new_ms": avg_student_ms,
+                "speedup_x": round(old_student_ms / max(avg_student_ms, 1e-6), 2),
+                "improvement_percent": _improvement(old_student_ms, avg_student_ms),
+            },
+            "complexity": {
+                "old_ms": old_complexity_ms,
+                "new_ms": avg_complexity_ms,
+                "speedup_x": round(old_complexity_ms / max(avg_complexity_ms, 1e-6), 2),
+                "improvement_percent": _improvement(old_complexity_ms, avg_complexity_ms),
+            },
+            "combined": {
+                "old_ms": old_combined_ms,
+                "new_ms": avg_combined_ms,
+                "speedup_x": round(old_combined_ms / max(avg_combined_ms, 1e-6), 2),
+                "improvement_percent": _improvement(old_combined_ms, avg_combined_ms),
+            },
+        }
+
+        return {
+            "language": "eng" if detected_lang == "en" else "fil",
+            "cpu_workers": CPU_WORKERS,
+            "iterations": iterations,
+            "one_time": {
+                "ocr_ms": ocr_ms,
+                "detect_language_ms": detect_language_ms,
+            },
+            "student_sequential_baseline_ms": {
+                "grammar_ms": round(seq_grammar_ms, 2),
+                "features_ms": round(seq_features_ms, 2),
+                "model_ms": round(seq_model_ms, 2),
+                "total_ms": round(sequential_total_ms, 2),
+            },
+            "complexity_sequential_baseline_ms": {
+                "features_ms": round(seq_complexity_features_ms, 2),
+                "model_ms": round(seq_complexity_model_ms, 2),
+                "total_ms": round(sequential_complexity_total_ms, 2),
+            },
+            "concurrent_averages_ms": {
+                "student_total_ms": avg_student_ms,
+                "complexity_total_ms": avg_complexity_ms,
+                "combined_total_ms": avg_combined_ms,
+            },
+            "estimated_student_speedup_x": round(
+                (sequential_total_ms / max(avg_student_ms, 1e-6)),
+                2
+            ),
+            "old_vs_new": old_vs_new,
+            "runs": runs,
+        }
+    except Exception as e:
+        return {"error": _friendly_error(e)}
+
 @app.post("/analyze/student")
 async def analyze_student_text(request: TextRequest): # Added async to handle await
     try:
@@ -688,33 +1206,42 @@ async def analyze_student_text(request: TextRequest): # Added async to handle aw
         if request.image:
             mime = (request.mimeType or "").lower()
             if mime == "application/pdf":
-                ocr_text = extract_text_from_pdf(request.image)
+                ocr_text = await run_cpu_bound(extract_text_from_pdf, request.image)
             else:
-                ocr_text = extract_text_from_image(request.image, get_gemini_api_key(), mime_type=mime).get("text", "")
+                ocr_result = await run_cpu_bound(
+                    extract_text_from_image,
+                    request.image,
+                    get_gemini_api_key(),
+                    mime_type=mime
+                )
+                ocr_text = ocr_result.get("text", "")
 
             if ocr_text:
                 text_to_analyze = (text_to_analyze + "\n" + ocr_text).strip()
 
         from grammar_service import detect_language, check_grammar, GrammarCheckRequest
         detected_lang = detect_language(text_to_analyze)
-        
-        # 1. NEW: Get real grammar data from the service
-        # This replaces the hard-coded 85.0 accuracy in the model
-        grammar_result = await check_grammar(GrammarCheckRequest(
-            text=text_to_analyze, 
+
+        # Run independent heavy stages concurrently to use multiple cores.
+        grammar_task = asyncio.create_task(check_grammar(GrammarCheckRequest(
+            text=text_to_analyze,
+            language=detected_lang
+        )))
+        features_task = asyncio.create_task(run_cpu_bound(
+            extract_features,
+            text_to_analyze,
             language=detected_lang
         ))
+
+        grammar_result, features = await asyncio.gather(grammar_task, features_task)
         
-        # 2. Extract features as usual
-        features = extract_features(text_to_analyze, language=detected_lang)
-        
-        # 3. MODIFIED: Pass the grammar results into the prediction model
-        # This allows the classifier and metrics to work together for the score
+        # Run model inference off the event loop to avoid blocking other requests.
         model = student_model_en if detected_lang == 'en' else student_model_tl
-        result = model.predict(
+        result = await run_cpu_bound(
+            model.predict,
             features,
             text_to_analyze,
-            grammar_data=grammar_result.dict(),
+            grammar_data=grammar_result.model_dump(),
             language=detected_lang
         )
 
@@ -727,11 +1254,18 @@ async def analyze_student_text(request: TextRequest): # Added async to handle aw
 @app.post("/analyze/rubric")
 async def analyze_rubric(request: RubricRequest):
     try:
-        result = await evaluate_rubric_with_gemini(
-            text=request.text,
-            language=request.language,
-            grade_level=request.grade_level
-        )
+        normalized_language = _normalize_rubric_language(request.language)
+        if normalized_language == "english":
+            result = await evaluate_rubric_with_ml_english(
+                text=request.text,
+                grade_level=request.grade_level,
+            )
+        else:
+            result = await evaluate_rubric_with_gemini(
+                text=request.text,
+                language=normalized_language,
+                grade_level=request.grade_level,
+            )
         return result
     except ValueError as e:
         raise HTTPException(status_code=503, detail="Rubric evaluation is temporarily unavailable. Please try again.")
@@ -1136,20 +1670,32 @@ async def detect_language_endpoint(request: DetectLanguageRequest):
 
 
 @app.post("/analyze/complexity")
-def analyze_complexity_text(request: TextRequest):
+async def analyze_complexity_text(request: TextRequest):
     print(f"DEBUG: analyze_complexity_text called. Has image: {bool(request.image)}, Has text: {bool(request.text)}")
     try:
         text_to_analyze = request.text
         if request.image:
             mime = (request.mimeType or "").lower()
             if mime == "application/pdf":
-                ocr_text = extract_text_from_pdf(request.image)
+                ocr_text = await run_cpu_bound(extract_text_from_pdf, request.image)
                 # Scanned PDF — pypdf finds no text layer; fall back to Gemini OCR
                 if not ocr_text.strip():
                     print("DEBUG: pypdf returned no text (scanned PDF), falling back to Gemini OCR")
-                    ocr_text = extract_text_from_image(request.image, get_gemini_api_key(), mime_type="application/pdf").get("text", "")
+                    ocr_result = await run_cpu_bound(
+                        extract_text_from_image,
+                        request.image,
+                        get_gemini_api_key(),
+                        mime_type="application/pdf"
+                    )
+                    ocr_text = ocr_result.get("text", "")
             else:
-                ocr_text = extract_text_from_image(request.image, get_gemini_api_key(), mime_type=mime).get("text", "")
+                ocr_result = await run_cpu_bound(
+                    extract_text_from_image,
+                    request.image,
+                    get_gemini_api_key(),
+                    mime_type=mime
+                )
+                ocr_text = ocr_result.get("text", "")
             if ocr_text:
                 text_to_analyze = (text_to_analyze + "\n" + ocr_text).strip()
 
@@ -1157,10 +1703,10 @@ def analyze_complexity_text(request: TextRequest):
         detected_lang = detect_language(text_to_analyze)
         
         # Ensure preprocessing.py is synced with the training features
-        features = extract_features(text_to_analyze, language=detected_lang)
+        features = await run_cpu_bound(extract_features, text_to_analyze, language=detected_lang)
         
         # Use the TextComplexitySVM predict method
-        result = complexity_model.predict(features, text_to_analyze)
+        result = await run_cpu_bound(complexity_model.predict, features, text_to_analyze)
 
         result["analyzed_text"] = text_to_analyze
 

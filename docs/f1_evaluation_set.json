@@ -1,0 +1,210 @@
+{
+  "description": "F1 Score Evaluation Dataset — ReadTrack System",
+  "instructions": "For each item: (1) enter teacher_label based on your own assessment, (2) run it through the system to get system_label, (3) compute F1 score using the confusion matrix at the bottom.",
+  "reading_materials": [
+    {
+      "id": "mat-en-01",
+      "language": "english",
+      "ground_truth": "Independent",
+      "difficulty_notes": "Short sentences, basic Grade 5-level vocabulary, familiar science topic",
+      "title": "Water: The Source of Life",
+      "text": "Water is very important to all living things. Without water, no plant or animal can survive. Our bodies are made up of about sixty percent water. We need to drink clean water every day to stay healthy. Water helps our blood move through our body. It also helps us digest food. We get water from rivers, lakes, and rain. We should take care of our water sources. Do not throw garbage near rivers and streams. A clean water supply keeps our communities safe and healthy."
+    },
+    {
+      "id": "mat-en-02",
+      "language": "english",
+      "ground_truth": "Independent",
+      "difficulty_notes": "Simple narrative style, Grade 5-6 reading level, common topic",
+      "title": "The Human Heart",
+      "text": "The heart is a muscle inside your chest. It pumps blood all over your body. The heart beats about seventy times every minute. When you run or exercise, your heart beats faster. This is because your muscles need more blood and oxygen. The heart has four rooms called chambers. Two chambers receive blood, and two chambers pump it out. Taking care of your heart is important. Eating healthy food, sleeping well, and exercising every day keeps your heart strong. Avoid eating too much sugar and fatty food. A healthy heart means a healthier and longer life."
+    },
+    {
+      "id": "mat-en-03",
+      "language": "english",
+      "ground_truth": "Instructional",
+      "difficulty_notes": "Grade 7 science topic, moderate vocabulary, some technical terms explained",
+      "title": "Photosynthesis: How Plants Make Food",
+      "text": "Photosynthesis is the process by which plants produce their own food using sunlight. It takes place mainly in the leaves, where tiny structures called chloroplasts contain a green pigment known as chlorophyll. During photosynthesis, plants absorb carbon dioxide from the air through small openings called stomata, and water from the soil through their roots. Using the energy from sunlight, these raw materials are converted into glucose, a type of sugar that serves as food for the plant. Oxygen is released as a byproduct of this process, which is why plants are essential for maintaining breathable air. The overall equation can be summarized as: carbon dioxide plus water, in the presence of sunlight and chlorophyll, produces glucose and oxygen. Without photosynthesis, life on Earth as we know it would not be possible, since it forms the foundation of nearly all food chains."
+    },
+    {
+      "id": "mat-en-04",
+      "language": "english",
+      "ground_truth": "Instructional",
+      "difficulty_notes": "Grade 7 science, moderate-complex sentences, ecological concepts",
+      "title": "Ecosystems and the Flow of Energy",
+      "text": "An ecosystem is a community of living organisms interacting with one another and with their physical environment. Energy flows through an ecosystem in a specific direction — from producers to consumers, and eventually to decomposers. Producers, such as plants and algae, capture energy from sunlight and convert it into organic matter through photosynthesis. Primary consumers, or herbivores, obtain energy by eating plants. Secondary consumers are carnivores that feed on herbivores, and so on up the food chain. At each level of this transfer, approximately ninety percent of the energy is lost as heat, which is why ecosystems can only support fewer organisms at higher trophic levels. Decomposers — bacteria and fungi — break down dead organisms, returning essential nutrients to the soil. This nutrient cycling ensures that matter is continuously reused within an ecosystem, sustaining its biological productivity over time."
+    },
+    {
+      "id": "mat-en-05",
+      "language": "english",
+      "ground_truth": "Frustration",
+      "difficulty_notes": "Above Grade 7, complex technical vocabulary, abstract biochemical concepts, long sentences",
+      "title": "Cellular Respiration and Metabolic Pathways",
+      "text": "Cellular respiration is the biochemical process through which living organisms catabolize organic molecules — predominantly glucose — to produce adenosine triphosphate (ATP), the universal energy currency of biological systems. The process is organized into three principal stages: glycolysis, which occurs in the cytoplasm and involves the phosphorylation and cleavage of glucose into two pyruvate molecules; the Krebs cycle (also known as the citric acid cycle), which takes place in the mitochondrial matrix and generates NADH and FADH₂ as electron carriers; and oxidative phosphorylation via the electron transport chain embedded in the inner mitochondrial membrane, which drives the chemiosmotic synthesis of ATP through the action of ATP synthase. The net energy yield per mole of glucose under aerobic conditions approximates thirty to thirty-eight ATP molecules, a substantially greater output than that produced by anaerobic fermentation. Dysregulation of mitochondrial respiration is implicated in a wide range of pathological conditions, including neurodegenerative disorders, metabolic syndrome, and oncogenesis, underscoring its centrality to cellular homeostasis and organismal physiology."
+    },
+    {
+      "id": "mat-fil-01",
+      "language": "filipino",
+      "ground_truth": "Independent",
+      "difficulty_notes": "Maikling pangungusap, pamilyar na paksa, Grade 5-6 na antas ng bokabularyo",
+      "title": "Ang Ating Pamilya",
+      "text": "Ang pamilya ang pinakamahalagang grupo ng tao sa ating buhay. Ang pamilya ay binubuo ng ama, ina, at mga anak. May mga pamilyang may lolo at lola rin. Ang bawat miyembro ng pamilya ay may tungkulin. Ang ama at ina ay nagtatrabaho para sa pangangailangan ng lahat. Ang mga anak naman ay nag-aaral nang husto. Mahalaga ang pagmamahal at pagtutulungan sa loob ng pamilya. Kapag may problema, ang pamilya ay magkasamang humarap dito. Kailangan nating igalang at mahalin ang ating mga magulang. Ang isang matibay na pamilya ay saligan ng isang masayang pamumuhay."
+    },
+    {
+      "id": "mat-fil-02",
+      "language": "filipino",
+      "ground_truth": "Independent",
+      "difficulty_notes": "Simpleng bokabularyo, pamilyar na paksa, maikling pangungusap",
+      "title": "Ang Kalikasan ng Pilipinas",
+      "text": "Ang Pilipinas ay mayamang bansa pagdating sa kalikasan. Mayroon tayong maraming bundok, ilog, dagat, at kagubatan. Sa ating mga kagubatan ay nakatira ang iba't ibang hayop at halaman. Ang ating mga karagatan ay puno ng isda at iba pang mga yamang-dagat. Dapat nating ingatan ang kalikasan para sa ating mga anak at apo. Huwag magtapon ng basura sa ilog at dagat. Huwag ding putulin ang mga puno nang walang dahilan. Ang bawat isa sa atin ay may pananagutang pangalagaan ang kapaligiran. Kung iingatan natin ang kalikasan, lagi tayong magkakaroon ng malinis na hangin at tubig."
+    },
+    {
+      "id": "mat-fil-03",
+      "language": "filipino",
+      "ground_truth": "Instructional",
+      "difficulty_notes": "Grade 7 araling panlipunan, katamtamang bokabularyo, may ilang teknikal na termino",
+      "title": "Ang Kasaysayan ng Kolonisasyon ng Pilipinas",
+      "text": "Ang Pilipinas ay dumaan sa mahaba at mabigat na panahon ng pananakop ng mga dayuhang kapangyarihan. Noong ika-labing-anim na siglo, dumating ang mga Espanyol sa pamumuno ni Ferdinand Magellan at inangkin ang kapuluan para sa Espanya. Naging kolonya ng Espanya ang Pilipinas sa loob ng tatlondaan at tatlumpu't walong taon. Sa panahong ito, pinalawak ng mga Espanyol ang Kristiyanismo at isintatag ang mga bayan at pamahalaang kolonyal. Nagkaroon ng maraming rebelyon ang mga Pilipino laban sa mapang-aping pamamahala. Sa bandang huli, noong 1896, nagsimula ang Himagsikan sa pamumuno ni Andres Bonifacio at ng Katipunan. Ang rebolusyonaryong kilusan ay nagbunsod sa pagpapahayag ng kalayaan ng Pilipinas noong 1898, bagaman muli itong napailalim sa pananakop ng Amerika sa kasunod na mga taon. Ang kasaysayan ng kolonisasyon ay nagpapakita kung paano humubog ang mga dayuhang impluwensiya sa kultura, wika, at lipunan ng Pilipinas."
+    },
+    {
+      "id": "mat-fil-04",
+      "language": "filipino",
+      "ground_truth": "Instructional",
+      "difficulty_notes": "Grade 7 araling panlipunan, katamtamang kahirapan, may ilang abstraktong konsepto",
+      "title": "Ang Ekonomiya ng Pilipinas at ang Sektor ng Agrikultura",
+      "text": "Ang ekonomiya ng Pilipinas ay nakabatay sa tatlong pangunahing sektor: agrikultura, industriya, at serbisyo. Sa mahabang panahon, ang agrikultura ang nagsisilbing pundasyon ng kabuhayan ng karamihan sa mga Pilipino, lalo na sa mga probinsya. Ang mga pangunahing pananim tulad ng palay, mais, niyog, at asukal ay ilan sa mga inaani ng mga magsasaka sa buong kapuluan. Gayunpaman, humarap ang sektor ng agrikultura sa maraming hamon: ang pagbabago ng klima, limitadong access sa teknolohiya at pagpopondo, at lumalawak na urbanisasyon na nagpapababa ng lupang pang-agrikultura. Upang mapabuti ang kalagayan ng mga magsasaka, nagpapatupad ang pamahalaan ng iba't ibang programa tulad ng agrarian reform at subsidyo para sa mga input na pang-agrikultura. Ang pagpapaunlad ng rural na ekonomiya ay susi sa pagbabago ng kabuhayan ng milyun-milyong Pilipino na umaasa sa pagsasaka bilang kanilang pangunahing pinagkabuhayan."
+    },
+    {
+      "id": "mat-fil-05",
+      "language": "filipino",
+      "ground_truth": "Frustration",
+      "difficulty_notes": "Mataas na antas ng bokabularyo, mahabang pangungusap, abstraktong konsepto sa pulitika at batas",
+      "title": "Ang Konstitusyonal na Demokrasya at ang Prinsipyo ng Paghihiwalay ng Kapangyarihan",
+      "text": "Ang konstitusyonal na demokrasya ay isang sistemang pampulitika na kinilala sa Saligang Batas ng 1987 ng Pilipinas bilang pundasyon ng pamamahalang Pilipino. Sa ilalim ng naturang sistemang ito, ipinagbabawal ang anumang uri ng diktatoryal na paghahari, at tinitiyak ang pananagutan ng mga kinatawan ng pamahalaan sa mamamayan sa pamamagitan ng periodic na halalan. Isang mahalagang prinsipyo ng demokratikong pamamahala ang paghihiwalay ng kapangyarihan sa tatlong sangay: ang lehislatibo, na gumagawa ng mga batas; ang ehekutibo, na nagpapatupad ng mga ito; at ang hudikatura, na nagbibigay-kahulugan at nagpapairal ng mga batas alinsunod sa Saligang Batas. Ang sistemang ito ng checks and balances ay dinisenyo upang maiwasan ang konsentrasyon ng kapangyarihan sa iisang indibidwal o institusyon, at upang pangalagaan ang mga pangunahing karapatan ng mamamayan. Ang epektibong pagpapairal ng konstitusyonal na demokrasya ay nangangailangan ng isang literate at mapanuring mamamayan, isang malaya at responsableng midya, at mga institusyong pampulitikang nagtataglay ng integridad at sapat na awtonomiya mula sa impluwensiya ng mga partikular na interes."
+    }
+  ],
+  "student_essays": [
+    {
+      "id": "essay-en-01",
+      "language": "english",
+      "ground_truth": "Nagsisimula",
+      "proficiency_notes": "Many grammatical errors, very short, no clear organization, limited vocabulary",
+      "prompt": "Write about the importance of education.",
+      "text": "Education is very important. Because without education we cannot get job. I think student must go to school everyday. My teacher said education is key to succes. In my school we have many subject like math, science, english and filipino. Education help us to become good person. Also we can help our family if we have education. Student who not go school is bad. We must study hard to have better future. Thats why education is important for us all."
+    },
+    {
+      "id": "essay-en-02",
+      "language": "english",
+      "ground_truth": "Nagsisimula",
+      "proficiency_notes": "Very poor sentence construction, repetitive, incoherent ideas, minimal vocabulary",
+      "prompt": "Describe your favorite place.",
+      "text": "My favorite place is the park near our house. I like the park because it is nice. In the park there is trees and flowers. I go there with my friends. We play in the park. The park is big and we run there. There is also a bench in the park. My lola also go to the park sometimes. She like it too. The park is clean. I hope the park will always nice. I very happy when I am in the park. Park is my favorite place because I like it very much. It make me happy always."
+    },
+    {
+      "id": "essay-en-03",
+      "language": "english",
+      "ground_truth": "Papaunlad",
+      "proficiency_notes": "Some grammatical errors, partial organization, developing ideas, adequate vocabulary",
+      "prompt": "What are the effects of pollution on our environment?",
+      "text": "Pollution is one of the serious problems that we face today in our environment. There are different kinds of pollution such as air pollution, water pollution, and land pollution. Each of these types has harmful effects on living things.\n\nAir pollution comes from cars, factories, and burning of garbage. When we breathe polluted air, it can cause respiratory problems like asthma and cough. Water pollution, on the other hand, happens when chemicals and garbage are thrown into rivers and oceans. This kills the fish and other sea creatures, and also makes the water unsafe for drinking.\n\nLand pollution is caused by improper disposal of waste. When trash is left everywhere, it destroys the beauty of nature and can also cause diseases. Animals that eat plastic or chemical waste can get sick or die.\n\nWe should all work together to stop pollution. Simple acts like proper waste segregation, using public transportation, and planting trees can make a big difference. If we do not act now, our environment will continue to suffer and future generations will have a harder life."
+    },
+    {
+      "id": "essay-en-04",
+      "language": "english",
+      "ground_truth": "Papaunlad",
+      "proficiency_notes": "Adequate organization, some complex sentences, minor errors, clear main idea but underdeveloped",
+      "prompt": "Should students be required to wear school uniforms? Give your opinion.",
+      "text": "The issue of whether students should wear school uniforms has been debated for many years. In my opinion, wearing uniforms should be required in schools, although there are also some disadvantages to consider.\n\nOne important advantage of uniforms is that they promote equality among students. When everyone wears the same clothes, no one is judged based on what brand or style they wear. This can help reduce bullying and social pressure related to fashion. Uniforms also help students focus more on their studies rather than thinking about what to wear every day.\n\nHowever, some students feel that uniforms take away their freedom to express themselves. Clothing is one way that young people show their personality, and uniforms can make students feel that they are not treated as individuals.\n\nDespite this concern, I still believe that the benefits of wearing uniforms outweigh the drawbacks. Schools are places for learning, and uniforms help create a more serious and orderly environment. Students can still express their personality through their actions, achievements, and the way they treat others.\n\nIn conclusion, school uniforms should be required because they encourage equality, reduce distractions, and promote a sense of school identity."
+    },
+    {
+      "id": "essay-en-05",
+      "language": "english",
+      "ground_truth": "Mahusay",
+      "proficiency_notes": "Well-organized, varied sentence structure, strong vocabulary, clear argument with supporting evidence",
+      "prompt": "Discuss the impact of social media on Filipino youth.",
+      "text": "Social media has become an undeniable force in the lives of Filipino youth, shaping the way they communicate, learn, and perceive the world around them. While platforms such as Facebook, TikTok, and YouTube offer unprecedented opportunities for connection and information, their unregulated use poses significant risks to the well-being and development of young Filipinos.\n\nOn a positive note, social media enables students to access a vast array of educational content beyond the confines of the classroom. Many teachers and educators share lessons, tutorials, and resources online, making learning more accessible especially to those in remote areas. Furthermore, social media has empowered young Filipinos to participate in civic discourse, raise awareness on social issues, and amplify voices that would otherwise go unheard.\n\nHowever, excessive screen time and uncritical consumption of online content carry serious consequences. Studies indicate that prolonged social media use is associated with increased anxiety, depression, and diminished attention spans among adolescents. The spread of misinformation is another pressing concern, as young users may lack the digital literacy skills needed to distinguish credible sources from unreliable ones. Moreover, cyberbullying has emerged as a pervasive threat, with many students reporting online harassment that has adversely affected their mental health and academic performance.\n\nAddressing these challenges requires a collaborative effort among parents, educators, and policymakers. Digital literacy programs must be integrated into the school curriculum, and clear guidelines on healthy social media use should be established both at home and in school. When used responsibly and critically, social media can be a powerful tool for learning and civic engagement — but without proper guidance, it risks becoming a source of harm for an entire generation."
+    },
+    {
+      "id": "essay-fil-01",
+      "language": "filipino",
+      "ground_truth": "Nagsisimula",
+      "proficiency_notes": "Maraming pagkakamali sa gramatika, maikling talata, walang organisasyon, limitadong bokabularyo",
+      "prompt": "Isulat ang kahalagahan ng pag-aaral.",
+      "text": "Ang pag-aaral ay mahalaga. Kasi kapag hindi ka nag-aral hindi ka makakakuha ng trabaho. Ang mga magulang ko sinabi na mag-aral nang mabuti. Ako ay nag-aaral sa paaralan. Sa paaralan ay may maraming aralin. May math, science, at filipno. Ang pag-aaral ay tumutulong sa atin. Kapag may edukasyon tayo makaktulong sa pamilya. Ang mga batang hindi nag-aaral ay hindi magiging matagumpay. Kaya naman dapat tayong mag-aral ng husto. Ang pag-aaral ay importante para sa lahat ng tao. Ito ang dahilan kung bakit nag-aaral ako."
+    },
+    {
+      "id": "essay-fil-02",
+      "language": "filipino",
+      "ground_truth": "Nagsisimula",
+      "proficiency_notes": "Napaka-pangunahing bokabularyo, paulit-ulit na ideya, mahirap basahin ang mga pangungusap",
+      "prompt": "Ilarawan ang iyong paboritong bayani.",
+      "text": "Ang aking paboritong bayani ay si Jose Rizal. Si Jose Rizal ay isang bayani. Siya ay matalino. Nagsulat siya ng libro. Ang libro niya ay Noli Me Tangere. Mahal niya ang Pilipinas. Namatay siya para sa Pilipinas. Siya ay doktor din. At marunong din siyang mag-arte. Si Jose Rizal ay mabait. Kaya siya ang aking paboritong bayani. Gusto ko siyang tularan. Siya ay magaling. Ang lahat ng Pilipino ay dapat magmahal kay Rizal. Siya ang pambansang bayani ng Pilipinas. Mahal ko si Rizal."
+    },
+    {
+      "id": "essay-fil-03",
+      "language": "filipino",
+      "ground_truth": "Papaunlad",
+      "proficiency_notes": "May ilang pagkakamali, may simula ng organisasyon, katamtamang bokabularyo, may pangunahing ideya",
+      "prompt": "Ano ang epekto ng paggamit ng teknolohiya sa kabataan?",
+      "text": "Ang teknolohiya ay malaking bahagi na ng buhay ng kabataang Pilipino ngayon. Halos lahat ay may cellphone, tablet, o computer. Maraming benepisyo ang maidudulot ng teknolohiya, ngunit may mga negatibong epekto rin ito sa mga kabataan.\n\nSa positibong bahagi, nakakatulong ang teknolohiya sa pag-aaral. Maaaring maghanap ng impormasyon sa internet at manood ng mga educational na video. Maaari rin itong gamitin sa pakikipag-ugnayan sa mga kamag-aral at guro, lalo na noong panahon ng pandemya.\n\nSa kabilang banda, maraming kabataan ang nagsasayang ng maraming oras sa social media at mga laro sa computer. Dahil dito, nababawasan ang oras para sa pag-aaral at pamilya. May mga batang hindi na makatulog dahil sa sobrang paggamit ng gadget. Ang mga ito ay nagdudulot ng masamang epekto sa kalusugan at pag-aaral.\n\nKaya naman, mahalagang magtakda ng limitasyon sa paggamit ng teknolohiya. Ang mga magulang at guro ay may responsibilidad na gabayan ang mga kabataan tungo sa tamang paggamit nito. Kapag ginamit nang tama, ang teknolohiya ay magiging isang kapaki-pakinabang na kagamitan para sa kabataan."
+    },
+    {
+      "id": "essay-fil-04",
+      "language": "filipino",
+      "ground_truth": "Papaunlad",
+      "proficiency_notes": "Maayos ang organisasyon, may ilang komplikadong pangungusap, ilang pagkakamali, malinaw ang pangunahing ideya",
+      "prompt": "Dapat bang isulong ang pagpapanatili ng wikang Filipino? Ibigay ang iyong opinyon.",
+      "text": "Ang pagpapanatili ng wikang Filipino ay isang mahalagang isyu na kinakaharap ng ating bansa sa panahon ngayon. Sa aking paniniwala, dapat na isulong at pangalagaan ang ating pambansang wika bilang bahagi ng ating pagkakakilanlan bilang mga Pilipino.\n\nUna, ang wika ay salamin ng kultura at kasaysayan ng isang bansa. Ang Filipino ay hindi lamang isang paraan ng komunikasyon — ito ay nagtataglay ng mga salita, kasabihan, at kahulugang nagmumula sa malalim na kasaysayan ng ating mga ninuno. Kapag nawala ang wika, nawawala rin ang isang mahalagang bahagi ng ating pagkakakilanlan bilang isang bansa.\n\nIkawala, ang paggamit ng Filipino sa paaralan ay nagbibigay ng pantay na pagkakataon sa lahat ng mag-aaral, lalo na sa mga nagmumula sa mga lugar na hindi malakas ang paggamit ng Ingles. Ang pagtuturo sa sariling wika ay napatunayan na mabisa sa pagpapaunlad ng pag-unawa at kritikal na pag-iisip ng mga estudyante.\n\nGayunpaman, hindi naman ibig sabihin na dapat nating itakwil ang Ingles o iba pang wika. Ang multilingualism o pagiging marungong sa maraming wika ay isang kalamangan sa modernong mundo. Ang layunin ay bigyan ng patas na halaga ang Filipino habang pinagyayaman din ang kasanayan sa ibang wika.\n\nSa kabuuan, ang pagpapanatili ng wikang Filipino ay hindi lamang isang gawain ng pamahalaan — ito ay responsibilidad ng bawat Pilipino na nagmamahal sa kanyang bansa at kultura."
+    },
+    {
+      "id": "essay-fil-05",
+      "language": "filipino",
+      "ground_truth": "Mahusay",
+      "proficiency_notes": "Maayos at malinaw na organisasyon, mayamang bokabularyo, magkakaibang uri ng pangungusap, malakas na argumento",
+      "prompt": "Talakayin ang kahalagahan ng edukasyon sa pagpapaunlad ng bansa.",
+      "text": "Sa kasalukuyang pandaigdigang kaayusan, ang edukasyon ay hindi na lamang pribilehiyo ng iilan kundi isang pangunahing karapatan ng bawat mamamayan at isang mahalagang salik sa pagpapaunlad ng isang bansa. Para sa Pilipinas, isang bansang patuloy na naghahanap ng landas tungo sa makatarungang pag-unlad, ang kalidad ng edukasyon ay kailangang-kailangan upang mapaunlad ang likas na kakayahan ng bawat Pilipino at mapalakas ang pundamentong panlipunan ng buong lipunan.\n\nAng edukasyon ay nagbibigay sa tao ng kaalaman, kasanayan, at halaga na kailangan upang maging produktibong miyembro ng lipunan. Sa tulong ng edukasyon, nalilinang ang kritikal na pag-iisip na nagbibigay-kakayahan sa mga mamamayan na suriin ang mga usapin ng pamahalaan, labanan ang maling impormasyon, at lumahok nang may matalinong pag-unawa sa prosesong demokratiko. Walang malakas na demokrasya na maaaring itayo sa pundasyon ng kamangmangan.\n\nBukod dito, ang edukasyon ay direktang nakakaapekto sa ekonomikong pag-unlad ng bansa. Ang mga manggagawang may mataas na antas ng edukasyon ay mas produktibo, mas malikhaing solusyunaryo, at mas kakayahang harapin ang mga hamon ng mabilis na pagbabago ng ekonomiya. Sa konteksto ng globalisasyon, ang mga bansang may mataas na antas ng edukasyon ng kanilang populasyon ang mas handa at mas mapagkumpitensya sa pandaigdigang pamilihan.\n\nSa huli, ang pag-invest sa edukasyon ay hindi lamang gastos — ito ay isang pamumuhunan na ang kita ay makikita sa loob ng mga dekada sa pamamagitan ng mas maunlad, mas makatarungan, at mas matatag na lipunan. Ang bawat piso na inilaan para sa edukasyon ng isang bata ay isang binhing itatanim para sa kinabukasan ng buong bansa."
+    }
+  ],
+  "f1_instructions": {
+    "step1": "For each material (mat-en-01 to mat-fil-05), upload it to the system and record the system's predicted level (Independent / Instructional / Frustration).",
+    "step2": "For each essay (essay-en-01 to essay-fil-05), upload it to the system and record the system's predicted proficiency (Nagsisimula / Papaunlad / Mahusay).",
+    "step3": "You may also adjust the ground_truth labels above based on your own teacher assessment before computing F1.",
+    "step4": "Use the confusion matrix template below to compute per-class precision, recall, and F1.",
+    "confusion_matrix_template": {
+      "materials_classes": ["Independent", "Instructional", "Frustration"],
+      "essays_classes": ["Nagsisimula", "Papaunlad", "Mahusay"],
+      "formula": {
+        "precision_per_class": "TP / (TP + FP)",
+        "recall_per_class": "TP / (TP + FN)",
+        "f1_per_class": "2 * precision * recall / (precision + recall)",
+        "macro_f1": "average of all per-class F1 scores"
+      }
+    },
+    "results_table": {
+      "materials": [
+        {"id": "mat-en-01", "ground_truth": "Independent", "system_label": "", "correct": ""},
+        {"id": "mat-en-02", "ground_truth": "Independent", "system_label": "", "correct": ""},
+        {"id": "mat-en-03", "ground_truth": "Instructional", "system_label": "", "correct": ""},
+        {"id": "mat-en-04", "ground_truth": "Instructional", "system_label": "", "correct": ""},
+        {"id": "mat-en-05", "ground_truth": "Frustration", "system_label": "", "correct": ""},
+        {"id": "mat-fil-01", "ground_truth": "Independent", "system_label": "", "correct": ""},
+        {"id": "mat-fil-02", "ground_truth": "Independent", "system_label": "", "correct": ""},
+        {"id": "mat-fil-03", "ground_truth": "Instructional", "system_label": "", "correct": ""},
+        {"id": "mat-fil-04", "ground_truth": "Instructional", "system_label": "", "correct": ""},
+        {"id": "mat-fil-05", "ground_truth": "Frustration", "system_label": "", "correct": ""}
+      ],
+      "essays": [
+        {"id": "essay-en-01", "ground_truth": "Nagsisimula", "system_label": "", "correct": ""},
+        {"id": "essay-en-02", "ground_truth": "Nagsisimula", "system_label": "", "correct": ""},
+        {"id": "essay-en-03", "ground_truth": "Papaunlad", "system_label": "", "correct": ""},
+        {"id": "essay-en-04", "ground_truth": "Papaunlad", "system_label": "", "correct": ""},
+        {"id": "essay-en-05", "ground_truth": "Mahusay", "system_label": "", "correct": ""},
+        {"id": "essay-fil-01", "ground_truth": "Nagsisimula", "system_label": "", "correct": ""},
+        {"id": "essay-fil-02", "ground_truth": "Nagsisimula", "system_label": "", "correct": ""},
+        {"id": "essay-fil-03", "ground_truth": "Papaunlad", "system_label": "", "correct": ""},
+        {"id": "essay-fil-04", "ground_truth": "Papaunlad", "system_label": "", "correct": ""},
+        {"id": "essay-fil-05", "ground_truth": "Mahusay", "system_label": "", "correct": ""}
+      ]
+    }
+  }
+}

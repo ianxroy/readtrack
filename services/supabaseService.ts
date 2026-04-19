@@ -51,6 +51,7 @@ export interface MaterialUpload {
   teacher_verified_at?: string | null;
   verification_comment?: string | null;
   is_verified?: boolean;
+  subject?: string | null;
 }
 
 export interface MaterialTeacherVerification {
@@ -58,8 +59,21 @@ export interface MaterialTeacherVerification {
   comment?: string;
 }
 
+const MATERIAL_SUBJECTS_SECTION_NAME = '__material_library_subjects__';
+
 /** Organization data shape: { "Section A": ["Math", "English"], ... } */
 export type OrgData = Record<string, string[]>;
+
+function normalizeSubjectList(subjects: string[]): string[] {
+  const byLower = new Map<string, string>();
+  subjects.forEach((subject) => {
+    const normalized = subject.trim().replace(/\s+/g, ' ');
+    if (!normalized) return;
+    const key = normalized.toLowerCase();
+    if (!byLower.has(key)) byLower.set(key, normalized);
+  });
+  return Array.from(byLower.values()).sort((a, b) => a.localeCompare(b));
+}
 
 function normalizeStudentName(name: string): string {
   return name.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -205,6 +219,7 @@ export async function saveMaterialUpload(upload: MaterialUpload): Promise<{ erro
     teacher_verified_at: upload.teacher_verified_at ?? null,
     verification_comment: upload.verification_comment ?? null,
     is_verified: upload.is_verified ?? false,
+    subject: upload.subject ?? null,
   };
 
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -276,6 +291,45 @@ export async function deleteSection(sectionName: string): Promise<{ error: strin
     .delete()
     .eq('teacher_id', user.id)
     .eq('section_name', sectionName);
+
+  return { error: error ? error.message : null };
+}
+
+/** Load subject catalog used by Material Library Add Subject panel */
+export async function loadMaterialSubjectCatalog(): Promise<{ data: string[]; error: string | null }> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { data: [], error: 'Not authenticated' };
+
+  const { data, error } = await supabase
+    .from('teacher_organization')
+    .select('subjects')
+    .eq('teacher_id', user.id)
+    .eq('section_name', MATERIAL_SUBJECTS_SECTION_NAME)
+    .maybeSingle();
+
+  if (error) return { data: [], error: error.message };
+
+  return { data: normalizeSubjectList((data?.subjects ?? []) as string[]), error: null };
+}
+
+/** Save subject catalog used by Material Library Add Subject panel */
+export async function saveMaterialSubjectCatalog(subjects: string[]): Promise<{ error: string | null }> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Not authenticated' };
+
+  const normalizedSubjects = normalizeSubjectList(subjects);
+
+  const { error } = await supabase
+    .from('teacher_organization')
+    .upsert(
+      {
+        teacher_id: user.id,
+        section_name: MATERIAL_SUBJECTS_SECTION_NAME,
+        subjects: normalizedSubjects,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'teacher_id,section_name' },
+    );
 
   return { error: error ? error.message : null };
 }
@@ -482,6 +536,57 @@ export async function updateStudentEssayText(
   return { error: null };
 }
 
+/** Update AI analysis fields after async/background essay processing */
+export async function updateStudentUploadAnalysis(
+  uploadId: string,
+  payload: {
+    proficiency_level?: string;
+    nat_score?: number | null;
+    diagnosis_result?: unknown;
+    complexity_result?: unknown;
+  },
+): Promise<{ error: string | null }> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Not authenticated' };
+
+  const updatePayload: Record<string, any> = {
+    proficiency_level: payload.proficiency_level ?? null,
+    nat_score: payload.nat_score ?? null,
+    diagnosis_result: payload.diagnosis_result ?? null,
+    complexity_result: payload.complexity_result ?? null,
+  };
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { data, error } = await supabase
+      .from('student_grading_uploads')
+      .update(updatePayload)
+      .eq('id', uploadId)
+      .eq('teacher_id', user.id)
+      .select('id');
+
+    if (!error) {
+      if (!data || data.length === 0) {
+        return { error: `No row found for essay id=${uploadId}.` };
+      }
+      return { error: null };
+    }
+
+    const msg = error.message || '';
+    const missingColumnMatch = msg.match(/Could not find the '([^']+)' column of 'student_grading_uploads'/i);
+    const missingColumn = missingColumnMatch?.[1];
+
+    if (missingColumn && missingColumn in updatePayload) {
+      console.warn(`student_grading_uploads is missing column '${missingColumn}'. Retrying without it.`);
+      delete updatePayload[missingColumn];
+      continue;
+    }
+
+    return { error: msg };
+  }
+
+  return { error: 'Update failed after schema fallback retries' };
+}
+
 /** Load material uploads for the current teacher */
 export async function loadMaterialUploads(): Promise<{ data: any[]; error: string | null }> {
   const { data: { user } } = await supabase.auth.getUser();
@@ -506,6 +611,7 @@ export async function loadMaterialUploads(): Promise<{ data: any[]; error: strin
     teacherVerifiedAt: m.teacher_verified_at || m.complexity_result?.teacherVerification?.verifiedAt || undefined,
     verificationComment: m.verification_comment || m.complexity_result?.teacherVerification?.comment || undefined,
     isVerified: Boolean(m.is_verified || m.teacher_verified_level || m.complexity_result?.teacherVerification?.level),
+    subject: m.subject || undefined,
     originalFile:
       m.original_file ||
       m.complexity_result?.originalFile ||
@@ -566,6 +672,20 @@ export async function saveMaterialTeacherVerification(
   }
 
   return { error: 'Update failed after schema fallback retries' };
+}
+
+export async function updateMaterialSubject(
+  materialId: string,
+  subject: string | null,
+): Promise<{ error: string | null }> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Not authenticated' };
+  const { error } = await supabase
+    .from('material_uploads')
+    .update({ subject: subject || null })
+    .eq('id', materialId)
+    .eq('teacher_id', user.id);
+  return { error: error?.message ?? null };
 }
 
 /** Delete a material upload by its UUID */

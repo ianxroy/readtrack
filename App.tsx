@@ -6,6 +6,7 @@ import GrammarChecker from "./components/GrammarChecker";
 import { StudentGrading } from "./components/StudentGrading";
 import { MaterialLibrary } from "./components/MaterialLibrary";
 import { About } from "./components/About";
+import { Settings } from "./components/Settings";
 import Login from "./components/Login";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { CachedAnalysis } from "./types";
@@ -95,7 +96,7 @@ const AppRoutes: React.FC = () => {
         path="/*"
         element={
           <ProtectedRoute>
-            <div className="h-screen w-screen bg-[#F2F2F7] text-gray-900 font-sans overflow-hidden">
+            <div className="h-screen w-screen bg-gray-50 text-gray-900 font-sans overflow-hidden">
               <div className="max-w-[1920px] mx-auto flex flex-col md:flex-row h-full relative">
                 <Navigation
                   isMobileOpen={isMobileMenuOpen}
@@ -113,6 +114,7 @@ const AppRoutes: React.FC = () => {
                     <Route path="/material" element={<></>} />
                     <Route path="/grammar" element={<></>} />
                     <Route path="/about" element={<></>} />
+                    <Route path="/settings" element={<></>} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
 
@@ -135,6 +137,9 @@ const AppRoutes: React.FC = () => {
                   </div>
                   <div className={`h-full min-h-0 ${location.pathname === '/about' ? 'block' : 'hidden'}`}>
                     <About onMenuClick={() => setIsMobileMenuOpen(true)} />
+                  </div>
+                  <div className={`h-full min-h-0 ${location.pathname === '/settings' ? 'block' : 'hidden'}`}>
+                    <Settings />
                   </div>
                 </main>
               </div>
