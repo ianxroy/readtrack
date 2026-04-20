@@ -1,26 +1,35 @@
 import React, { useState, useRef, useCallback, useMemo } from 'react';
 import {
   IoCloudUploadOutline,
-  IoDocumentTextOutline,
   IoSearchOutline,
   IoTrashOutline,
   IoCloseOutline,
   IoMenuOutline,
-  IoTimeOutline,
   IoBookOutline,
-  IoFunnelOutline,
   IoChevronDownOutline,
   IoChevronUpOutline,
-  IoImageOutline,
   IoInformationCircleOutline,
 } from 'react-icons/io5';
 import { LibraryMaterial, TextComplexityResult, ComplexityLevel, OriginalFile } from '../types';
 import { classifyTextComplexityAPI, extractTextFromImageAPI, detectLanguageAPI, addTrainingSampleAPI, ingestReferenceAPI } from '../services/pythonService';
-import { saveMaterialUpload, loadMaterialUploads, deleteMaterialUpload, saveMaterialTeacherVerification } from '../services/supabaseService';
+
+import { saveMaterialUpload, loadMaterialUploads, deleteMaterialUpload, saveMaterialTeacherVerification, loadMaterialSubjectCatalog, saveMaterialSubjectCatalog, updateMaterialSubject } from '../services/supabaseService';
 import { useEffect } from 'react';
-import { IoDocumentOutline } from 'react-icons/io5';
+import { IoDocumentOutline, IoAddOutline } from 'react-icons/io5';
 
+function normalizeSubjectName(value: string): string {
+  return value.trim().replace(/\s+/g, ' ');
+}
 
+function mergeSubjects(existing: string[], additions: string[]): string[] {
+  const byLower = new Map<string, string>();
+  [...existing, ...additions].forEach((s) => {
+    const n = normalizeSubjectName(s);
+    if (!n) return;
+    if (!byLower.has(n.toLowerCase())) byLower.set(n.toLowerCase(), n);
+  });
+  return Array.from(byLower.values()).sort((a, b) => a.localeCompare(b));
+}
 
 function normalizeMaterialText(text: string): string {
   const normalized = text.replace(/\r\n?/g, '\n').trim();
@@ -56,6 +65,12 @@ function normalizeMaterialText(text: string): string {
 
   return rebuilt.filter(Boolean).join('\n\n');
 }
+
+const COMPLEXITY_TO_PHIL_IRI: Record<ComplexityLevel, 'Independent' | 'Instructional' | 'Frustration'> = {
+  [ComplexityLevel.LITERAL]:      'Independent',
+  [ComplexityLevel.INFERENTIAL]:  'Instructional',
+  [ComplexityLevel.EVALUATIVE]:   'Frustration',
+};
 
 const levelMeta = {
   [ComplexityLevel.LITERAL]: {
@@ -935,16 +950,25 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
   const [uploadModalLevel, setUploadModalLevel] = useState<ComplexityLevel>(ComplexityLevel.LITERAL);
   const [uploadModalComment, setUploadModalComment] = useState('');
   const [savingUploadDecision, setSavingUploadDecision] = useState(false);
-  const [showSortMenu, setShowSortMenu] = useState(false);
   const [showPhilIriHelp, setShowPhilIriHelp] = useState(false);
   const [langFilter, setLangFilter] = useState<'all' | 'eng' | 'fil'>('all');
+  const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
+  const [subjectFilter, setSubjectFilter] = useState<'all' | string>('all');
+  const [uploadModalSubject, setUploadModalSubject] = useState('');
+  const [newSubjectName, setNewSubjectName] = useState('');
+  const [showAddSubjectPanel, setShowAddSubjectPanel] = useState(false);
+  const [subjectPanelError, setSubjectPanelError] = useState<string | null>(null);
+  const [savingSubjectPanel, setSavingSubjectPanel] = useState(false);
   const dragCount = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+
+
   useEffect(() => {
     let cancelled = false;
-    loadMaterialUploads().then(async ({ data, error }) => {
+    Promise.all([loadMaterialUploads(), loadMaterialSubjectCatalog()]).then(async ([materialsRes, subjectsRes]) => {
       if (!cancelled) {
+        const { data, error } = materialsRes;
         if (!error && data.length > 0) {
           let langs: Array<'eng' | 'fil'>;
           try {
@@ -954,8 +978,14 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
           }
           const withLangs = data.map((m, i) => ({ ...m, language: langs[i] }));
           setMaterials(withLangs);
+          // Collect subjects from materials themselves + catalog
+          const fromMaterials = (data as LibraryMaterial[]).map(m => (m.subject || '').trim()).filter(Boolean);
+          const fromCatalog = (subjectsRes.error ? [] : subjectsRes.data).map((s: string) => s.trim()).filter(Boolean);
+          setAvailableSubjects(mergeSubjects([], [...fromMaterials, ...fromCatalog]));
         } else if (!error) {
           setMaterials(data);
+          const fromCatalog = (subjectsRes.error ? [] : subjectsRes.data).map((s: string) => s.trim()).filter(Boolean);
+          setAvailableSubjects(mergeSubjects([], fromCatalog));
         }
         setMaterialsLoading(false);
       }
@@ -964,7 +994,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
   }, []);
 
   const refreshMaterials = async () => {
-    const { data, error } = await loadMaterialUploads();
+    const [{ data, error }, subjectsRes] = await Promise.all([loadMaterialUploads(), loadMaterialSubjectCatalog()]);
     if (error) return;
     if (data.length > 0) {
       let langs: Array<'eng' | 'fil'>;
@@ -974,9 +1004,38 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
         langs = data.map(() => 'fil' as const);
       }
       setMaterials(data.map((m, i) => ({ ...m, language: langs[i] })));
+      const fromMaterials = (data as LibraryMaterial[]).map(m => (m.subject || '').trim()).filter(Boolean);
+      const fromCatalog = (subjectsRes.error ? [] : subjectsRes.data).map((s: string) => s.trim()).filter(Boolean);
+      setAvailableSubjects(mergeSubjects([], [...fromMaterials, ...fromCatalog]));
     } else {
       setMaterials(data);
+      const fromCatalog = (subjectsRes.error ? [] : subjectsRes.data).map((s: string) => s.trim()).filter(Boolean);
+      setAvailableSubjects(mergeSubjects([], fromCatalog));
     }
+  };
+
+  const handleAddSubject = async () => {
+    const normalized = normalizeSubjectName(newSubjectName);
+    if (!normalized) { setSubjectPanelError('Subject name is required.'); return; }
+    if (availableSubjects.some(s => s.toLowerCase() === normalized.toLowerCase())) {
+      setSubjectPanelError('Subject already exists.'); return;
+    }
+    setSavingSubjectPanel(true);
+    setSubjectPanelError(null);
+    const next = mergeSubjects(availableSubjects, [normalized]);
+    const { error } = await saveMaterialSubjectCatalog(next);
+    setSavingSubjectPanel(false);
+    if (error) { setSubjectPanelError(`Could not save: ${error}`); return; }
+    setAvailableSubjects(next);
+    setNewSubjectName('');
+    setShowAddSubjectPanel(false);
+  };
+
+  const handleUpdateSubject = async (id: string, subject: string | null) => {
+    const normalized = subject ? normalizeSubjectName(subject) : null;
+    await updateMaterialSubject(id, normalized);
+    setMaterials(prev => prev.map(m => m.id === id ? { ...m, subject: normalized ?? undefined } : m));
+    if (normalized) setAvailableSubjects(prev => mergeSubjects(prev, [normalized]));
   };
 
   const persist = (updated: LibraryMaterial[]) => {
@@ -995,7 +1054,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
   };
 
   const handleVerifyMaterial = async (material: LibraryMaterial, level: ComplexityLevel, comment: string) => {
-    const saveRes = await saveMaterialTeacherVerification(material.id, { level, comment }, material.complexityResult);
+    const saveRes = await saveMaterialTeacherVerification(material.id, { level: COMPLEXITY_TO_PHIL_IRI[level], comment }, material.complexityResult);
     if (saveRes.error) {
       return { ok: false, message: `Could not save verification: ${saveRes.error}` };
     }
@@ -1003,7 +1062,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
     let message = 'Teacher verification saved.';
     let ok = true;
     try {
-      const trainRes = await addTrainingSampleAPI(material.text, level);
+      const trainRes = await addTrainingSampleAPI(material.text, COMPLEXITY_TO_PHIL_IRI[level]);
       message = trainRes.message || message;
       if (trainRes.status !== 'ok') ok = false;
     } catch (e: any) {
@@ -1066,13 +1125,14 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
       teacher_verified_at: material.teacherVerifiedAt ?? null,
       verification_comment: material.verificationComment ?? null,
       is_verified: true,
+      subject: material.subject ?? null,
     });
 
     if (error) {
       setUploadError(`Database error: ${error}`);
     } else {
       try {
-        const trainRes = await addTrainingSampleAPI(material.text, uploadModalLevel);
+        const trainRes = await addTrainingSampleAPI(material.text, COMPLEXITY_TO_PHIL_IRI[uploadModalLevel]);
         if (trainRes.status !== 'ok') {
           setUploadError(trainRes.message || 'Sample saved but retraining is pending.');
         }
@@ -1222,6 +1282,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
         text: extractedText,
         uploadedAt: new Date(),
         complexityResult: result,
+        subject: normalizeSubjectName(uploadModalSubject) || undefined,
         originalFile: base64 ? { base64, mimeType, name: file.name } : undefined,
       };
       // Detect language for the new material
@@ -1243,7 +1304,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
     } finally {
       setUploading(false);
     }
-  }, []);
+  }, [uploadModalSubject]);
 
   const processStagedImages = useCallback(async () => {
     if (stagedImages.length === 0) return;
@@ -1253,7 +1314,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
       // OCR all images in order, concatenate text
       let combinedText = '';
       for (const img of stagedImages) {
-        const ocrResult = await extractTextFromImageAPI(img.base64, img.mimeType);
+        const ocrResult = await extractTextFromImageAPI(img.base64 ?? '', img.mimeType);
         const ocrError = (ocrResult as any)?.error;
         if (ocrError === 'api_key_invalid') throw new Error('Gemini API key is expired or invalid. Please update GEMINI_API_KEY in .env.local and restart the backend.');
         if (ocrError === 'project_denied') throw new Error('Gemini OCR access is denied for this Google project (403). Enable Generative Language API access/billing in Google Cloud or use another API key/project.');
@@ -1283,6 +1344,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
         text: extractedText,
         uploadedAt: new Date(),
         complexityResult: result,
+        subject: normalizeSubjectName(uploadModalSubject) || undefined,
         originalFile: stagedImages[0],
         originalFiles: stagedImages,
         language: detectedLang,
@@ -1298,7 +1360,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
     } finally {
       setUploading(false);
     }
-  }, [stagedImages]);
+  }, [stagedImages, uploadModalSubject]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -1322,6 +1384,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
     materials.filter(m => {
       if (filter !== 'all' && m.complexityResult.level !== filter) return false;
       if (langFilter !== 'all' && m.language !== langFilter) return false;
+      if (subjectFilter !== 'all' && (m.subject?.trim() || '') !== subjectFilter) return false;
       if (search && !m.name.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     }),
@@ -1336,20 +1399,13 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
     name: 'Name A → Z',
   };
 
-  const counts = {
-    all: materials.length,
-    [ComplexityLevel.LITERAL]: materials.filter(m => m.complexityResult.level === ComplexityLevel.LITERAL).length,
-    [ComplexityLevel.INFERENTIAL]: materials.filter(m => m.complexityResult.level === ComplexityLevel.INFERENTIAL).length,
-    [ComplexityLevel.EVALUATIVE]: materials.filter(m => m.complexityResult.level === ComplexityLevel.EVALUATIVE).length,
-  };
-
-  const langCounts = {
-    eng: materials.filter(m => m.language === 'eng').length,
-    fil: materials.filter(m => m.language === 'fil').length,
-  };
+  const subjectCounts = availableSubjects.reduce<Record<string, number>>((acc, s) => {
+    acc[s] = materials.filter(m => (m.subject?.trim() || '') === s).length;
+    return acc;
+  }, {});
 
   return (
-    <div className="flex flex-col h-full bg-[#F2F2F7]">
+    <div className="flex flex-col h-full bg-[#F5F4F0]">
       {showUploadModal && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden">
@@ -1367,6 +1423,20 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
             </div>
 
             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+              {/* Subject selector */}
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Subject</label>
+                <select
+                  value={uploadModalSubject}
+                  onChange={e => setUploadModalSubject(e.target.value)}
+                  className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-teal-300"
+                >
+                  <option value="">Select subject…</option>
+                  {availableSubjects.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+                <p className="mt-1 text-[10px] text-gray-400">Required. Add subjects from the left sidebar.</p>
+              </div>
+
               <div
                 className={`border-2 border-dashed rounded-2xl p-6 flex flex-col items-center gap-2 cursor-pointer transition-colors ${
                   isDragging ? 'border-teal-400 bg-teal-50' : 'border-gray-200 hover:border-teal-300 bg-gray-50'
@@ -1530,171 +1600,219 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
           <h1 className="text-base font-bold text-gray-800">Material Library</h1>
           <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{materials.length}</span>
         </div>
-        <button
-          onClick={() => { setUploadError(null); setShowUploadModal(true); }}
-          disabled={uploading}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-teal-500 hover:bg-teal-600 text-white text-xs font-semibold transition-colors disabled:opacity-60"
-        >
-          <IoCloudUploadOutline className="text-base" />
-          {uploading ? 'Analyzing…' : 'Upload Material'}
-        </button>
         <input ref={fileInputRef} type="file" accept=".txt,.md,image/*,.pdf" className="hidden" onChange={handleFileChange} />
       </header>
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-5xl mx-auto px-5 py-5 space-y-4">
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar */}
+        <div className="w-64 shrink-0 flex flex-col h-full bg-white border-r border-gray-100 overflow-y-auto">
+          {/* Upload button */}
+          <div className="px-4 py-3 border-b border-gray-100 shrink-0">
+            <button
+              onClick={() => { setUploadError(null); setShowUploadModal(true); }}
+              disabled={uploading}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-teal-500 hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold transition-colors shadow-sm cursor-pointer"
+            >
+              <IoCloudUploadOutline className="text-base" />
+              {uploading ? 'Analyzing…' : 'Upload Material'}
+            </button>
+          </div>
+          {/* Subjects header */}
+          <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
+            <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">Subjects</span>
+            <button
+              onClick={() => { setShowAddSubjectPanel(p => !p); setSubjectPanelError(null); }}
+              className="flex items-center gap-1 text-[9px] font-bold text-indigo-500 hover:text-indigo-700"
+            >
+              <IoAddOutline className="text-[11px]" /> Add
+            </button>
+          </div>
 
+          {showAddSubjectPanel && (
+            <div className="px-3 pb-3 space-y-1.5">
+              <input
+                autoFocus
+                className="w-full text-xs border border-indigo-300 rounded-lg px-2 py-1.5 outline-none bg-white"
+                placeholder="New subject name…"
+                value={newSubjectName}
+                onChange={e => setNewSubjectName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleAddSubject(); if (e.key === 'Escape') setShowAddSubjectPanel(false); }}
+              />
+              {subjectPanelError && <p className="text-[10px] text-red-500">{subjectPanelError}</p>}
+              <button
+                onClick={handleAddSubject}
+                disabled={savingSubjectPanel}
+                className="w-full py-1.5 rounded-lg bg-teal-500 hover:bg-teal-600 disabled:opacity-50 text-white text-[11px] font-bold"
+              >
+                {savingSubjectPanel ? 'Saving…' : 'Add Subject'}
+              </button>
+            </div>
+          )}
+
+          {/* Subject list */}
+          <div className="flex-1 px-2 pb-2 space-y-0.5">
+            <button
+              onClick={() => setSubjectFilter('all')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs font-semibold transition-colors ${
+                subjectFilter === 'all' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-indigo-300 shrink-0" />
+              <span className="flex-1">All Subjects</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400">{materials.length}</span>
+            </button>
+            {availableSubjects.map(subject => {
+              const isActive = subjectFilter === subject;
+              return (
+                <button
+                  key={subject}
+                  onClick={() => setSubjectFilter(subject)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs font-semibold transition-colors ${
+                    isActive ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${isActive ? 'bg-indigo-500' : 'bg-gray-300'}`} />
+                  <span className="flex-1 truncate">{subject}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${isActive ? 'bg-white/50' : 'bg-gray-100 text-gray-400'}`}>
+                    {subjectCounts[subject] ?? 0}
+                  </span>
+                </button>
+              );
+            })}
+            {availableSubjects.length === 0 && (
+              <p className="text-[11px] text-gray-300 px-3 py-2">No subjects yet</p>
+            )}
+          </div>
+
+        </div>
+
+        {/* Main content */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#F5F4F0]">
+
+          {/* Toolbar */}
+          <div className="flex items-center justify-between px-5 py-3 bg-[#F5F4F0] border-b border-gray-200/60 shrink-0 gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-sm font-bold text-gray-800 truncate">
+                {subjectFilter === 'all' ? 'All Materials' : subjectFilter}
+              </span>
+              <span className="text-[10px] text-gray-400 shrink-0">· {displayed.length}</span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="relative">
+                <IoSearchOutline className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none" />
+                <input
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Search…"
+                  className="text-sm border border-gray-200 rounded-xl pl-8 pr-3 py-2 bg-white outline-none w-36 focus:ring-2 focus:ring-teal-200 focus:border-teal-300 shadow-sm"
+                />
+              </div>
+              <select
+                value={sort}
+                onChange={e => setSort(e.target.value as SortKey)}
+                className="text-xs border border-gray-200 rounded-xl px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-teal-200 shadow-sm"
+              >
+                {(Object.entries(sortLabels) as [SortKey, string][]).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Filter pills */}
+          <div className="flex gap-1.5 px-5 py-2 border-b border-gray-200/60 bg-[#F5F4F0] shrink-0 flex-wrap items-center">
+            {([
+              { key: 'all' as const, label: 'All', dot: null, pill: null },
+              { key: ComplexityLevel.LITERAL,     label: 'Independent',   dot: levelMeta[ComplexityLevel.LITERAL].dot,     pill: 'bg-green-50 text-green-700 border-green-200'  },
+              { key: ComplexityLevel.INFERENTIAL, label: 'Instructional', dot: levelMeta[ComplexityLevel.INFERENTIAL].dot, pill: 'bg-orange-50 text-orange-700 border-orange-200' },
+              { key: ComplexityLevel.EVALUATIVE,  label: 'Frustration',   dot: levelMeta[ComplexityLevel.EVALUATIVE].dot,  pill: 'bg-red-50 text-red-700 border-red-200'        },
+            ]).map(({ key, label, dot, pill }) => (
+              <button
+                key={key}
+                onClick={() => setFilter(key)}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all ${
+                  filter === key
+                    ? pill ?? 'bg-teal-50 text-teal-700 border-teal-200'
+                    : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                {dot && <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />}
+                {label}
+              </button>
+            ))}
+            <div className="w-px h-4 bg-gray-200 mx-0.5 self-center" />
+            {([
+              { key: 'all' as const, label: 'All Lang' },
+              { key: 'eng' as const, label: '🇬🇧 EN' },
+              { key: 'fil' as const, label: '🇵🇭 FIL' },
+            ]).map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setLangFilter(key)}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all ${
+                  langFilter === key
+                    ? 'bg-sky-50 text-sky-700 border-sky-200'
+                    : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Error */}
           {uploadError && (
-            <div className="bg-red-50 border border-red-200 text-red-600 text-xs rounded-xl px-4 py-3 flex items-center justify-between">
+            <div className="mx-5 mt-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-xl px-4 py-3 flex items-center justify-between shrink-0">
               {uploadError}
               <button onClick={() => setUploadError(null)}><IoCloseOutline /></button>
             </div>
           )}
 
-          {/* Upload note */}
-          <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
-            <button
-              type="button"
-              onClick={() => setShowPhilIriHelp(v => !v)}
-              className="flex items-center gap-1 text-left text-[10px] font-bold uppercase tracking-wider text-blue-600 mb-1"
-              aria-expanded={showPhilIriHelp}
-              aria-controls="phil-iri-help-main"
-            >
-              <span>Grade 7 Readability Check (Philippines DepEd)</span>
-              <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/80 border border-blue-200">
-                <IoInformationCircleOutline className="text-[11px]" />
-              </span>
-            </button>
-            {showPhilIriHelp ? (
-              <p id="phil-iri-help-main" className="text-xs text-blue-700 leading-relaxed">
-                {PHIL_IRI_HELP}
-              </p>
-            ) : (
-              <p className="text-xs text-blue-700 leading-relaxed">
-                <span className="font-semibold">Literal</span> = Easy, students can read independently.{' '}
-                <span className="font-semibold">Inferential</span> = Borderline, may need teacher support.{' '}
-                <span className="font-semibold">Evaluative</span> = Above G7, not recommended without scaffolding.
-              </p>
-            )}
-          </div>
-
-          {/* Search + Sort row */}
-          <div className="flex gap-3">
-            <div className="flex-1 relative">
-              <IoSearchOutline className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
-              <input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search materials…"
-                className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-300"
-              />
-            </div>
-            <div className="relative">
-              <button
-                onClick={() => setShowSortMenu(s => !s)}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:border-teal-300 transition-colors"
-              >
-                <IoFunnelOutline className="text-sm" />
-                {sortLabels[sort]}
-                <IoChevronDownOutline className={`text-xs transition-transform ${showSortMenu ? 'rotate-180' : ''}`} />
-              </button>
-              {showSortMenu && (
-                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-100 rounded-xl shadow-lg z-20 min-w-[170px] overflow-hidden">
-                  {(Object.entries(sortLabels) as [SortKey, string][]).map(([key, label]) => (
-                    <button
-                      key={key}
-                      onClick={() => { setSort(key); setShowSortMenu(false); }}
-                      className={`w-full text-left px-4 py-2.5 text-xs hover:bg-gray-50 transition-colors ${sort === key ? 'text-teal-600 font-semibold bg-teal-50' : 'text-gray-600'}`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Filter tabs */}
-          <div className="flex gap-2 flex-wrap items-center">
-            {/* Language filters */}
-            {([
-              { key: 'all' as const, label: 'All', count: materials.length },
-              { key: 'eng' as const, label: '🇬🇧 English', count: langCounts.eng },
-              { key: 'fil' as const, label: '🇵🇭 Filipino', count: langCounts.fil },
-            ]).map(({ key, label, count }) => (
-              <button
-                key={key}
-                onClick={() => setLangFilter(key)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
-                  langFilter === key
-                    ? 'bg-teal-50 text-teal-700 border-teal-200'
-                    : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                {label}
-                <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${langFilter === key ? 'bg-white/60' : 'bg-gray-100'}`}>
-                  {count}
-                </span>
-              </button>
-            ))}
-
-            {/* Divider */}
-            <div className="w-px h-5 bg-gray-200 mx-1" />
-
-            {/* Complexity filters */}
-            {([
-              { key: 'all' as const, label: 'All', meta: null },
-              { key: ComplexityLevel.LITERAL, label: 'Literal', meta: levelMeta[ComplexityLevel.LITERAL] },
-              { key: ComplexityLevel.INFERENTIAL, label: 'Inferential', meta: levelMeta[ComplexityLevel.INFERENTIAL] },
-              { key: ComplexityLevel.EVALUATIVE, label: 'Evaluative', meta: levelMeta[ComplexityLevel.EVALUATIVE] },
-            ]).map(({ key, label, meta: m }) => {
-              const count = counts[key];
-              const isActive = filter === key;
-              return (
-                <button
-                  key={key}
-                  onClick={() => setFilter(key)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
-                    isActive
-                      ? m ? `${m.bg} ${m.text} ${m.border}` : 'bg-teal-50 text-teal-700 border-teal-200'
-                      : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  {m && <span className={`w-1.5 h-1.5 rounded-full ${m.dot}`} />}
-                  {label}
-                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${isActive ? 'bg-white/60' : 'bg-gray-100'}`}>
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Loading state */}
+          {/* Loading */}
           {materialsLoading && (
-            <div className="flex flex-col items-center justify-center h-60">
+            <div className="flex flex-col items-center justify-center flex-1">
               <div className="w-8 h-8 rounded-full border-2 border-teal-500 border-t-transparent animate-spin mb-3" />
-              <p className="text-sm text-gray-400">Loading materials...</p>
+              <p className="text-sm text-gray-400">Loading materials…</p>
             </div>
           )}
 
-          {/* Empty-state helper text */}
+          {/* Empty state */}
           {!materialsLoading && materials.length === 0 && (
-            <div className="text-center py-8 text-sm text-gray-400">
-              Upload your first material to start your library.
+            <div className="flex flex-col items-center justify-center flex-1 gap-2">
+              <div className="w-10 h-10 rounded-2xl bg-teal-50 flex items-center justify-center">
+                <IoBookOutline className="text-teal-400 text-xl" />
+              </div>
+              <p className="text-sm font-semibold text-gray-500">No materials yet</p>
+              <button
+                onClick={() => { setUploadError(null); setShowUploadModal(true); }}
+                className="text-xs text-teal-500 hover:text-teal-700 font-semibold underline"
+              >
+                Upload your first material
+              </button>
             </div>
           )}
 
-          {/* No results */}
-          {materials.length > 0 && displayed.length === 0 && (
-            <div className="text-center py-12 text-sm text-gray-400">
-              No materials match your current filter or search.
+          {/* No filter results */}
+          {!materialsLoading && materials.length > 0 && displayed.length === 0 && (
+            <div className="flex items-center justify-center flex-1 text-sm text-gray-400">
+              No materials match the current filters.
             </div>
           )}
 
-          {/* Material cards grid */}
-          {displayed.length > 0 && (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* Material list */}
+          {!materialsLoading && displayed.length > 0 && (
+            <div className="flex-1 overflow-y-auto">
+              {/* Column headers */}
+              <div className="flex items-center px-4 py-1.5 border-b border-gray-50 bg-gray-50/50">
+                <span className="w-3 shrink-0 mr-3" />
+                <span className="flex-1 text-[9px] font-black uppercase tracking-widest text-gray-400">Material</span>
+                <span className="w-24 text-[9px] font-black uppercase tracking-widest text-gray-400 text-center">Level</span>
+                <span className="w-14 text-[9px] font-black uppercase tracking-widest text-gray-400 text-center">Score</span>
+                <span className="w-14 text-[9px] font-black uppercase tracking-widest text-gray-400 text-center">Words</span>
+                <span className="w-14 text-[9px] font-black uppercase tracking-widest text-gray-400 text-right">Date</span>
+                <span className="w-7" />
+              </div>
+
               {displayed.map(mat => {
                 const meta = levelMeta[mat.complexityResult.level] ?? levelMeta[ComplexityLevel.LITERAL];
                 const cr = mat.complexityResult;
@@ -1702,82 +1820,74 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
                   <div
                     key={mat.id}
                     onClick={() => setSelected(mat)}
-                    className="group text-left bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all relative overflow-hidden cursor-pointer"
+                    className="group flex items-center px-4 py-3 border-b border-gray-100 bg-white hover:bg-indigo-50/30 cursor-pointer transition-colors"
                   >
-                    {/* Level color bar */}
-                    <div className={`absolute top-0 left-0 right-0 h-1 rounded-t-2xl ${meta.dot}`} />
+                    {/* Level bar */}
+                    <div className={`w-1 h-8 rounded-full shrink-0 mr-3 ${meta.dot}`} />
 
-                    <div className="flex items-start justify-between gap-2 mb-3 pt-1">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
-                          <div className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${meta.badge}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
-                            {meta.label}
-                          </div>
-                          {mat.language && (
-                            <span className={`inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
-                              mat.language === 'eng'
-                                ? 'bg-blue-50 text-blue-600 border-blue-100'
-                                : 'bg-purple-50 text-purple-600 border-purple-100'
-                            }`}>
-                              {mat.language === 'eng' ? '🇬🇧 EN' : '🇵🇭 FIL'}
-                            </span>
-                          )}
-                        </div>
-                        <h3 className="text-sm font-semibold text-gray-800 truncate group-hover:text-teal-600 transition-colors">
-                          {mat.name}
-                        </h3>
+                    {/* Name + badges */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                        {mat.subject && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100">
+                            {mat.subject}
+                          </span>
+                        )}
+                        {mat.language && (
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
+                            mat.language === 'eng'
+                              ? 'bg-sky-50 text-sky-600 border-sky-100'
+                              : 'bg-rose-50 text-rose-600 border-rose-100'
+                          }`}>
+                            {mat.language === 'eng' ? 'EN' : 'FIL'}
+                          </span>
+                        )}
                       </div>
-                      <button
-                        onClick={e => { e.stopPropagation(); handleDelete(mat.id); }}
-                        className="shrink-0 p-1.5 rounded-lg text-gray-200 hover:text-red-400 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
-                      >
-                        <IoTrashOutline className="text-xs" />
-                      </button>
+                      <span className="text-sm font-semibold text-gray-800 truncate block group-hover:text-teal-700 transition-colors">
+                        {mat.name}
+                      </span>
+                    </div>
+
+                    {/* Level badge */}
+                    <div className="w-24 flex justify-center">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${meta.badge}`}>
+                        {meta.label}
+                      </span>
                     </div>
 
                     {/* Score */}
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="flex-1">
-                        <div className="flex justify-between text-[10px] text-gray-400 mb-1">
-                          <span>Complexity Score</span>
-                          <span className={`font-bold ${meta.text}`}>{typeof cr.score === 'number' ? cr.score : 'N/A'}</span>
-                        </div>
-                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${meta.dot}`}
-                            style={{ width: `${typeof cr.score === 'number' ? Math.min(100, cr.score) : 0}%` }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Meta row */}
-                    <div className="flex items-center gap-3 text-[10px] text-gray-400">
-                      <span className="flex items-center gap-1">
-                        <IoDocumentTextOutline className="text-xs" />
-                        {cr.wordCount} words
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <IoTimeOutline className="text-xs" />
-                        {cr.estimatedReadingTime} min
-                      </span>
-                      <span className="ml-auto">
-                        {new Date(mat.uploadedAt).toLocaleDateString('en', { month: 'short', day: 'numeric' })}
+                    <div className="w-14 text-center">
+                      <span className={`text-sm font-black ${meta.text}`}>
+                        {typeof cr.score === 'number' ? cr.score : '—'}
                       </span>
                     </div>
 
-                    {/* G7 readability note */}
-                    <div className={`mt-3 pt-3 border-t border-gray-50 text-[10px] font-medium ${meta.text}`}>
-                      {meta.desc}
+                    {/* Words */}
+                    <div className="w-14 text-center text-xs text-gray-400">
+                      {cr.wordCount ?? '—'}
+                    </div>
+
+                    {/* Date */}
+                    <div className="w-14 text-right text-[10px] text-gray-400">
+                      {new Date(mat.uploadedAt).toLocaleDateString('en', { month: 'short', day: 'numeric' })}
+                    </div>
+
+                    {/* Delete */}
+                    <div className="w-7 flex justify-end">
+                      <button
+                        onClick={e => { e.stopPropagation(); handleDelete(mat.id); }}
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all"
+                      >
+                        <IoTrashOutline className="text-xs" />
+                      </button>
                     </div>
                   </div>
                 );
               })}
             </div>
           )}
-        </div>
-      </div>
+        </div>{/* end main content */}
+      </div>{/* end flex row */}
     </div>
   );
 };

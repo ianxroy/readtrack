@@ -6,6 +6,7 @@ import GrammarChecker from "./components/GrammarChecker";
 import { StudentGrading } from "./components/StudentGrading";
 import { MaterialLibrary } from "./components/MaterialLibrary";
 import { About } from "./components/About";
+import { Settings } from "./components/Settings";
 import Login from "./components/Login";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { CachedAnalysis } from "./types";
@@ -113,6 +114,7 @@ const AppRoutes: React.FC = () => {
                     <Route path="/material" element={<></>} />
                     <Route path="/grammar" element={<></>} />
                     <Route path="/about" element={<></>} />
+                    <Route path="/settings" element={<></>} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
 
@@ -135,6 +137,9 @@ const AppRoutes: React.FC = () => {
                   </div>
                   <div className={`h-full ${location.pathname === '/about' ? 'block' : 'hidden'}`}>
                     <About onMenuClick={() => setIsMobileMenuOpen(true)} />
+                  </div>
+                  <div className={`h-full ${location.pathname === '/settings' ? 'block' : 'hidden'}`}>
+                    <Settings />
                   </div>
                 </main>
               </div>

@@ -72,7 +72,7 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
 
   // ── UI state ──────────────────────────────────────────
   const [proficiencyFilter, setProficiencyFilter] = useState<ProficiencyLevel | 'all'>('all');
-  const [sortKey, setSortKey] = useState<'newest' | 'oldest' | 'name' | 'essays'>('newest');
+  const [sortKey, setSortKey] = useState<'newest' | 'oldest' | 'name' | 'essays' | 'level' | 'rating'>('newest');
   const [searchQuery, setSearchQuery] = useState('');
   const [showSubjectManager, setShowSubjectManager] = useState(false);
   const [showAddStudent, setShowAddStudent] = useState(false);
@@ -720,7 +720,9 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
             onMoveStudent={handleMoveStudent}
             onDeleteStudent={handleDeleteStudent}
             onProficiencyFilter={setProficiencyFilter}
+            sortDirection="asc"
             onSortChange={setSortKey}
+            onSortRequest={setSortKey}
             onSearchChange={setSearchQuery}
           />
         </div>
