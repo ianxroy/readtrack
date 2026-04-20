@@ -32,7 +32,18 @@ def get_cefr_distribution(doc):
     levels = {"A1": 0, "A2": 0, "B1": 0, "B2": 0, "C1": 0, "C2": 0}
     advanced_count = 0
 
-    cefr_tokens = analyzer.analize_doc(doc)
+    # cefrpy crashes on non-ASCII characters (code points > 255) via struct.pack.
+    # Build a filtered Doc containing only ASCII-safe tokens before analyzing.
+    safe_words = [t.text for t in doc if all(ord(c) <= 255 for c in t.text) and t.text.strip()]
+    safe_pos   = [t.pos_  for t in doc if all(ord(c) <= 255 for c in t.text) and t.text.strip()]
+    if not safe_words:
+        return levels, advanced_count
+
+    try:
+        filtered_doc = spacy.tokens.Doc(doc.vocab, words=safe_words, pos=safe_pos)
+        cefr_tokens = analyzer.analize_doc(filtered_doc)
+    except Exception:
+        return levels, advanced_count
 
     for token_data in cefr_tokens:
         is_skipped, level = token_data[2], token_data[3]
