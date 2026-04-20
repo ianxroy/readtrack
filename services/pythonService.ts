@@ -167,6 +167,36 @@ export const evaluateDepEdRubricAPI = async (
     } as DepEdRubricScore;
 };
 
+/** Single round-trip: proficiency + complexity + rubric, features extracted once. */
+export const analyzeAllAPI = async (
+    text: string,
+    language: 'english' | 'filipino' = 'filipino',
+): Promise<{ student: StudentDiagnosisResult; complexity: TextComplexityResult; rubric: DepEdRubricScore | null }> => {
+    const response = await fetchOrThrowNetworkError(apiUrl('/analyze/all'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'accept': 'application/json' },
+        body: JSON.stringify({ text }),
+    });
+    if (!response.ok) throw new Error(await unwrapErrorMessage(response));
+    const data = await response.json();
+    if (data?.error) throw new Error(data.error);
+
+    const rubricRaw = data.rubric;
+    const rubric: DepEdRubricScore | null = rubricRaw ? {
+        content:         rubricRaw.content,
+        organization:    rubricRaw.organization,
+        languageVocab:   rubricRaw.language_vocab,
+        grammar:         rubricRaw.grammar,
+        mechanics:       rubricRaw.mechanics,
+        overallScore:    rubricRaw.overall_score,
+        overallFeedback: rubricRaw.overall_feedback,
+        gradeLevel:      rubricRaw.grade_level,
+        language,
+    } as DepEdRubricScore : null;
+
+    return { student: data.student, complexity: data.complexity, rubric };
+};
+
 export interface TrainLanguageStatus {
     rated_essays: number;
     confidence_level: string;

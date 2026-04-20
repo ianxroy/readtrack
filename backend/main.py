@@ -1762,6 +1762,92 @@ async def analyze_complexity_text(request: TextRequest):
     except Exception as e:
         return {"error": _friendly_error(e)}
 
+@app.post("/analyze/all")
+async def analyze_all(request: TextRequest):
+    """
+    Combined endpoint: extracts NLP features once, then runs proficiency,
+    complexity, grammar, and rubric models in parallel.
+    Returns { student, complexity, rubric } in a single round-trip.
+    """
+    try:
+        from grammar_service import detect_language, check_grammar, GrammarCheckRequest
+
+        text_to_analyze = request.text or ""
+
+        # Truncate for ML — models don't need more than ~3000 chars to be accurate.
+        # Grammar check gets a 2000-char sample; full text is preserved for display.
+        ML_CAP   = 3000
+        GRAM_CAP = 2000
+        ml_text   = text_to_analyze[:ML_CAP]   if len(text_to_analyze) > ML_CAP   else text_to_analyze
+        gram_text = text_to_analyze[:GRAM_CAP]  if len(text_to_analyze) > GRAM_CAP else text_to_analyze
+
+        detected_lang = detect_language(ml_text)
+
+        # Extract NLP features ONCE — shared by both proficiency and complexity models
+        features = await run_cpu_bound(extract_features, ml_text, language=detected_lang)
+
+        # Run grammar check, proficiency model, and complexity model concurrently
+        grammar_task = asyncio.create_task(check_grammar(GrammarCheckRequest(
+            text=gram_text, language=detected_lang
+        )))
+
+        student_model = student_model_en if detected_lang == 'en' else student_model_tl
+        proficiency_task = asyncio.create_task(run_cpu_bound(
+            student_model.predict, features, ml_text,
+            grammar_data=None,        # grammar injected below after gather
+            language=detected_lang
+        ))
+        complexity_task = asyncio.create_task(run_cpu_bound(
+            complexity_model.predict, features, ml_text
+        ))
+
+        grammar_result, proficiency_result, complexity_result = await asyncio.gather(
+            grammar_task, proficiency_task, complexity_task
+        )
+
+        # Re-run proficiency with grammar data (fast — features already computed)
+        proficiency_result = await run_cpu_bound(
+            student_model.predict, features, ml_text,
+            grammar_data=grammar_result.model_dump(),
+            language=detected_lang
+        )
+        proficiency_result["analyzed_text"] = text_to_analyze
+
+        # Attach feature summary to complexity result
+        m  = features["metrics"]
+        ri = m.get("readabilityIndices", {})
+        cefr = m.get("cefrDistribution", {})
+        total_cefr = sum(cefr.values()) or 1
+        complexity_result["features"] = {
+            "avg_word_length":           round(sum(len(w) for w in m.get("difficultWords", [])) / max(len(m.get("difficultWords", [])), 1), 2),
+            "avg_sentence_length":       round(m.get("avgSentenceLength", 0), 2),
+            "ttr":                       round(m.get("vocabularyRichness", 0) / 100, 3),
+            "cefr_ratio":                round((cefr.get("B2", 0) + cefr.get("C1", 0) + cefr.get("C2", 0)) / total_cefr, 3),
+            "fkgl":                      round(ri.get("flesch_kincaid", 0), 1),
+            "gunning_fog":               round(ri.get("gunning_fog", 0), 1),
+        }
+        complexity_result["analyzed_text"] = text_to_analyze
+
+        # Rubric (Gemini-based — runs concurrently with above but can't share features)
+        lang_for_rubric = "english" if detected_lang == "en" else "filipino"
+        try:
+            rubric_result = await evaluate_rubric_with_ml_english(text=ml_text, grade_level="Grade 7") \
+                if detected_lang == "en" \
+                else await evaluate_rubric_with_gemini(text=ml_text, language=lang_for_rubric, grade_level="Grade 7")
+        except Exception as e:
+            rubric_result = None
+
+        return {
+            "student":    proficiency_result,
+            "complexity": complexity_result,
+            "rubric":     rubric_result,
+        }
+
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return {"error": _friendly_error(e)}
+
+
 if __name__ == "__main__":
     import uvicorn
     print("Starting FastAPI Server on http://localhost:8000")

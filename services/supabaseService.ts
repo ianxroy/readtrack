@@ -640,6 +640,7 @@ export async function updateStudentUploadAnalysis(
     nat_score?: number | null;
     diagnosis_result?: unknown;
     complexity_result?: unknown;
+    original_file?: { storageUrl?: string; mimeType: string; name: string } | null;
   },
 ): Promise<{ error: string | null }> {
   const { data: { user } } = await supabase.auth.getUser();
@@ -651,6 +652,9 @@ export async function updateStudentUploadAnalysis(
     diagnosis_result: payload.diagnosis_result ?? null,
     complexity_result: payload.complexity_result ?? null,
   };
+  if (payload.original_file !== undefined) {
+    updatePayload.original_file = payload.original_file;
+  }
 
   for (let attempt = 0; attempt < 5; attempt++) {
     const { data, error } = await supabase

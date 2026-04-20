@@ -21,7 +21,7 @@ import { ModelPerformancePage } from './ModelPerformancePage';
 
 import { ProficiencyLevel, CachedAnalysis, StudentDiagnosisResult, DepEdRubricScore, OriginalFile } from '../../types';
 import { IoRefreshOutline } from 'react-icons/io5';
-import { analyzeStudentWorkAPI, classifyTextComplexityAPI, evaluateDepEdRubricAPI, getTrainStatusAPI, triggerRetrainAPI, TrainStatusResponse } from '../../services/pythonService';
+import { analyzeStudentWorkAPI, classifyTextComplexityAPI, evaluateDepEdRubricAPI, analyzeAllAPI, getTrainStatusAPI, triggerRetrainAPI, TrainStatusResponse } from '../../services/pythonService';
 import { saveStudentGradingUpload, saveTeacherRubricScores, lookupEssayIdByText, deleteStudentUpload, deleteStudentAllUploads, updateStudentEssayText, updateStudentUploadAnalysis, deleteSection as deleteSectionRemote, uploadOriginalFilesToStorage } from '../../services/supabaseService';
 
 interface StudentGradingProps {
@@ -367,15 +367,7 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
       try {
         const targetStudent = next.find(s => s.id === params.studentId);
         const sectionName = sections.find(sec => sec.id === targetStudent?.sectionId)?.name;
-        // Upload original files to storage (compresses images), strip base64 from DB payload
-        const rawFiles = essay.originalFiles?.length
-          ? essay.originalFiles
-          : essay.originalFile ? [essay.originalFile] : [];
-        const storedFiles = rawFiles.length
-          ? await uploadOriginalFilesToStorage(rawFiles, 'essays')
-          : [];
-        const storedFile = storedFiles[0] ?? null;
-
+        // Save to DB immediately — don't wait for storage upload
         const { data, error } = await saveStudentGradingUpload({
           student_name: targetStudent?.name ?? 'Unknown Student',
           essay_title: essay.title,
@@ -387,8 +379,16 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
           section_name: sectionName,
           subject_name: selectedSubjectForUpload?.name,
           subject_language: selectedSubjectForUpload?.language === 'english' ? 'en' : 'tl',
-          original_file: storedFile,
+          original_file: null,
         });
+
+        // Upload files to storage in parallel with analysis — patch DB when done
+        const rawFiles = essay.originalFiles?.length
+          ? essay.originalFiles
+          : essay.originalFile ? [essay.originalFile] : [];
+        const storageUploadPromise = rawFiles.length
+          ? uploadOriginalFilesToStorage(rawFiles, 'essays')
+          : Promise.resolve([]);
 
         if (error) {
           console.error('saveStudentGradingUpload failed:', error);
@@ -413,22 +413,13 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
           flushPendingRubricSave(tempEssayId, realId).catch(console.error);
         }
 
-        const primaryImage = params.originalFiles?.[0];
-        const [diagnosisResult, comp] = await Promise.all([
-          analyzeStudentWorkAPI(params.text, primaryImage?.base64),
-          classifyTextComplexityAPI(params.text, primaryImage?.base64),
-        ]);
-
-        let rubricScore: DepEdRubricScore | undefined;
-        try {
-          rubricScore = await evaluateDepEdRubricAPI(
-            params.text,
-            selectedSubjectForUpload?.language ?? 'filipino',
-            'Grade 7'
-          );
-        } catch (err) {
-          console.warn('Rubric evaluation failed (non-blocking):', err);
-        }
+        // Run analysis and storage upload concurrently
+        const subjectLang = selectedSubjectForUpload?.language ?? 'filipino';
+        const [{ student: diagnosisResult, complexity: comp, rubric: rubricScore }, storedFiles] =
+          await Promise.all([
+            analyzeAllAPI(params.text, subjectLang),
+            storageUploadPromise,
+          ]);
 
         const rubricProficiency = (overall: number): ProficiencyLevel =>
           overall >= 3.5 ? ProficiencyLevel.MAHUSAY
@@ -448,11 +439,13 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
         }));
 
         if (isUuid(persistedEssayId)) {
+          const storedFile = storedFiles[0] ?? null;
           const { error: updateError } = await updateStudentUploadAnalysis(persistedEssayId, {
             proficiency_level: diag.proficiency,
             nat_score: diag.natScore ?? null,
             diagnosis_result: diag,
             complexity_result: comp,
+            original_file: storedFile,
           });
           if (updateError) {
             console.error('updateStudentUploadAnalysis failed:', updateError);
