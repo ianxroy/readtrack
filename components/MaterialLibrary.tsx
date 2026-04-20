@@ -1,26 +1,24 @@
 import React, { useState, useRef, useCallback, useMemo } from 'react';
 import {
   IoCloudUploadOutline,
+  IoDocumentTextOutline,
   IoSearchOutline,
   IoTrashOutline,
   IoCloseOutline,
   IoMenuOutline,
+  IoTimeOutline,
   IoBookOutline,
   IoFunnelOutline,
   IoChevronDownOutline,
   IoChevronUpOutline,
   IoImageOutline,
   IoInformationCircleOutline,
-  IoCheckmarkCircle,
-  IoAddOutline,
 } from 'react-icons/io5';
 import { LibraryMaterial, TextComplexityResult, ComplexityLevel, OriginalFile } from '../types';
-import { classifyTextComplexityAPI, extractTextFromImageAPI, detectLanguageAPI, addTrainingSampleAPI, ingestReferenceAPI, detectLanguageClientSide, triggerRetrainAPI } from '../services/pythonService';
-import { saveMaterialUpload, loadMaterialUploads, deleteMaterialUpload, saveMaterialTeacherVerification, loadOrganization, loadMaterialSubjectCatalog, saveMaterialSubjectCatalog, updateMaterialSubject, uploadOriginalFilesToStorage } from '../services/supabaseService';
-import { getUILanguagePreference, resolveUILanguage, subscribeUILanguagePreferenceChange, UILanguagePreference } from '../services/uiSettings';
+import { classifyTextComplexityAPI, extractTextFromImageAPI, detectLanguageAPI, addTrainingSampleAPI, ingestReferenceAPI } from '../services/pythonService';
+import { saveMaterialUpload, loadMaterialUploads, deleteMaterialUpload, saveMaterialTeacherVerification } from '../services/supabaseService';
 import { useEffect } from 'react';
 import { IoDocumentOutline } from 'react-icons/io5';
-import { TeacherModalFrame, TeacherModalHeader, teacherModalTabClass } from './ui/TeacherModal';
 
 
 
@@ -59,91 +57,25 @@ function normalizeMaterialText(text: string): string {
   return rebuilt.filter(Boolean).join('\n\n');
 }
 
-function normalizeSubjectName(value: string): string {
-  return value.trim().replace(/\s+/g, ' ');
-}
-
-function mergeSubjects(existing: string[], additions: string[]): string[] {
-  const byLower = new Map<string, string>();
-  [...existing, ...additions].forEach((subject) => {
-    const normalized = normalizeSubjectName(subject);
-    if (!normalized) return;
-    const key = normalized.toLowerCase();
-    if (!byLower.has(key)) byLower.set(key, normalized);
-  });
-  return Array.from(byLower.values()).sort((a, b) => a.localeCompare(b));
-}
-
-const MATERIAL_SUBJECTS_STORAGE_KEY = 'readtrack_material_subjects';
-
-function loadStoredMaterialSubjects(): string[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = window.localStorage.getItem(MATERIAL_SUBJECTS_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    const subjects = parsed.filter((entry): entry is string => typeof entry === 'string');
-    return mergeSubjects([], subjects);
-  } catch {
-    return [];
-  }
-}
-
-function saveStoredMaterialSubjects(subjects: string[]): void {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(MATERIAL_SUBJECTS_STORAGE_KEY, JSON.stringify(mergeSubjects([], subjects)));
-  } catch {
-    // Ignore storage errors to avoid blocking subject updates.
-  }
-}
-
 const levelMeta = {
   [ComplexityLevel.LITERAL]: {
     bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-200',
     dot: 'bg-green-500', badge: 'bg-green-50 text-green-700 border-green-200',
-    label: 'Independent', desc: 'Easy — G7 Readable',
+    label: 'Literal', desc: 'Easy — G7 Readable',
   },
   [ComplexityLevel.INFERENTIAL]: {
     bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-200',
     dot: 'bg-orange-500', badge: 'bg-orange-50 text-orange-700 border-orange-200',
-    label: 'Instructional', desc: 'Moderate — G7 Borderline',
+    label: 'Inferential', desc: 'Moderate — G7 Borderline',
   },
   [ComplexityLevel.EVALUATIVE]: {
     bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-200',
     dot: 'bg-red-500', badge: 'bg-red-50 text-red-700 border-red-200',
-    label: 'Frustration', desc: 'Difficult — Above G7',
+    label: 'Evaluative', desc: 'Difficult — Above G7',
   },
 };
 
-const toPhilIriLabel = (level: ComplexityLevel): 'Independent' | 'Instructional' | 'Frustration' =>
-  levelMeta[level]?.label as 'Independent' | 'Instructional' | 'Frustration' ?? 'Instructional';
-
-// Normalizes any level string the backend or DB might return into a valid ComplexityLevel.
-// Backend returns "Independent"/"Instructional"/"Frustration"; DB may also store "Literal"/"Inferential"/"Evaluative".
-function normalizeLevel(level: string | undefined | null, score?: number): ComplexityLevel {
-  const map: Record<string, ComplexityLevel> = {
-    'Literal':       ComplexityLevel.LITERAL,
-    'Independent':   ComplexityLevel.LITERAL,
-    'Madali':        ComplexityLevel.LITERAL,
-    'Inferential':   ComplexityLevel.INFERENTIAL,
-    'Instructional': ComplexityLevel.INFERENTIAL,
-    'Katamtaman':    ComplexityLevel.INFERENTIAL,
-    'Evaluative':    ComplexityLevel.EVALUATIVE,
-    'Frustration':   ComplexityLevel.EVALUATIVE,
-    'Mahirap':       ComplexityLevel.EVALUATIVE,
-  };
-  // If score is available, derive level from it — score is the ground truth number
-  if (score !== undefined && score !== null) {
-    if (score >= 75) return ComplexityLevel.EVALUATIVE;
-    if (score >= 40) return ComplexityLevel.INFERENTIAL;
-    return ComplexityLevel.LITERAL;
-  }
-  return map[level ?? ''] ?? ComplexityLevel.LITERAL;
-}
-
-type SortKey = 'newest' | 'oldest' | 'score_high' | 'score_low' | 'name' | 'subject';
+type SortKey = 'newest' | 'oldest' | 'score_high' | 'score_low' | 'name';
 
 function sortMaterials(items: LibraryMaterial[], key: SortKey): LibraryMaterial[] {
   const sorted = [...items];
@@ -153,13 +85,6 @@ function sortMaterials(items: LibraryMaterial[], key: SortKey): LibraryMaterial[
     case 'score_high': return sorted.sort((a, b) => b.complexityResult.score - a.complexityResult.score);
     case 'score_low': return sorted.sort((a, b) => a.complexityResult.score - b.complexityResult.score);
     case 'name': return sorted.sort((a, b) => a.name.localeCompare(b.name));
-    case 'subject':
-      return sorted.sort((a, b) => {
-        const aSubject = (a.subject?.trim() || 'Uncategorized').toLowerCase();
-        const bSubject = (b.subject?.trim() || 'Uncategorized').toLowerCase();
-        if (aSubject !== bSubject) return aSubject.localeCompare(bSubject);
-        return a.name.localeCompare(b.name);
-      });
     default: return sorted;
   }
 }
@@ -175,111 +100,22 @@ const REASONING_SUMMARIES: Record<ComplexityLevel, string> = {
   [ComplexityLevel.EVALUATIVE]: 'This material uses complex ideas and language that are above Grade 7 level — scaffolding is recommended.',
 };
 
-const REASONING_SUMMARIES_FIL: Record<ComplexityLevel, string> = {
-  [ComplexityLevel.LITERAL]: 'Gumagamit ang materyal na ito ng payak na salita at maiikling pangungusap na kayang basahin ng Grade 7 nang mag-isa.',
-  [ComplexityLevel.INFERENTIAL]: 'Kailangang maghinuha ng mga mag-aaral sa materyal na ito; maaaring kailanganin ang gabay ng guro.',
-  [ComplexityLevel.EVALUATIVE]: 'Mas masalimuot ang ideya at wika ng materyal na ito para sa Grade 7 kaya inirerekomenda ang scaffolding.',
-};
-
 const LEVEL_DESCRIPTIONS: Record<ComplexityLevel, string> = {
-  [ComplexityLevel.LITERAL]: 'Independent: suitable for independent Grade 7 reading.',
-  [ComplexityLevel.INFERENTIAL]: 'Instructional: may need teacher guidance.',
-  [ComplexityLevel.EVALUATIVE]: 'Frustration: likely needs strong teacher support.',
+  [ComplexityLevel.LITERAL]: 'Easy for independent Grade 7 reading.',
+  [ComplexityLevel.INFERENTIAL]: 'Moderate difficulty; may need teacher guidance.',
+  [ComplexityLevel.EVALUATIVE]: 'Difficult and abstract; scaffolding recommended.',
 };
 
-const LEVEL_DESCRIPTIONS_FIL: Record<ComplexityLevel, string> = {
-  [ComplexityLevel.LITERAL]: 'Madali (Independent): akma sa independiyenteng pagbasa ng Grade 7.',
-  [ComplexityLevel.INFERENTIAL]: 'Katamtaman (Instructional): maaaring kailanganin ng gabay ng guro.',
-  [ComplexityLevel.EVALUATIVE]: 'Mahirap (Frustration): nangangailangan ng mas matinding suporta ng guro.',
+const ADVANCED_METRIC_HELP: Record<string, string> = {
+  'Complexity Score': 'Model score for how difficult the passage is. Higher values mean the text is more complex and usually needs more support.',
+  'Readability Score': 'A readability measure used by the system. Higher values usually mean the passage is easier to read.',
+  'Est. Reading Time': 'Estimated time for an average reader to finish the passage.',
+  'Avg Sentence Len': 'Average number of words per sentence. Longer sentences often make text harder to read.',
+  'Flesch-Kincaid Grade': 'Estimated U.S. grade level of the text. Higher grades mean harder reading.',
+  'Gunning Fog Index': 'Estimated grade level based on sentence length and complex words. Higher values mean harder text.',
 };
 
-const getMaterialUiLanguage = (
-  material: LibraryMaterial,
-  preference: UILanguagePreference = getUILanguagePreference()
-): 'eng' | 'fil' => {
-  const automaticLanguage: 'english' | 'filipino' = material.language === 'eng' ? 'english' : 'filipino';
-  const resolved = resolveUILanguage(preference, automaticLanguage);
-  return resolved === 'english' ? 'eng' : 'fil';
-};
-
-const LEVEL_DISPLAY: Record<ComplexityLevel, { primary: string; secondary: string }> = {
-  [ComplexityLevel.LITERAL]: { primary: 'Independent', secondary: 'Madali' },
-  [ComplexityLevel.INFERENTIAL]: { primary: 'Instructional', secondary: 'Katamtaman' },
-  [ComplexityLevel.EVALUATIVE]: { primary: 'Frustration', secondary: 'Mahirap' },
-};
-
-function getLevelDisplay(level: ComplexityLevel, uiLang: 'eng' | 'fil' = 'eng'): string {
-  const mapped = LEVEL_DISPLAY[level] ?? LEVEL_DISPLAY[ComplexityLevel.LITERAL];
-  return uiLang === 'eng' ? mapped.primary : mapped.secondary;
-}
-
-function getLevelLabel(level: ComplexityLevel, uiLang: 'eng' | 'fil' = 'eng'): string {
-  const mapped = LEVEL_DISPLAY[level] ?? LEVEL_DISPLAY[ComplexityLevel.LITERAL];
-  return uiLang === 'eng' ? mapped.primary : mapped.secondary;
-}
-
-
-type AdvancedMetricKey =
-  | 'complexity_score'
-  | 'readability_score'
-  | 'estimated_reading_time'
-  | 'avg_sentence_len'
-  | 'flesch_kincaid_grade'
-  | 'gunning_fog_index';
-
-const ADVANCED_METRIC_COPY: Record<AdvancedMetricKey, { engLabel: string; filLabel: string; engHelp: string; filHelp: string }> = {
-  complexity_score: {
-    engLabel: 'Reading Challenge',
-    filLabel: 'Hamon sa Pagbasa',
-    engHelp: 'Shows how challenging the material is for Grade 7 readers. Higher values usually mean more teacher support is needed.',
-    filHelp: 'Ipinapakita kung gaano kahamon ang materyal para sa Grade 7. Mas mataas na halaga ay karaniwang nangangailangan ng higit na gabay ng guro.',
-  },
-  readability_score: {
-    engLabel: 'Ease of Reading',
-    filLabel: 'Dali ng Pagbasa',
-    engHelp: 'Estimates how easy the passage is to read. Higher values usually mean learners can read with less support.',
-    filHelp: 'Tinatantiya kung gaano kadaling basahin ang teksto. Karaniwang mas kaunting suporta ang kailangan kapag mas mataas ang halaga.',
-  },
-  estimated_reading_time: {
-    engLabel: 'Reading Time',
-    filLabel: 'Tantyang Oras ng Pagbasa',
-    engHelp: 'Estimated time for an average learner to finish the material once.',
-    filHelp: 'Tinatayang oras para matapos ng karaniwang mambabasa ang teksto.',
-  },
-  avg_sentence_len: {
-    engLabel: 'Sentence Length',
-    filLabel: 'Haba ng Pangungusap',
-    engHelp: 'Average number of words per sentence. Longer sentences are often harder for learners to process.',
-    filHelp: 'Karaniwang dami ng salita bawat pangungusap. Mas mahahabang pangungusap ay kadalasang nagpapahirap sa pagbasa.',
-  },
-  flesch_kincaid_grade: {
-    engLabel: 'Grade-Level Estimate',
-    filLabel: 'Tantyang Antas-Baitang',
-    engHelp: 'A grade-level estimate based on sentence and word patterns. Higher values mean harder text.',
-    filHelp: 'Tinatayang antas-baitang ng teksto. Mas mataas na antas ay mas mahirap basahin.',
-  },
-  gunning_fog_index: {
-    engLabel: 'Difficulty Estimate',
-    filLabel: 'Tantyang Antas ng Hirap',
-    engHelp: 'Another estimate of text difficulty based on sentence length and complex vocabulary.',
-    filHelp: 'Tinatayang antas batay sa haba ng pangungusap at komplikadong salita. Mas mataas na halaga ay mas mahirap na teksto.',
-  },
-};
-
-function friendlyError(e: unknown): string {
-  const msg = (e instanceof Error ? e.message : String(e)).toLowerCase();
-  if (msg.includes('api key') || msg.includes('gemini') || msg.includes('unauthorized')) return 'API key error. Please contact your administrator.';
-  if (msg.includes('timeout') || msg.includes('timed out')) return 'The request timed out. Please try again.';
-  if (msg.includes('too large') || msg.includes('memory')) return 'The file is too large to process. Please try a smaller file.';
-  if (msg.includes('no text') || msg.includes('empty') || msg.includes('no readable')) return 'No text could be extracted. Please ensure the file contains readable text.';
-  if (msg.includes('network') || msg.includes('fetch') || msg.includes('cannot reach')) return 'Cannot reach the backend. Please check your connection.';
-  if (msg.includes('database') || msg.includes('supabase')) return 'A database error occurred. Please try again.';
-  if (msg.includes('corrupt') || msg.includes('format') || msg.includes('ubyte') || msg.includes('unsupported')) return 'The file could not be processed. Try re-saving and uploading again.';
-  if (e instanceof Error && e.message) return e.message;
-  return 'An unexpected error occurred. Please try again.';
-}
-
-const PHIL_IRI_HELP = 'Phil-IRI stands for Philippine Informal Reading Inventory. In ReadTrack, level labels use: Independent (Madali), Instructional (Katamtaman), and Frustration (Mahirap).';
+const PHIL_IRI_HELP = 'Phil-IRI stands for Philippine Informal Reading Inventory. In ReadTrack, it is used as a quick Grade 7 reading guide: Literal means easy and direct, Inferential means borderline and may need teacher support, and Evaluative means above Grade 7 and usually needs scaffolding.';
 
 const REASONING_KEYWORDS: Record<ComplexityLevel, Array<{ pattern: RegExp; tag: string }>> = {
   [ComplexityLevel.LITERAL]: [
@@ -304,9 +140,8 @@ const REASONING_KEYWORDS: Record<ComplexityLevel, Array<{ pattern: RegExp; tag: 
   ],
 };
 
-function parseReasoning(reasoning: string | undefined, level: ComplexityLevel, uiLang: 'eng' | 'fil' = 'eng'): ReasoningResult {
-  const summaries = uiLang === 'eng' ? REASONING_SUMMARIES : REASONING_SUMMARIES_FIL;
-  const summary = summaries[level] ?? summaries[ComplexityLevel.LITERAL];
+function parseReasoning(reasoning: string | undefined, level: ComplexityLevel): ReasoningResult {
+  const summary = REASONING_SUMMARIES[level] ?? REASONING_SUMMARIES[ComplexityLevel.LITERAL];
   if (!reasoning || reasoning.trim().length === 0) {
     return { summary, tags: [] };
   }
@@ -320,12 +155,9 @@ function parseReasoning(reasoning: string | undefined, level: ComplexityLevel, u
 
 interface DetailModalProps {
   material: LibraryMaterial;
-  uiLanguagePreference: UILanguagePreference;
-  availableSubjects: string[];
   onClose: () => void;
   onDelete: (id: string) => void;
   onUpdate: (updated: LibraryMaterial) => void;
-  onUpdateSubject: (id: string, subject: string | null) => Promise<void>;
   onVerify: (material: LibraryMaterial, level: ComplexityLevel, comment: string) => Promise<{ ok: boolean; message: string }>;
 }
 
@@ -342,41 +174,23 @@ function base64ToBlobUrl(base64: string, mimeType: string): string {
   return URL.createObjectURL(new Blob([arr], { type: mimeType }));
 }
 
-const DetailModal: React.FC<DetailModalProps> = ({ material, uiLanguagePreference, availableSubjects, onClose, onDelete, onUpdate, onUpdateSubject, onVerify }) => {
-  const uiLang = getMaterialUiLanguage(material, uiLanguagePreference);
+const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, onUpdate, onVerify }) => {
   const [editedText, setEditedText] = useState(material.text);
-  const [editedSubject, setEditedSubject] = useState(material.subject ?? '');
-  const [isSavingSubject, setIsSavingSubject] = useState(false);
-  const [subjectMessage, setSubjectMessage] = useState<string | null>(null);
-  const [subjectError, setSubjectError] = useState(false);
   const [isSavingText, setIsSavingText] = useState(false);
   const [textMessage, setTextMessage] = useState<string | null>(null);
   const [textError, setTextError] = useState(false);
-  const normalizedCardLevel = normalizeLevel(material.complexityResult.level, material.complexityResult.score);
-  const [teacherLevel, setTeacherLevel] = useState<ComplexityLevel>(
-    material.teacherVerifiedLevel
-      ? normalizeLevel(material.teacherVerifiedLevel)
-      : normalizedCardLevel
-  );
+  const [teacherLevel, setTeacherLevel] = useState<ComplexityLevel>(material.teacherVerifiedLevel ?? material.complexityResult.level);
   const [verificationComment, setVerificationComment] = useState(material.verificationComment ?? '');
   const [isSavingVerification, setIsSavingVerification] = useState(false);
   const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
   const [verifyError, setVerifyError] = useState(false);
   const [activeTab, setActiveTab] = useState<'original' | 'analysis'>('original');
   const [activeMetricHelp, setActiveMetricHelp] = useState<string | null>(null);
-  const meta = {
-    bg: 'bg-indigo-50/60',
-    text: 'text-indigo-800',
-    border: 'border-indigo-100',
-    badge: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-  };
-  const levelLabel = getLevelLabel(material.complexityResult.level, uiLang);
+  const meta = levelMeta[material.complexityResult.level] ?? levelMeta[ComplexityLevel.LITERAL];
   const cr = material.complexityResult;
-  const levelDescriptions = uiLang === 'eng' ? LEVEL_DESCRIPTIONS : LEVEL_DESCRIPTIONS_FIL;
   const { summary: reasoningSummary, tags: reasoningTags } = parseReasoning(
-    cr.reasoning, material.complexityResult.level, uiLang
+    cr.reasoning, material.complexityResult.level
   );
-  const addedOn = new Date(material.uploadedAt).toLocaleString();
 
   const allImages = material.originalFiles?.length
     ? material.originalFiles
@@ -387,9 +201,8 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, uiLanguagePreferenc
 
   // Create a blob URL for PDF so browsers don't block data: URIs in iframes
   const pdfBlobUrl = useMemo(() => {
-    if (material.originalFile?.mimeType === 'application/pdf') {
-      if (material.originalFile.storageUrl) return material.originalFile.storageUrl;
-      if (material.originalFile.base64) return base64ToBlobUrl(material.originalFile.base64, 'application/pdf');
+    if (material.originalFile?.mimeType === 'application/pdf' && material.originalFile.base64) {
+      return base64ToBlobUrl(material.originalFile.base64, 'application/pdf');
     }
     return null;
   }, [material.originalFile]);
@@ -397,25 +210,6 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, uiLanguagePreferenc
   useEffect(() => {
     return () => { if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl); };
   }, [pdfBlobUrl]);
-
-  const handleSaveSubject = async (value: string) => {
-    const trimmed = normalizeSubjectName(value);
-    if (trimmed === (material.subject ?? '')) return;
-    setIsSavingSubject(true);
-    setSubjectMessage(null);
-    try {
-      await onUpdateSubject(material.id, trimmed || null);
-      onUpdate({ ...material, subject: trimmed || undefined });
-      setSubjectError(false);
-      setSubjectMessage(uiLang === 'eng' ? 'Subject saved.' : 'Nai-save ang asignatura.');
-    } catch {
-      setSubjectError(true);
-      setSubjectMessage(uiLang === 'eng' ? 'Could not save subject.' : 'Hindi na-save ang asignatura.');
-      setEditedSubject(material.subject ?? '');
-    } finally {
-      setIsSavingSubject(false);
-    }
-  };
 
   const handleSaveText = async () => {
     const next = editedText.trim();
@@ -454,96 +248,76 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, uiLanguagePreferenc
   };
 
   return (
-    <TeacherModalFrame maxWidthClass="max-w-4xl" panelClassName="animate-in fade-in duration-300">
-      {/* Header */}
-      <TeacherModalHeader
-        onClose={onClose}
-        closeLabel={uiLang === 'eng' ? 'Close material details' : 'Isara ang detalye ng materyal'}
-        title={material.name}
-        titleClassName="truncate"
-        subtitle={`${uiLang === 'eng' ? 'Added' : 'Nadagdag noong'} ${addedOn} | ${cr.wordCount || 0} ${uiLang === 'eng' ? 'words' : 'salita'}`}
-        meta={(
-          <>
-            <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${meta.badge}`}>
-              {levelLabel}
-            </span>
-            {material.language && (
-              <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${
-                material.language === 'eng'
-                  ? 'bg-blue-50 text-blue-700 border-blue-200'
-                  : 'bg-amber-50 text-amber-700 border-amber-200'
-              }`}>
-                {material.language === 'eng' ? 'English' : 'Filipino'}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-md p-4 animate-in fade-in duration-300">
+      <div className="bg-white rounded-[32px] shadow-2xl border border-white/20 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="flex items-start justify-between p-8 border-b border-gray-50">
+          <div className="flex-1 min-w-0 pr-4">
+            <div className="flex items-center gap-3 mb-2">
+              <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${meta.badge}`}>
+                {meta.label}
               </span>
-            )}
-          </>
-        )}
-        actions={(
-          <button
-            type="button"
-            onClick={() => { onDelete(material.id); onClose(); }}
-            className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all"
-            aria-label={uiLang === 'eng' ? 'Delete material' : 'Burahin ang materyal'}
-          >
-            <IoTrashOutline className="text-xl" />
-          </button>
-        )}
-      />
-
-        {/* Subject row */}
-        <div className="flex items-center gap-3 px-6 py-3 border-b border-gray-100 bg-gray-50/50">
-          <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 shrink-0">Subject</span>
-          <select
-            value={editedSubject}
-            onChange={e => {
-              const next = e.target.value;
-              setEditedSubject(next);
-              handleSaveSubject(next);
-            }}
-            disabled={isSavingSubject}
-            className="flex-1 text-sm border border-gray-200 rounded-xl px-3 py-1.5 bg-white outline-none focus:ring-2 focus:ring-teal-300 shadow-sm disabled:opacity-50"
-          >
-            <option value="">Uncategorized</option>
-            {availableSubjects.map(s => <option key={s} value={s} />)}
-          </select>
-          {isSavingSubject && (
-            <span className="text-[10px] text-gray-400 shrink-0">Saving…</span>
-          )}
-          {subjectMessage && !isSavingSubject && (
-            <span className={`text-[10px] shrink-0 ${subjectError ? 'text-rose-600' : 'text-slate-500'}`}>
-              {subjectMessage}
-            </span>
-          )}
+              {material.language && (
+                <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${
+                  material.language === 'eng'
+                    ? 'bg-blue-50 text-blue-600 border-blue-100'
+                    : 'bg-purple-50 text-purple-600 border-purple-100'
+                }`}>
+                  {material.language === 'eng' ? 'English' : 'Filipino'}
+                </span>
+              )}
+            </div>
+            <h2 className="text-2xl font-black text-gray-900 tracking-tight truncate">{material.name}</h2>
+            <p className="text-sm text-gray-400 font-medium mt-1">
+              Added {new Date(material.uploadedAt).toLocaleString()} &middot; {cr.wordCount || 0} words
+            </p>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <button
+              onClick={() => { onDelete(material.id); onClose(); }}
+              className="p-3 rounded-2xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all"
+            >
+              <IoTrashOutline className="text-xl" />
+            </button>
+            <button
+              onClick={onClose}
+              className="p-3 rounded-2xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
+            >
+              <IoCloseOutline className="text-2xl" />
+            </button>
+          </div>
         </div>
 
         {/* Tab Bar */}
-        <div className="flex border-b border-slate-100 px-4">
+        <div className="flex border-b border-gray-200 px-4">
           {(['original', 'analysis'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={teacherModalTabClass(activeTab === tab)}
+              className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${
+                activeTab === tab
+                  ? 'border-indigo-500 text-indigo-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
             >
-              {tab === 'original'
-                ? (uiLang === 'eng' ? 'Original Submission' : 'Orihinal na Isinumite')
-                : (uiLang === 'eng' ? 'Analysis' : 'Pagsusuri')}
+              {tab === 'original' ? 'Original Submission' : 'Analysis'}
             </button>
           ))}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-7 space-y-6">
+        <div className="flex-1 overflow-y-auto p-8 space-y-6">
           {/* Original Submission Tab */}
           {activeTab === 'original' && (
             <div>
               <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4 flex items-center gap-2">
-                <IoBookOutline /> {uiLang === 'eng' ? 'Original File' : 'Orihinal na File'}
+                <IoBookOutline /> Original File
               </h4>
               {(allImages.length > 0 || material.originalFile) ? (
                 <div className="flex gap-4">
                   {/* Left: original file(s) */}
                   <div className="flex-1 min-w-0">
                     <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">
-                      {uiLang === 'eng' ? `Original File${allImages.length > 1 ? `s (${allImages.length})` : ''}` : `Orihinal na File${allImages.length > 1 ? ` (${allImages.length})` : ''}`}
+                      Original File{allImages.length > 1 ? `s (${allImages.length})` : ''}
                     </p>
                     {allImages.length > 1 ? (
                       <div className="space-y-3">
@@ -553,7 +327,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, uiLanguagePreferenc
                             <div key={i}>
                               <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">Image {i + 1}</div>
                               {mime ? (
-                                <img src={img.storageUrl ?? (img.base64 ? `data:${mime};base64,${img.base64}` : '')} alt={`Image ${i+1}`} className="w-full rounded-lg border border-gray-200" />
+                                <img src={`data:${mime};base64,${img.base64}`} alt={`Image ${i+1}`} className="w-full rounded-lg border border-gray-200" />
                               ) : (
                                 <div className="text-xs text-gray-400 italic p-4 bg-gray-50 rounded-lg border border-gray-200">No preview available.</div>
                               )}
@@ -563,7 +337,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, uiLanguagePreferenc
                       </div>
                     ) : safeImageMime ? (
                       <img
-                        src={material.originalFile!.storageUrl ?? (material.originalFile!.base64 ? `data:${safeImageMime};base64,${material.originalFile!.base64}` : '')}
+                        src={`data:${safeImageMime};base64,${material.originalFile!.base64}`}
                         alt="Original uploaded material"
                         className="w-full rounded-lg border border-gray-200"
                       />
@@ -590,9 +364,9 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, uiLanguagePreferenc
                   </div>
                   {/* Right: extracted text */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">{uiLang === 'eng' ? 'Extracted Text' : 'Nakuha na Teksto'}</p>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">Extracted Text</p>
                     <textarea
-                      className="w-full min-h-[280px] bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-gray-700 leading-relaxed outline-none focus:ring-1 focus:ring-slate-300"
+                      className="w-full min-h-[280px] bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs text-gray-700 leading-relaxed outline-none focus:ring-1 focus:ring-teal-500"
                       value={editedText}
                       onChange={e => setEditedText(e.target.value)}
                     />
@@ -603,13 +377,13 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, uiLanguagePreferenc
                         className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${
                           isSavingText || editedText.trim() === material.text.trim()
                             ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                            : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                            : 'bg-teal-600 text-white hover:bg-teal-700'
                         }`}
                       >
-                        {isSavingText ? (uiLang === 'eng' ? 'Saving…' : 'Sine-save…') : (uiLang === 'eng' ? 'Save Text' : 'I-save ang Teksto')}
+                        {isSavingText ? 'Saving…' : 'Save Text'}
                       </button>
                       {textMessage && (
-                        <p className={`text-[10px] font-medium ${textError ? 'text-rose-600' : 'text-slate-600'}`}>
+                        <p className={`text-[10px] font-medium ${textError ? 'text-red-500' : 'text-green-600'}`}>
                           {textMessage}
                         </p>
                       )}
@@ -618,9 +392,9 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, uiLanguagePreferenc
                 </div>
               ) : (
                 <div>
-                  <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">{uiLang === 'eng' ? 'Extracted Text' : 'Nakuha na Teksto'}</p>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">Extracted Text</p>
                   <textarea
-                    className="w-full min-h-[320px] bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-gray-700 leading-relaxed outline-none focus:ring-1 focus:ring-slate-300"
+                    className="w-full min-h-[320px] bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs text-gray-700 leading-relaxed outline-none focus:ring-1 focus:ring-teal-500"
                     value={editedText}
                     onChange={e => setEditedText(e.target.value)}
                   />
@@ -631,13 +405,13 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, uiLanguagePreferenc
                       className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${
                         isSavingText || editedText.trim() === material.text.trim()
                           ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                          : 'bg-slate-700 text-white hover:bg-slate-800'
+                          : 'bg-teal-600 text-white hover:bg-teal-700'
                       }`}
                     >
-                      {isSavingText ? (uiLang === 'eng' ? 'Saving…' : 'Sine-save…') : (uiLang === 'eng' ? 'Save Text' : 'I-save ang Teksto')}
+                      {isSavingText ? 'Saving…' : 'Save Text'}
                     </button>
                     {textMessage && (
-                      <p className={`text-[10px] font-medium ${textError ? 'text-rose-600' : 'text-slate-600'}`}>
+                      <p className={`text-[10px] font-medium ${textError ? 'text-red-500' : 'text-green-600'}`}>
                         {textMessage}
                       </p>
                     )}
@@ -653,13 +427,8 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, uiLanguagePreferenc
               {/* Teacher verification */}
               <div className="rounded-xl border border-teal-100 bg-teal-50/60 p-4">
                 <div className="text-[10px] font-bold uppercase tracking-widest text-teal-700 mb-2">
-                  {uiLang === 'eng' ? 'Confirm Reading Level' : 'Kumpirmahin ang Antas ng Pagbasa'}
+                  Teacher Verification (Improves Model Reliability)
                 </div>
-                <p className="text-[11px] text-teal-700 mb-2">
-                  {uiLang === 'eng'
-                    ? 'Use your classroom judgment to keep or adjust the suggested level.'
-                    : 'Gamitin ang iyong paghatol sa klase para panatilihin o baguhin ang mungkahing antas.'}
-                </p>
                 <div className="flex flex-wrap gap-2 mb-2">
                   {(Object.values(ComplexityLevel) as ComplexityLevel[]).map(level => (
                     <button
@@ -671,16 +440,16 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, uiLanguagePreferenc
                           : 'bg-white text-teal-700 border-teal-200 hover:border-teal-400'
                       }`}
                     >
-                      {getLevelDisplay(level, uiLang)}
+                      {level}
                     </button>
                   ))}
                 </div>
-                <p className="text-[11px] text-teal-700 mb-2">{levelDescriptions[teacherLevel]}</p>
+                <p className="text-[11px] text-teal-700 mb-2">{LEVEL_DESCRIPTIONS[teacherLevel]}</p>
                 <textarea
                   value={verificationComment}
                   onChange={e => setVerificationComment(e.target.value)}
-                  placeholder={uiLang === 'eng' ? 'Optional note on why this level is correct' : 'Opsyonal na tala kung bakit tama ang level na ito'}
-                  className="w-full min-h-[70px] bg-white border border-teal-100 rounded-lg p-2 text-xs text-slate-700 outline-none focus:ring-1 focus:ring-teal-300"
+                  placeholder="Optional note on why this level is correct"
+                  className="w-full min-h-[70px] bg-white border border-teal-100 rounded-lg p-2 text-xs text-gray-700 outline-none focus:ring-1 focus:ring-teal-400"
                 />
                 <div className="mt-2 flex items-center justify-between gap-3">
                   <button
@@ -692,12 +461,10 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, uiLanguagePreferenc
                         : 'bg-teal-600 text-white hover:bg-teal-700'
                     }`}
                   >
-                    {isSavingVerification
-                      ? (uiLang === 'eng' ? 'Saving…' : 'Sine-save…')
-                      : (uiLang === 'eng' ? 'Save Teacher Decision' : 'I-save ang Pasya ng Guro')}
+                    {isSavingVerification ? 'Saving…' : 'Save & Improve Model'}
                   </button>
                   {verifyMessage && (
-                    <p className={`text-[10px] font-medium ${verifyError ? 'text-rose-600' : 'text-teal-700'}`}>
+                    <p className={`text-[10px] font-medium ${verifyError ? 'text-red-500' : 'text-green-700'}`}>
                       {verifyMessage}
                     </p>
                   )}
@@ -708,8 +475,8 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, uiLanguagePreferenc
               <details className={`rounded-xl border p-4 ${meta.bg} ${meta.border}`}>
                 <summary className={`flex items-center justify-between cursor-pointer list-none ${meta.text}`}>
                   <div>
-                    <div className="text-[10px] font-bold uppercase tracking-widest opacity-70">{uiLang === 'eng' ? 'Teacher Notes' : 'Tala para sa Guro'}</div>
-                    <p className="text-[11px] mt-0.5 opacity-80">{uiLang === 'eng' ? 'Open any info icon for a plain-language explanation.' : 'Buksan ang anumang info icon para sa payak na paliwanag.'}</p>
+                    <div className="text-[10px] font-bold uppercase tracking-widest opacity-70">Advanced Info</div>
+                    <p className="text-[11px] mt-0.5 opacity-80">Click the i beside any label to see what it means.</p>
                   </div>
                   <IoChevronDownOutline className="text-sm shrink-0" />
                 </summary>
@@ -717,28 +484,28 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, uiLanguagePreferenc
                 <div className="mt-4 space-y-3">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
                     {[
-                      { key: 'complexity_score' as AdvancedMetricKey, value: cr.score ?? 'N/A' },
-                      { key: 'readability_score' as AdvancedMetricKey, value: cr.readabilityScore ?? 'N/A' },
-                      { key: 'estimated_reading_time' as AdvancedMetricKey, value: `${cr.estimatedReadingTime ?? '?'} ${uiLang === 'eng' ? 'min' : 'min'}` },
-                      { key: 'avg_sentence_len' as AdvancedMetricKey, value: `${cr.avgSentenceLength ?? '?'} ${uiLang === 'eng' ? 'words' : 'salita'}` },
-                    ].map(({ key, value }) => (
-                      <div key={key} className="group relative rounded-lg bg-white/60 border border-white/60 p-2.5">
+                      { label: 'Complexity Score', value: cr.score ?? 'N/A' },
+                      { label: 'Readability Score', value: cr.readabilityScore ?? 'N/A' },
+                      { label: 'Est. Reading Time', value: `${cr.estimatedReadingTime ?? '?'} min` },
+                      { label: 'Avg Sentence Len', value: `${cr.avgSentenceLength ?? '?'} words` },
+                    ].map(({ label, value }) => (
+                      <div key={label} className="group relative rounded-lg bg-white/60 border border-white/60 p-2.5">
                         <button
                           type="button"
-                          onClick={() => setActiveMetricHelp(activeMetricHelp === key ? null : key)}
+                          onClick={() => setActiveMetricHelp(activeMetricHelp === label ? null : label)}
                           className={`mx-auto inline-flex items-center justify-center gap-1 text-[10px] font-bold uppercase tracking-wide mb-0.5 ${meta.text} opacity-75`}
-                          aria-expanded={activeMetricHelp === key}
-                          aria-controls={`metric-help-${key}`}
+                          aria-expanded={activeMetricHelp === label}
+                          aria-controls={`metric-help-${label.replace(/\s+/g, '-').toLowerCase()}`}
                         >
-                          <span>{uiLang === 'eng' ? ADVANCED_METRIC_COPY[key].engLabel : ADVANCED_METRIC_COPY[key].filLabel}</span>
+                          <span>{label}</span>
                           <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/80 border border-current/10">
                             <IoInformationCircleOutline className="text-[11px] opacity-70" />
                           </span>
                         </button>
                         <div className={`text-lg font-bold ${meta.text}`}>{value}</div>
-                        {activeMetricHelp === key && (
-                          <p id={`metric-help-${key}`} className="mt-2 text-[10px] leading-relaxed text-gray-600">
-                            {uiLang === 'eng' ? ADVANCED_METRIC_COPY[key].engHelp : ADVANCED_METRIC_COPY[key].filHelp}
+                        {activeMetricHelp === label && (
+                          <p id={`metric-help-${label.replace(/\s+/g, '-').toLowerCase()}`} className="mt-2 text-[10px] leading-relaxed text-gray-600">
+                            {ADVANCED_METRIC_HELP[label]}
                           </p>
                         )}
                       </div>
@@ -751,20 +518,20 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, uiLanguagePreferenc
                         <div className="bg-white/60 border border-white/60 rounded-xl p-3 text-center">
                           <button
                             type="button"
-                            onClick={() => setActiveMetricHelp(activeMetricHelp === 'flesch_kincaid_grade' ? null : 'flesch_kincaid_grade')}
+                            onClick={() => setActiveMetricHelp(activeMetricHelp === 'Flesch-Kincaid Grade' ? null : 'Flesch-Kincaid Grade')}
                             className="mx-auto inline-flex items-center gap-1 text-[10px] text-gray-500 font-semibold uppercase tracking-wider mb-0.5"
-                            aria-expanded={activeMetricHelp === 'flesch_kincaid_grade'}
+                            aria-expanded={activeMetricHelp === 'Flesch-Kincaid Grade'}
                             aria-controls="metric-help-flesch-kincaid-grade"
                           >
-                            <span>{uiLang === 'eng' ? ADVANCED_METRIC_COPY.flesch_kincaid_grade.engLabel : ADVANCED_METRIC_COPY.flesch_kincaid_grade.filLabel}</span>
+                            <span>Flesch-Kincaid Grade</span>
                             <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/80 border border-gray-200">
                               <IoInformationCircleOutline className="text-[11px]" />
                             </span>
                           </button>
-                          <div className="text-xl font-bold text-indigo-700">{cr.readability.flesch_kincaid}</div>
-                          {activeMetricHelp === 'flesch_kincaid_grade' && (
+                          <div className="text-xl font-bold text-teal-600">{cr.readability.flesch_kincaid}</div>
+                          {activeMetricHelp === 'Flesch-Kincaid Grade' && (
                             <p id="metric-help-flesch-kincaid-grade" className="mt-2 text-[10px] leading-relaxed text-gray-600">
-                              {uiLang === 'eng' ? ADVANCED_METRIC_COPY.flesch_kincaid_grade.engHelp : ADVANCED_METRIC_COPY.flesch_kincaid_grade.filHelp}
+                              {ADVANCED_METRIC_HELP['Flesch-Kincaid Grade']}
                             </p>
                           )}
                         </div>
@@ -773,20 +540,20 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, uiLanguagePreferenc
                         <div className="bg-white/60 border border-white/60 rounded-xl p-3 text-center">
                           <button
                             type="button"
-                            onClick={() => setActiveMetricHelp(activeMetricHelp === 'gunning_fog_index' ? null : 'gunning_fog_index')}
+                            onClick={() => setActiveMetricHelp(activeMetricHelp === 'Gunning Fog Index' ? null : 'Gunning Fog Index')}
                             className="mx-auto inline-flex items-center gap-1 text-[10px] text-gray-500 font-semibold uppercase tracking-wider mb-0.5"
-                            aria-expanded={activeMetricHelp === 'gunning_fog_index'}
+                            aria-expanded={activeMetricHelp === 'Gunning Fog Index'}
                             aria-controls="metric-help-gunning-fog-index"
                           >
-                            <span>{uiLang === 'eng' ? ADVANCED_METRIC_COPY.gunning_fog_index.engLabel : ADVANCED_METRIC_COPY.gunning_fog_index.filLabel}</span>
+                            <span>Gunning Fog Index</span>
                             <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/80 border border-gray-200">
                               <IoInformationCircleOutline className="text-[11px]" />
                             </span>
                           </button>
-                          <div className="text-xl font-bold text-indigo-700">{cr.readability.gunning_fog}</div>
-                          {activeMetricHelp === 'gunning_fog_index' && (
+                          <div className="text-xl font-bold text-teal-600">{cr.readability.gunning_fog}</div>
+                          {activeMetricHelp === 'Gunning Fog Index' && (
                             <p id="metric-help-gunning-fog-index" className="mt-2 text-[10px] leading-relaxed text-gray-600">
-                              {uiLang === 'eng' ? ADVANCED_METRIC_COPY.gunning_fog_index.engHelp : ADVANCED_METRIC_COPY.gunning_fog_index.filHelp}
+                              {ADVANCED_METRIC_HELP['Gunning Fog Index']}
                             </p>
                           )}
                         </div>
@@ -799,7 +566,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, uiLanguagePreferenc
               {/* Reasoning */}
               <div className={`rounded-xl border p-4 ${meta.bg} ${meta.border}`}>
                 <div className={`text-[10px] font-bold uppercase tracking-widest mb-1.5 ${meta.text}`}>
-                  {uiLang === 'eng' ? `Why is this ${levelLabel}?` : `Bakit ito ${levelLabel}?`}
+                  Why is this {meta.label}?
                 </div>
                 <p className={`text-xs leading-relaxed mb-2 ${meta.text}`}>{reasoningSummary}</p>
                 {reasoningTags.length > 0 && (
@@ -819,7 +586,8 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, uiLanguagePreferenc
             </div>
           )}
         </div>
-    </TeacherModalFrame>
+      </div>
+    </div>
   );
 };
 
@@ -827,10 +595,6 @@ interface UploadVerificationModalProps {
   material: LibraryMaterial;
   materialName: string;
   onChangeName: (value: string) => void;
-  materialSubject: string;
-  onChangeSubject: (value: string) => void;
-  subjectOptions: string[];
-  uiLanguagePreference: UILanguagePreference;
   onCancel: () => void;
   onContinue: () => void;
 }
@@ -839,22 +603,16 @@ const UploadCompareModal: React.FC<UploadVerificationModalProps> = ({
   material,
   materialName,
   onChangeName,
-  materialSubject,
-  onChangeSubject,
-  subjectOptions,
-  uiLanguagePreference,
   onCancel,
   onContinue,
 }) => {
-  const uiLang = getMaterialUiLanguage(material, uiLanguagePreference);
   const safeImageMime = material.originalFile?.mimeType && SAFE_IMAGE_TYPES.has(material.originalFile.mimeType)
     ? material.originalFile.mimeType
     : null;
 
   const pdfBlobUrl = useMemo(() => {
-    if (material.originalFile?.mimeType === 'application/pdf') {
-      if (material.originalFile.storageUrl) return material.originalFile.storageUrl;
-      if (material.originalFile.base64) return base64ToBlobUrl(material.originalFile.base64, 'application/pdf');
+    if (material.originalFile?.mimeType === 'application/pdf' && material.originalFile.base64) {
+      return base64ToBlobUrl(material.originalFile.base64, 'application/pdf');
     }
     return null;
   }, [material.originalFile]);
@@ -864,34 +622,19 @@ const UploadCompareModal: React.FC<UploadVerificationModalProps> = ({
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden">
         <div className="flex items-start justify-between px-6 pt-6 pb-4 border-b border-gray-100">
           <div className="flex-1 min-w-0 pr-3">
-            <h3 className="text-lg font-black text-gray-900">{uiLang === 'eng' ? 'Confirm Material Level' : 'Kumpirmahin ang Antas ng Materyal'}</h3>
+            <h3 className="text-lg font-black text-gray-900">Confirm Material Level</h3>
             <p className="text-xs text-gray-500 mt-1">
-              {uiLang === 'eng' ? 'Suggested level:' : 'Mungkahing antas:'} <span className="font-semibold">{getLevelDisplay(material.complexityResult.level, uiLang)}</span>
+              Model predicted: <span className="font-semibold">{material.complexityResult.level}</span>
             </p>
-            <div className="mt-3 flex gap-3">
-              <div className="flex-1">
-                <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">{uiLang === 'eng' ? 'Material Title' : 'Pamagat ng Materyal'}</label>
-                <input
-                  type="text"
-                  value={materialName}
-                  onChange={(e) => onChangeName(e.target.value)}
-                  placeholder={uiLang === 'eng' ? 'Enter material title' : 'Ilagay ang pamagat ng materyal'}
-                  className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-teal-300"
-                />
-              </div>
-              <div className="w-40">
-                <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Subject</label>
-                <select
-                  value={materialSubject}
-                  onChange={(e) => onChangeSubject(e.target.value)}
-                  className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-teal-300"
-                >
-                  <option value="">Select subject</option>
-                  {subjectOptions.map((subject) => (
-                    <option key={subject} value={subject} />
-                  ))}
-                </select>
-              </div>
+            <div className="mt-3">
+              <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Material Title</label>
+              <input
+                type="text"
+                value={materialName}
+                onChange={(e) => onChangeName(e.target.value)}
+                placeholder="Enter material title"
+                className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-teal-300"
+              />
             </div>
           </div>
           <button onClick={onCancel} className="p-2 rounded-full hover:bg-gray-100 text-gray-400 shrink-0">
@@ -902,7 +645,7 @@ const UploadCompareModal: React.FC<UploadVerificationModalProps> = ({
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div>
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">{uiLang === 'eng' ? 'Original File' : 'Orihinal na File'}</p>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Original File</p>
               {material.originalFile ? (
                 safeImageMime ? (
                   <img
@@ -937,7 +680,7 @@ const UploadCompareModal: React.FC<UploadVerificationModalProps> = ({
             </div>
 
             <div>
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">{uiLang === 'eng' ? 'Extracted Text' : 'Nakuha na Teksto'}</p>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Extracted Text</p>
               <textarea
                 value={material.text}
                 readOnly
@@ -952,13 +695,13 @@ const UploadCompareModal: React.FC<UploadVerificationModalProps> = ({
             onClick={onCancel}
             className="px-4 py-2 text-xs font-semibold rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50"
           >
-            {uiLang === 'eng' ? 'Cancel' : 'Kanselahin'}
+            Cancel
           </button>
           <button
             onClick={onContinue}
             className="px-5 py-2 text-xs font-black rounded-xl bg-teal-600 text-white hover:bg-teal-700 transition-colors"
           >
-            {uiLang === 'eng' ? 'Save & Continue' : 'I-save at Magpatuloy'}
+            Save & Continue
           </button>
         </div>
       </div>
@@ -968,7 +711,6 @@ const UploadCompareModal: React.FC<UploadVerificationModalProps> = ({
 
 interface UploadTeacherVerificationModalProps {
   material: LibraryMaterial;
-  uiLanguagePreference: UILanguagePreference;
   selectedLevel: ComplexityLevel;
   comment: string;
   saving: boolean;
@@ -980,7 +722,6 @@ interface UploadTeacherVerificationModalProps {
 
 const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = ({
   material,
-  uiLanguagePreference,
   selectedLevel,
   comment,
   saving,
@@ -989,24 +730,21 @@ const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = (
   onCancel,
   onConfirm,
 }) => {
-  const uiLang = getMaterialUiLanguage(material, uiLanguagePreference);
-  const predicted = normalizeLevel(material.complexityResult.level, material.complexityResult.score);
+  const predicted = material.complexityResult.level;
   const isManualChoice = selectedLevel !== predicted;
   const [decisionMode, setDecisionMode] = useState<'confirm' | 'manual'>('confirm');
   const [previewOpen, setPreviewOpen] = useState(false);
-  const predMeta = levelMeta[predicted];
+  const predMeta = levelMeta[predicted] ?? levelMeta[ComplexityLevel.LITERAL];
   const selMeta = levelMeta[selectedLevel] ?? levelMeta[ComplexityLevel.LITERAL];
-  const levelDescriptions = uiLang === 'eng' ? LEVEL_DESCRIPTIONS : LEVEL_DESCRIPTIONS_FIL;
-  const { summary: reasoningSummary } = parseReasoning(material.complexityResult.reasoning, predicted, uiLang);
+  const { summary: reasoningSummary } = parseReasoning(material.complexityResult.reasoning, predicted);
 
   const safeImageMime = material.originalFile?.mimeType && SAFE_IMAGE_TYPES.has(material.originalFile.mimeType)
     ? material.originalFile.mimeType
     : null;
 
   const pdfBlobUrl = useMemo(() => {
-    if (material.originalFile?.mimeType === 'application/pdf') {
-      if (material.originalFile.storageUrl) return material.originalFile.storageUrl;
-      if (material.originalFile.base64) return base64ToBlobUrl(material.originalFile.base64, 'application/pdf');
+    if (material.originalFile?.mimeType === 'application/pdf' && material.originalFile.base64) {
+      return base64ToBlobUrl(material.originalFile.base64, 'application/pdf');
     }
     return null;
   }, [material.originalFile]);
@@ -1018,7 +756,7 @@ const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = (
         {/* Header */}
         <div className="flex items-start justify-between px-6 pt-6 pb-4 border-b border-gray-100">
           <div className="flex-1 min-w-0 pr-3">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">{uiLang === 'eng' ? 'New Material' : 'Bagong Materyal'}</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">New Material</p>
             <h3 className="text-base font-black text-gray-900 truncate">{material.name}</h3>
             {material.language && (
               <span className={`inline-block mt-1 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${
@@ -1042,96 +780,22 @@ const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = (
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1">
                 <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${predMeta.text} opacity-70`}>
-                  {uiLang === 'eng' ? 'Reading Level Assessment' : 'Antas ng Pagbasa'}
+                  Model Recommendation
                 </p>
                 <div className="flex items-center gap-2 mb-1.5">
                   <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${predMeta.dot}`} />
-                  <span className={`text-xl font-black ${predMeta.text}`}>{getLevelDisplay(predicted, uiLang)}</span>
+                  <span className={`text-xl font-black ${predMeta.text}`}>{predicted}</span>
                 </div>
                 <p className={`text-[11px] leading-relaxed ${predMeta.text} opacity-80`}>{reasoningSummary}</p>
               </div>
             </div>
           </div>
 
-          {/* Why this score? */}
-          {(() => {
-            const cr    = material.complexityResult;
-            const f     = (cr as any).features ?? {};
-            const fkgl     = +(f.fkgl     ?? 0);
-            const cefrR    = +(f.cefr_ratio ?? 0);
-            const avgLen   = +(f.avg_sentence_length ?? cr.avgSentenceLength ?? 0);
-            const ttr      = +(f.ttr      ?? 0);
-            const dep      = +(f.dependency_depth ?? 0);
-            const sub      = +(f.subordination_ratio ?? 0);
-
-            // Mirror backend normalization
-            const fkgl_n = Math.min(100, Math.max(0, fkgl / 10 * 100));
-            const cefr_n = Math.min(100, cefrR * 100);
-            const sent_n = Math.min(100, Math.max(0, (avgLen - 5) / 20 * 100));
-            const ttr_n  = Math.min(100, ttr * 100);
-            const dep_n  = Math.min(100, Math.max(0, dep * 20));
-            const sub_n  = Math.min(100, sub * 200);
-
-            const components = [
-              { label: 'Readability Grade (FKGL)', raw: fkgl.toFixed(1), normalized: fkgl_n, weight: 0.30, hint: 'Estimated grade level. Grade 10 → normalized 100.' },
-              { label: 'Advanced Vocab (CEFR B2+)', raw: `${(cefrR * 100).toFixed(1)}%`, normalized: cefr_n, weight: 0.30, hint: 'Proportion of B2–C2 words. More advanced words = harder.' },
-              { label: 'Avg Sentence Length', raw: `${avgLen.toFixed(1)} words`, normalized: sent_n, weight: 0.15, hint: '5 words → 0 · 25 words → 100.' },
-              { label: 'Vocabulary Variety (TTR)', raw: `${(ttr * 100).toFixed(1)}%`, normalized: ttr_n, weight: 0.10, hint: 'Ratio of unique words. Higher variety = harder.' },
-              { label: 'Syntactic Depth', raw: dep.toFixed(2), normalized: dep_n, weight: 0.10, hint: 'Average dependency distance. Deeper grammar = harder.' },
-              { label: 'Sentence Complexity', raw: `${(sub * 100).toFixed(1)}%`, normalized: sub_n, weight: 0.05, hint: 'How often sentences use connecting clauses (because, although, while…).' },
-            ];
-
-            const computed = components.reduce((s, c) => s + c.normalized * c.weight, 0);
-
-            return (
-              <details className="rounded-xl border border-gray-100 overflow-hidden">
-                <summary className="flex items-center justify-between px-4 py-3 cursor-pointer list-none bg-gray-50 hover:bg-gray-100 transition-colors">
-                  <span className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Why this score?</span>
-                  <IoChevronDownOutline className="text-xs text-gray-400" />
-                </summary>
-                <div className="px-4 py-3 space-y-4 bg-white">
-
-                  {/* Score summary */}
-                  <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2.5 space-y-1">
-                    <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400">Overall Score</p>
-                    <p className={`text-[13px] font-black font-mono ${predMeta.text}`}>
-                      {computed.toFixed(1)} / 100
-                    </p>
-                    <p className="text-[9px] text-gray-300">Under 40 → Easy · 40–74 → Moderate · 75+ → Challenging</p>
-                  </div>
-
-                  {/* Per-component breakdown */}
-                  <div className="space-y-2.5">
-                    {components.map(({ label, raw, normalized, weight, hint }) => (
-                      <div key={label}>
-                        <div className="flex items-center justify-between text-[11px] mb-0.5">
-                          <span className="text-gray-600 flex items-center gap-1">
-                            {label}
-                            <span className="text-[9px] font-bold bg-gray-100 text-gray-400 px-1 rounded">{(weight * 100).toFixed(0)}%</span>
-                          </span>
-                          <div className="flex items-center gap-2 tabular-nums">
-                            <span className="text-gray-400 text-[10px]">{raw}</span>
-                            <span className={`font-bold text-[11px] ${predMeta.text}`}>{normalized.toFixed(1)}</span>
-                          </div>
-                        </div>
-                        <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
-                          <div className={`h-full rounded-full ${predMeta.dot}`} style={{ width: `${normalized}%` }} />
-                        </div>
-                        <p className="text-[9px] text-gray-300 mt-0.5">{hint}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                </div>
-              </details>
-            );
-          })()}
-
           {/* Teacher decision */}
           <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 space-y-3">
             <div>
-              <p className="text-sm font-bold text-gray-800">{uiLang === 'eng' ? 'Is this recommendation correct?' : 'Tama ba ang rekomendasyong ito?'}</p>
-              <p className="text-[11px] text-gray-500 mt-1">{uiLang === 'eng' ? 'You can confirm this reading level or choose a different one.' : 'Maaari mong kumpirmahin ang antas na ito o pumili ng iba.'}</p>
+              <p className="text-sm font-bold text-gray-800">Is this recommendation correct?</p>
+              <p className="text-[11px] text-gray-500 mt-1">Keep the model suggestion, or choose a different level manually.</p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1146,7 +810,7 @@ const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = (
                     : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
                 }`}
               >
-                {uiLang === 'eng' ? `Keep ${getLevelDisplay(predicted, uiLang)}` : `Panatilihin ang ${getLevelDisplay(predicted, uiLang)}`}
+                Keep {predicted}
               </button>
               <button
                 onClick={() => setDecisionMode('manual')}
@@ -1156,23 +820,23 @@ const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = (
                     : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
                 }`}
               >
-                {uiLang === 'eng' ? 'Choose manually' : 'Manu-manong pumili'}
+                Choose manually
               </button>
             </div>
 
             {decisionMode === 'manual' && (
               <div className="pt-1 space-y-2 animate-in slide-in-from-top-2 duration-150">
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">{uiLang === 'eng' ? 'Select the manual level:' : 'Piliin ang manu-manong antas:'}</p>
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Select the manual level:</p>
                 <select
                   value={selectedLevel}
                   onChange={(e) => onSelectLevel(e.target.value as ComplexityLevel)}
                   className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-semibold text-gray-700 outline-none focus:ring-2 focus:ring-indigo-400"
                 >
                   {(Object.values(ComplexityLevel) as ComplexityLevel[]).map(level => (
-                    <option key={level} value={level}>{getLevelDisplay(level, uiLang)}</option>
+                    <option key={level} value={level}>{level}</option>
                   ))}
                 </select>
-                <p className={`text-[11px] font-medium ${selMeta.text}`}>{levelDescriptions[selectedLevel]}</p>
+                <p className={`text-[11px] font-medium ${selMeta.text}`}>{LEVEL_DESCRIPTIONS[selectedLevel]}</p>
               </div>
             )}
           </div>
@@ -1182,7 +846,7 @@ const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = (
             <div className={`rounded-xl border px-4 py-2.5 flex items-center gap-2 ${selMeta.bg} ${selMeta.border}`}>
               <span className={`w-2 h-2 rounded-full shrink-0 ${selMeta.dot}`} />
               <span className={`text-[11px] font-bold ${selMeta.text}`}>
-                {uiLang === 'eng' ? 'Will be saved as:' : 'Ise-save bilang:'} <span className="font-black">{getLevelDisplay(selectedLevel, uiLang)}</span>
+                Will be saved as: <span className="font-black">{selectedLevel}</span>
               </span>
             </div>
           )}
@@ -1190,12 +854,12 @@ const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = (
           {/* Optional comment */}
           <div>
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1.5">
-              {uiLang === 'eng' ? 'Note' : 'Tala'} <span className="normal-case font-normal">{uiLang === 'eng' ? '(optional)' : '(opsyonal)'}</span>
+              Note <span className="normal-case font-normal">(optional)</span>
             </p>
             <textarea
               value={comment}
               onChange={e => onChangeComment(e.target.value)}
-              placeholder={uiLang === 'eng' ? 'e.g. Grade 7 Section Rizal uses this for instructional practice' : 'hal. Ginagamit ito ng Grade 7 Section Rizal para sa instructional na pagsasanay'}
+              placeholder="e.g. Grade 7 Section Rizal uses this for inferential practice"
               className="w-full min-h-[64px] bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-gray-700 outline-none focus:ring-1 focus:ring-teal-400 resize-none"
             />
           </div>
@@ -1207,9 +871,7 @@ const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = (
               className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-400 hover:text-gray-600 uppercase tracking-widest"
             >
               {previewOpen ? <IoChevronUpOutline /> : <IoChevronDownOutline />}
-              {previewOpen
-                ? (uiLang === 'eng' ? 'Hide' : 'Itago')
-                : (uiLang === 'eng' ? 'Show' : 'Ipakita')} {uiLang === 'eng' ? 'extracted text' : 'nakuha na teksto'} ({material.text.split(/\s+/).length} {uiLang === 'eng' ? 'words' : 'salita'})
+              {previewOpen ? 'Hide' : 'Show'} extracted text ({material.text.split(/\s+/).length} words)
             </button>
             {previewOpen && (
               <textarea
@@ -1228,7 +890,7 @@ const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = (
             disabled={saving}
             className="px-4 py-2 text-xs font-semibold rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50"
           >
-            {uiLang === 'eng' ? 'Cancel' : 'Kanselahin'}
+            Cancel
           </button>
           <button
             onClick={onConfirm}
@@ -1241,11 +903,7 @@ const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = (
                   : 'bg-teal-600 text-white hover:bg-teal-700'
             }`}
           >
-            {saving
-              ? (uiLang === 'eng' ? 'Saving…' : 'Sine-save…')
-              : isManualChoice
-                ? (uiLang === 'eng' ? `Save as ${getLevelDisplay(selectedLevel, uiLang)}` : `I-save bilang ${getLevelDisplay(selectedLevel, uiLang)}`)
-                : (uiLang === 'eng' ? `Keep ${getLevelDisplay(predicted, uiLang)} & Save` : `Panatilihin ang ${getLevelDisplay(predicted, uiLang)} at I-save`)}
+            {saving ? 'Saving…' : isManualChoice ? `Save as ${selectedLevel}` : `Keep ${predicted} & Save`}
           </button>
         </div>
       </div>
@@ -1260,11 +918,8 @@ interface MaterialLibraryProps {
 
 export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, onDataChanged }) => {
   const [materials, setMaterials] = useState<LibraryMaterial[]>([]);
-  const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
-  const [uiLanguagePreference, setUiLanguagePreference] = useState<UILanguagePreference>(getUILanguagePreference());
   const [materialsLoading, setMaterialsLoading] = useState(true);
   const [filter, setFilter] = useState<ComplexityLevel | 'all'>('all');
-  const [subjectFilter, setSubjectFilter] = useState<'all' | string>('all');
   const [sort, setSort] = useState<SortKey>('newest');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<LibraryMaterial | null>(null);
@@ -1279,58 +934,29 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
   const [showUploadVerifyModal, setShowUploadVerifyModal] = useState(false);
   const [uploadModalLevel, setUploadModalLevel] = useState<ComplexityLevel>(ComplexityLevel.LITERAL);
   const [uploadModalComment, setUploadModalComment] = useState('');
-  const [uploadModalSubject, setUploadModalSubject] = useState('');
   const [savingUploadDecision, setSavingUploadDecision] = useState(false);
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [showPhilIriHelp, setShowPhilIriHelp] = useState(false);
   const [langFilter, setLangFilter] = useState<'all' | 'eng' | 'fil'>('all');
-  const [showAddSubjectPanel, setShowAddSubjectPanel] = useState(false);
-  const [newSubjectName, setNewSubjectName] = useState('');
-  const [subjectPanelError, setSubjectPanelError] = useState<string | null>(null);
-  const [savingSubjectPanel, setSavingSubjectPanel] = useState(false);
   const dragCount = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const unsubscribe = subscribeUILanguagePreferenceChange(() => {
-      setUiLanguagePreference(getUILanguagePreference());
-    });
-    return unsubscribe;
-  }, []);
-
-  useEffect(() => {
     let cancelled = false;
-    Promise.all([loadMaterialUploads(), loadOrganization(), loadMaterialSubjectCatalog()]).then(async ([materialsRes, orgRes, materialSubjectsRes]) => {
+    loadMaterialUploads().then(async ({ data, error }) => {
       if (!cancelled) {
-        const { data, error } = materialsRes;
         if (!error && data.length > 0) {
           let langs: Array<'eng' | 'fil'>;
           try {
             langs = await Promise.all(data.map(m => detectLanguageAPI(m.text)));
           } catch {
-            langs = data.map(m => detectLanguageClientSide(m.text));
+            langs = data.map(() => 'fil' as const);
           }
           const withLangs = data.map((m, i) => ({ ...m, language: langs[i] }));
           setMaterials(withLangs);
         } else if (!error) {
           setMaterials(data);
         }
-
-        const orgSubjects = Object.values(orgRes.data || {})
-          .flatMap((subjects) => subjects || [])
-          .map((s) => s.trim())
-          .filter(Boolean);
-        const materialSubjects = data
-          .map((m: any) => (m.subject || '').trim())
-          .filter(Boolean);
-        const remoteSubjects = (materialSubjectsRes.error ? [] : materialSubjectsRes.data)
-          .map((s) => s.trim())
-          .filter(Boolean);
-        const storedSubjects = loadStoredMaterialSubjects();
-        const mergedSubjects = mergeSubjects([], [...orgSubjects, ...materialSubjects, ...remoteSubjects, ...storedSubjects]);
-        setAvailableSubjects(mergedSubjects);
-        saveStoredMaterialSubjects(mergedSubjects);
-
         setMaterialsLoading(false);
       }
     });
@@ -1338,34 +964,19 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
   }, []);
 
   const refreshMaterials = async () => {
-    const [{ data, error }, orgRes, materialSubjectsRes] = await Promise.all([loadMaterialUploads(), loadOrganization(), loadMaterialSubjectCatalog()]);
+    const { data, error } = await loadMaterialUploads();
     if (error) return;
     if (data.length > 0) {
       let langs: Array<'eng' | 'fil'>;
       try {
         langs = await Promise.all(data.map(m => detectLanguageAPI(m.text)));
       } catch {
-        langs = data.map(m => detectLanguageClientSide(m.text));
+        langs = data.map(() => 'fil' as const);
       }
       setMaterials(data.map((m, i) => ({ ...m, language: langs[i] })));
     } else {
       setMaterials(data);
     }
-
-    const orgSubjects = Object.values(orgRes.data || {})
-      .flatMap((subjects) => subjects || [])
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const materialSubjects = data
-      .map((m: any) => (m.subject || '').trim())
-      .filter(Boolean);
-    const remoteSubjects = (materialSubjectsRes.error ? [] : materialSubjectsRes.data)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const storedSubjects = loadStoredMaterialSubjects();
-    const mergedSubjects = mergeSubjects([], [...orgSubjects, ...materialSubjects, ...remoteSubjects, ...storedSubjects]);
-    setAvailableSubjects(mergedSubjects);
-    saveStoredMaterialSubjects(mergedSubjects);
   };
 
   const persist = (updated: LibraryMaterial[]) => {
@@ -1376,71 +987,29 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
     setMaterials(materials.map(m => m.id === updated.id ? updated : m));
   };
 
-  const handleUpdateSubject = async (id: string, subject: string | null) => {
-    const normalized = subject ? normalizeSubjectName(subject) : null;
-    const { error } = await updateMaterialSubject(id, normalized);
-    if (error) throw new Error(error);
-    setMaterials(prev => prev.map(m => m.id === id ? { ...m, subject: normalized ?? undefined } : m));
-    if (normalized) {
-      setAvailableSubjects(prev => {
-        const next = mergeSubjects(prev, [normalized]);
-        saveStoredMaterialSubjects(next);
-        return next;
-      });
-    }
-  };
-
-  const handleAddSubjectFromPanel = async () => {
-    const normalized = normalizeSubjectName(newSubjectName);
-    if (!normalized) {
-      setSubjectPanelError('Subject name is required.');
-      return;
-    }
-    if (availableSubjects.some((s) => s.toLowerCase() === normalized.toLowerCase())) {
-      setSubjectPanelError('Subject already exists.');
-      return;
-    }
-
-    setSavingSubjectPanel(true);
-    setSubjectPanelError(null);
-    const nextSubjects = mergeSubjects(availableSubjects, [normalized]);
-    const { error } = await saveMaterialSubjectCatalog(nextSubjects);
-    if (error) {
-      setSavingSubjectPanel(false);
-      setSubjectPanelError(`Could not save subject to cloud: ${error}`);
-      return;
-    }
-
-    setAvailableSubjects(nextSubjects);
-    saveStoredMaterialSubjects(nextSubjects);
-    setSubjectFilter(normalized);
-    setUploadModalSubject(normalized);
-    setShowAddSubjectPanel(false);
-    setNewSubjectName('');
-    setSubjectPanelError(null);
-    setSavingSubjectPanel(false);
-  };
-
   const handleDelete = async (id: string) => {
     setMaterials((prev) => prev.filter(m => m.id !== id));
     const { error } = await deleteMaterialUpload(id);
     if (error) console.error('Delete material failed:', error);
     await refreshMaterials();
-    // Fire-and-forget retrain — backend updates model without blocking the UI
-    triggerRetrainAPI('en').catch(() => {});
-    triggerRetrainAPI('tl').catch(() => {});
   };
 
   const handleVerifyMaterial = async (material: LibraryMaterial, level: ComplexityLevel, comment: string) => {
-    const saveRes = await saveMaterialTeacherVerification(material.id, { level: toPhilIriLabel(level), comment }, material.complexityResult);
+    const saveRes = await saveMaterialTeacherVerification(material.id, { level, comment }, material.complexityResult);
     if (saveRes.error) {
       return { ok: false, message: `Could not save verification: ${saveRes.error}` };
     }
 
-    const message = 'Teacher verification saved.';
-    const ok = true;
-    // Fire-and-forget — training runs in background, never blocks or errors the UI
-    addTrainingSampleAPI(material.text, toPhilIriLabel(level)).catch(() => {});
+    let message = 'Teacher verification saved.';
+    let ok = true;
+    try {
+      const trainRes = await addTrainingSampleAPI(material.text, level);
+      message = trainRes.message || message;
+      if (trainRes.status !== 'ok') ok = false;
+    } catch (e: any) {
+      ok = false;
+      message = `Verification saved, but model training failed: ${e?.message || 'unknown error'}`;
+    }
 
     const updated: LibraryMaterial = {
       ...material,
@@ -1478,15 +1047,6 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
 
     persist([material, ...materials]);
 
-    // Upload original file to storage (compresses images), strip base64 from DB
-    const rawFiles = material.originalFiles?.length
-      ? material.originalFiles
-      : material.originalFile ? [material.originalFile] : [];
-    const storedFiles = rawFiles.length
-      ? await uploadOriginalFilesToStorage(rawFiles, 'materials')
-      : [];
-    const storedFile = storedFiles[0] ?? null;
-
     const { error } = await saveMaterialUpload({
       material_name: material.name,
       material_text: material.text,
@@ -1494,34 +1054,31 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
       complexity_score: material.complexityResult.score,
       complexity_result: {
         ...material.complexityResult,
-        originalFile: storedFile,
+        originalFile: material.originalFile ?? null,
         teacherVerification: {
           level: material.teacherVerifiedLevel,
           comment: material.verificationComment || null,
           verifiedAt: material.teacherVerifiedAt,
         },
       },
-      original_file: storedFile,
+      original_file: material.originalFile ?? null,
       teacher_verified_level: material.teacherVerifiedLevel ?? null,
       teacher_verified_at: material.teacherVerifiedAt ?? null,
       verification_comment: material.verificationComment ?? null,
       is_verified: true,
-      subject: uploadModalSubject.trim() || null,
     });
 
     if (error) {
-      setUploadError(friendlyError(error));
+      setUploadError(`Database error: ${error}`);
     } else {
-      if (uploadModalSubject.trim()) {
-        const normalizedUploadSubject = normalizeSubjectName(uploadModalSubject);
-        setAvailableSubjects(prev => {
-          const next = mergeSubjects(prev, [normalizedUploadSubject]);
-          saveStoredMaterialSubjects(next);
-          return next;
-        });
+      try {
+        const trainRes = await addTrainingSampleAPI(material.text, uploadModalLevel);
+        if (trainRes.status !== 'ok') {
+          setUploadError(trainRes.message || 'Sample saved but retraining is pending.');
+        }
+      } catch (e: any) {
+        setUploadError(`Saved material, but model training failed: ${e?.message || 'unknown error'}`);
       }
-      // Fire-and-forget — training runs in background, never blocks or errors the UI
-      addTrainingSampleAPI(material.text, toPhilIriLabel(uploadModalLevel)).catch(() => {});
       await refreshMaterials();
       onDataChanged?.();
     }
@@ -1530,23 +1087,16 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
     setShowUploadVerifyModal(false);
     setPendingUploadMaterial(null);
     setUploadModalComment('');
-    setUploadModalSubject('');
     setSavingUploadDecision(false);
   };
 
   const handleContinueToTeacherVerification = () => {
     if (!pendingUploadMaterial) return;
     const nextName = pendingUploadMaterial.name.trim();
-    const nextSubject = normalizeSubjectName(uploadModalSubject);
     if (!nextName) {
       setUploadError('Material title is required. Please enter a title before continuing.');
       return;
     }
-    if (!nextSubject) {
-      setUploadError('Subject is required. Please select or type a subject before continuing.');
-      return;
-    }
-    setUploadModalSubject(nextSubject);
     setPendingUploadMaterial({ ...pendingUploadMaterial, name: nextName });
     setShowUploadCompareModal(false);
     setShowUploadVerifyModal(true);
@@ -1557,12 +1107,6 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
   };
 
   const processFile = useCallback(async (file: File) => {
-    const selectedSubject = normalizeSubjectName(uploadModalSubject);
-    if (!selectedSubject) {
-      setUploadError('Please select a subject before uploading.');
-      return;
-    }
-
     setUploadError(null);
     setUploadFileName(file.name);
     if (file.size > 10 * 1024 * 1024) { setUploadError('File too large (max 10 MB).'); return; }
@@ -1629,22 +1173,22 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
           const ocrResult = await extractTextFromImageAPI(base64, mimeType);
           const ocrError = (ocrResult as any)?.error;
           if (ocrError === 'api_key_invalid') {
-            throw new Error('Text scanning is temporarily unavailable. Please contact your administrator.');
+            throw new Error('Gemini API key is expired or invalid. Please update GEMINI_API_KEY in .env.local and restart the backend.');
           } else if (ocrError === 'project_denied') {
-            throw new Error('Text scanning is temporarily unavailable. Please contact your administrator.');
+            throw new Error('Gemini OCR access is denied for this Google project (403). Enable Generative Language API access/billing in Google Cloud or use another API key/project.');
           } else if (ocrError === 'no_api_key') {
-            throw new Error('Text scanning is not set up yet. Please contact your administrator.');
+            throw new Error('No Gemini API key configured. Add GEMINI_API_KEY to .env.local.');
           } else if (ocrError === 'ocr_timeout') {
-            throw new Error('Reading this file took too long. Try a smaller file or upload again.');
+            throw new Error('OCR timed out. Try a smaller file or upload again.');
           } else if (ocrError === 'ocr_unavailable') {
-            throw new Error('Text scanning is currently unavailable. Please contact your administrator.');
+            throw new Error('OCR service is unavailable because google-generativeai is not installed on the backend.');
           } else if (ocrError === 'invalid_base64') {
             throw new Error('Uploaded file data is invalid. Please upload the file again.');
           }
           warningMessage = ocrResult.warning ?? null;
           extractedText = ocrResult.text;
         } catch (e: any) {
-          if (e?.message?.includes('unavailable') || e?.message?.includes('administrator') || e?.message?.includes('set up')) throw e;
+          if (e?.message?.includes('API key') || e?.message?.includes('Gemini')) throw e;
           // Preserve original error flow below
         }
         if (warningMessage) throw new Error(warningMessage);
@@ -1678,37 +1222,30 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
         text: extractedText,
         uploadedAt: new Date(),
         complexityResult: result,
-        subject: selectedSubject,
         originalFile: base64 ? { base64, mimeType, name: file.name } : undefined,
       };
       // Detect language for the new material
-      let detectedLang: 'eng' | 'fil' = detectLanguageClientSide(extractedText);
+      let detectedLang: 'eng' | 'fil' = 'fil';
       try {
         detectedLang = await detectLanguageAPI(extractedText);
       } catch {
-        // detectLanguageAPI is fail-safe; client-side heuristic already set above
+        // detectLanguageAPI is fail-safe but wrapping as extra guard
       }
       const materialWithLang: LibraryMaterial = { ...material, language: detectedLang };
 
       setPendingUploadMaterial(materialWithLang);
-      setUploadModalLevel(normalizeLevel(materialWithLang.complexityResult.level, materialWithLang.complexityResult.score));
+      setUploadModalLevel(materialWithLang.complexityResult.level);
       setUploadModalComment('');
       setShowUploadModal(false);
       setShowUploadCompareModal(true);
     } catch (e: any) {
-      setUploadError(friendlyError(e));
+      setUploadError(e.message || 'Analysis failed.');
     } finally {
       setUploading(false);
     }
-  }, [uploadModalSubject]);
+  }, []);
 
   const processStagedImages = useCallback(async () => {
-    const selectedSubject = normalizeSubjectName(uploadModalSubject);
-    if (!selectedSubject) {
-      setUploadError('Please select a subject before uploading.');
-      return;
-    }
-
     if (stagedImages.length === 0) return;
     setUploading(true);
     setUploadError(null);
@@ -1737,7 +1274,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
         if (ingestResult?.text?.trim()) extractedText = normalizeMaterialText(ingestResult.text.trim());
       } catch { /* keep fallback */ }
 
-      let detectedLang: 'eng' | 'fil' = detectLanguageClientSide(extractedText);
+      let detectedLang: 'eng' | 'fil' = 'fil';
       try { detectedLang = await detectLanguageAPI(extractedText); } catch { /* keep fallback */ }
 
       const material: LibraryMaterial = {
@@ -1746,23 +1283,22 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
         text: extractedText,
         uploadedAt: new Date(),
         complexityResult: result,
-        subject: selectedSubject,
         originalFile: stagedImages[0],
         originalFiles: stagedImages,
         language: detectedLang,
       };
       setStagedImages([]);
       setPendingUploadMaterial(material);
-      setUploadModalLevel(normalizeLevel(material.complexityResult.level, material.complexityResult.score));
+      setUploadModalLevel(material.complexityResult.level);
       setUploadModalComment('');
       setShowUploadModal(false);
       setShowUploadCompareModal(true);
     } catch (e: any) {
-      setUploadError(friendlyError(e));
+      setUploadError(e.message || 'Analysis failed.');
     } finally {
       setUploading(false);
     }
-  }, [stagedImages, uploadModalSubject]);
+  }, [stagedImages]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -1786,7 +1322,6 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
     materials.filter(m => {
       if (filter !== 'all' && m.complexityResult.level !== filter) return false;
       if (langFilter !== 'all' && m.language !== langFilter) return false;
-      if (subjectFilter !== 'all' && (m.subject?.trim() || '') !== subjectFilter) return false;
       if (search && !m.name.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     }),
@@ -1799,7 +1334,6 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
     score_high: 'Score: High → Low',
     score_low: 'Score: Low → High',
     name: 'Name A → Z',
-    subject: 'Subject A → Z',
   };
 
   const counts = {
@@ -1814,20 +1348,15 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
     fil: materials.filter(m => m.language === 'fil').length,
   };
 
-  const subjectCounts = availableSubjects.reduce<Record<string, number>>((acc, subject) => {
-    acc[subject] = materials.filter(m => (m.subject?.trim() || '') === subject).length;
-    return acc;
-  }, {});
-
   return (
-    <div className="flex h-full bg-[#F5F4F0]">
+    <div className="flex flex-col h-full bg-[#F2F2F7]">
       {showUploadModal && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden">
             <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-100">
               <div>
-                <h2 className="text-base font-black text-gray-900">Add a Reading Passage</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Check if this passage is the right level for Grade 7</p>
+                <h2 className="text-base font-black text-gray-900">Upload Material (Mag-upload ng Materyal)</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Upload reading material for instant complexity analysis</p>
               </div>
               <button
                 onClick={() => { setShowUploadModal(false); setUploadError(null); }}
@@ -1838,21 +1367,6 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
             </div>
 
             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-              <div>
-                <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Subject</label>
-                <select
-                  value={uploadModalSubject}
-                  onChange={(e) => setUploadModalSubject(e.target.value)}
-                  className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-teal-300"
-                >
-                  <option value="">Select subject</option>
-                  {availableSubjects.map((subject) => (
-                    <option key={subject} value={subject} />
-                  ))}
-                </select>
-                <p className="mt-1 text-[10px] text-gray-400">Required before upload. Add new subjects from the left panel.</p>
-              </div>
-
               <div
                 className={`border-2 border-dashed rounded-2xl p-6 flex flex-col items-center gap-2 cursor-pointer transition-colors ${
                   isDragging ? 'border-teal-400 bg-teal-50' : 'border-gray-200 hover:border-teal-300 bg-gray-50'
@@ -1868,7 +1382,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
                     <div className="w-6 h-6 rounded-full border-2 border-teal-400 border-t-transparent animate-spin" />
                     <div className="text-center">
                       <div className="text-xs font-bold text-teal-600">Extracting and analyzing…</div>
-                      <div className="text-[10px] text-gray-400">{uploadFileName || 'Processing file'} · reading text from images when needed</div>
+                      <div className="text-[10px] text-gray-400">{uploadFileName || 'Processing file'} · OCR via Gemini when needed</div>
                     </div>
                   </>
                 ) : (
@@ -1952,9 +1466,9 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
                   </p>
                 ) : (
                   <p className="text-xs text-blue-700 leading-relaxed">
-                    <span className="font-semibold">Madali</span> = Independent.{' '}
-                    <span className="font-semibold">Katamtaman</span> = Instructional.{' '}
-                    <span className="font-semibold">Mahirap</span> = Frustration.
+                    <span className="font-semibold">Literal</span> = Easy, students can read independently.{' '}
+                    <span className="font-semibold">Inferential</span> = Borderline, may need teacher support.{' '}
+                    <span className="font-semibold">Evaluative</span> = Above G7, not recommended without scaffolding.
                   </p>
                 )}
               </div>
@@ -1968,15 +1482,10 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
           material={pendingUploadMaterial}
           materialName={pendingUploadMaterial.name}
           onChangeName={handleRenamePendingMaterial}
-          materialSubject={uploadModalSubject}
-          onChangeSubject={setUploadModalSubject}
-          subjectOptions={availableSubjects}
-          uiLanguagePreference={uiLanguagePreference}
           onCancel={() => {
             setShowUploadCompareModal(false);
             setPendingUploadMaterial(null);
             setUploadModalComment('');
-            setUploadModalSubject('');
           }}
           onContinue={handleContinueToTeacherVerification}
         />
@@ -1985,7 +1494,6 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
       {showUploadVerifyModal && pendingUploadMaterial && (
         <UploadVerificationModal
           material={pendingUploadMaterial}
-          uiLanguagePreference={uiLanguagePreference}
           selectedLevel={uploadModalLevel}
           comment={uploadModalComment}
           saving={savingUploadDecision}
@@ -2003,388 +1511,271 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
       {selected && (
         <DetailModal
           material={selected}
-          uiLanguagePreference={uiLanguagePreference}
-          availableSubjects={availableSubjects}
           onClose={() => setSelected(null)}
           onDelete={handleDelete}
           onUpdate={handleUpdate}
-          onUpdateSubject={handleUpdateSubject}
           onVerify={handleVerifyMaterial}
         />
       )}
 
-      {/* ── TWO-PANEL LAYOUT ── */}
-
-      {/* Left sidebar */}
-      <aside className="w-60 shrink-0 flex flex-col h-full bg-white border-r border-gray-100 overflow-y-auto">
-
-        {/* Brand + mobile menu */}
-        <div className="px-5 pt-5 pb-4 border-b border-gray-100">
+      {/* Header */}
+      <header className="h-14 flex items-center justify-between px-5 border-b border-gray-100 bg-white shadow-sm shrink-0">
+        <div className="flex items-center gap-2">
           {onMenuClick && (
-            <button onClick={onMenuClick} className="md:hidden mb-3 text-gray-400 hover:text-gray-700">
-              <IoMenuOutline className="text-xl" />
+            <button onClick={onMenuClick} className="md:hidden text-gray-500 hover:text-gray-700">
+              <IoMenuOutline className="text-2xl" />
             </button>
           )}
-          <div className="text-[9px] font-black uppercase tracking-widest text-teal-500 mb-0.5">ReadTrack</div>
-          <h1 className="text-base font-black text-gray-900 leading-tight">Reading Materials</h1>
-          <p className="text-[11px] text-gray-400 mt-0.5">
-            {materials.length} {materials.length === 1 ? 'passage' : 'passages'}
-          </p>
+          <IoBookOutline className="text-teal-500 text-xl" />
+          <h1 className="text-base font-bold text-gray-800">Material Library</h1>
+          <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{materials.length}</span>
         </div>
+        <button
+          onClick={() => { setUploadError(null); setShowUploadModal(true); }}
+          disabled={uploading}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-teal-500 hover:bg-teal-600 text-white text-xs font-semibold transition-colors disabled:opacity-60"
+        >
+          <IoCloudUploadOutline className="text-base" />
+          {uploading ? 'Analyzing…' : 'Upload Material'}
+        </button>
+        <input ref={fileInputRef} type="file" accept=".txt,.md,image/*,.pdf" className="hidden" onChange={handleFileChange} />
+      </header>
 
-        {/* Upload CTA */}
-        <div className="px-4 py-3 border-b border-gray-100">
-          <button
-            onClick={() => { setUploadError(null); setShowUploadModal(true); }}
-            disabled={uploading}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-teal-500 hover:bg-teal-600 disabled:opacity-60 text-white text-sm font-bold transition-colors shadow-sm cursor-pointer"
-          >
-            <IoCloudUploadOutline className="text-base" />
-            {uploading ? 'Analyzing…' : 'Add Passage'}
-          </button>
-          <input ref={fileInputRef} type="file" accept=".txt,.md,image/*,.pdf" className="hidden" onChange={handleFileChange} />
-        </div>
-
-        {/* Reading Level filter */}
-        <div className="px-4 py-4 border-b border-gray-100">
-          <div className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2.5">Reading Level</div>
-          <div className="space-y-1">
-            {([
-              { key: 'all' as const, label: 'All Levels', dot: 'bg-gray-300', count: counts.all, active: 'bg-gray-100 text-gray-800' },
-              { key: ComplexityLevel.LITERAL,      label: 'Easy',        dot: levelMeta[ComplexityLevel.LITERAL].dot,      count: counts[ComplexityLevel.LITERAL],      active: `${levelMeta[ComplexityLevel.LITERAL].bg} ${levelMeta[ComplexityLevel.LITERAL].text}` },
-              { key: ComplexityLevel.INFERENTIAL,  label: 'Moderate',    dot: levelMeta[ComplexityLevel.INFERENTIAL].dot,  count: counts[ComplexityLevel.INFERENTIAL],  active: `${levelMeta[ComplexityLevel.INFERENTIAL].bg} ${levelMeta[ComplexityLevel.INFERENTIAL].text}` },
-              { key: ComplexityLevel.EVALUATIVE,   label: 'Challenging', dot: levelMeta[ComplexityLevel.EVALUATIVE].dot,   count: counts[ComplexityLevel.EVALUATIVE],   active: `${levelMeta[ComplexityLevel.EVALUATIVE].bg} ${levelMeta[ComplexityLevel.EVALUATIVE].text}` },
-            ]).map(({ key, label, dot, count, active }) => (
-              <button
-                key={key}
-                onClick={() => setFilter(key)}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs font-semibold transition-colors cursor-pointer ${
-                  filter === key ? active : 'text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
-                <span className="flex-1">{label}</span>
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${filter === key ? 'bg-white/50' : 'bg-gray-100 text-gray-400'}`}>{count}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Subject filter */}
-        <div className="px-4 py-4 border-b border-gray-100 flex-1">
-          <div className="flex items-center justify-between mb-2.5">
-            <div className="text-[9px] font-black uppercase tracking-widest text-gray-400">Subject</div>
-            <button
-              type="button"
-              onClick={() => {
-                setShowAddSubjectPanel(v => !v);
-                setSubjectPanelError(null);
-              }}
-              className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-600 hover:text-teal-700"
-            >
-              <IoAddOutline className="text-xs" /> Add Subject
-            </button>
-          </div>
-          {showAddSubjectPanel && (
-            <div className="mb-2.5 rounded-xl border border-teal-100 bg-teal-50/60 p-2.5 space-y-2">
-              <input
-                type="text"
-                value={newSubjectName}
-                onChange={(e) => setNewSubjectName(e.target.value)}
-                placeholder="e.g. Science"
-                className="w-full rounded-lg border border-teal-100 bg-white px-2.5 py-1.5 text-xs text-gray-700 outline-none focus:ring-2 focus:ring-teal-300"
-              />
-              {subjectPanelError && <p className="text-[10px] text-rose-600">{subjectPanelError}</p>}
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={handleAddSubjectFromPanel}
-                  disabled={savingSubjectPanel}
-                  className="px-2.5 py-1 rounded-lg bg-teal-600 text-white text-[10px] font-bold hover:bg-teal-700 disabled:opacity-60"
-                >
-                  {savingSubjectPanel ? 'Saving…' : 'Save'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAddSubjectPanel(false);
-                    setNewSubjectName('');
-                    setSubjectPanelError(null);
-                  }}
-                  className="px-2.5 py-1 rounded-lg bg-white border border-gray-200 text-[10px] font-semibold text-gray-500 hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-          <div className="space-y-1">
-            <button
-              onClick={() => setSubjectFilter('all')}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs font-semibold transition-colors cursor-pointer ${
-                subjectFilter === 'all' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              <span className="w-2 h-2 rounded-full bg-indigo-300 shrink-0" />
-              <span className="flex-1">All Subjects</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400">{materials.length}</span>
-            </button>
-            {availableSubjects.map(subject => {
-              const isActive = subjectFilter === subject;
-              return (
-                <div key={subject} className="group flex items-center rounded-xl">
-                  <button
-                    onClick={() => setSubjectFilter(subject)}
-                    className={`flex-1 flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs font-semibold transition-colors cursor-pointer ${
-                      isActive ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'
-                    }`}
-                  >
-                    <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
-                    <span className="flex-1 truncate">{subject}</span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${isActive ? 'bg-white/50' : 'bg-gray-100 text-gray-400'}`}>{subjectCounts[subject] ?? 0}</span>
-                  </button>
-                  <button
-                    onClick={async () => {
-                      if (!window.confirm(`Delete subject "${subject}"? Materials tagged to it will become untagged.`)) return;
-                      const next = availableSubjects.filter(s => s !== subject);
-                      setAvailableSubjects(next);
-                      saveStoredMaterialSubjects(next);
-                      await saveMaterialSubjectCatalog(next);
-                      if (subjectFilter === subject) setSubjectFilter('all');
-                    }}
-                    className="opacity-0 group-hover:opacity-100 p-1.5 mr-1 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all"
-                    title="Delete subject"
-                  >
-                    <IoTrashOutline className="text-[11px]" />
-                  </button>
-                </div>
-              );
-            })}
-            {availableSubjects.length === 0 && (
-              <p className="text-[11px] text-gray-300 px-3 py-1.5">No subjects yet</p>
-            )}
-          </div>
-        </div>
-
-        {/* Language filter */}
-        <div className="px-4 py-4">
-          <div className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2.5">Language</div>
-          <div className="flex gap-1.5">
-            {([
-              { key: 'all' as const, label: 'All' },
-              { key: 'eng' as const, label: `EN (${langCounts.eng})` },
-              { key: 'fil' as const, label: `FIL (${langCounts.fil})` },
-            ]).map(({ key, label }) => (
-              <button
-                key={key}
-                onClick={() => setLangFilter(key)}
-                className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
-                  langFilter === key
-                    ? 'bg-teal-500 text-white'
-                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </aside>
-
-      {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-
-        {/* Search + sort toolbar */}
-        <div className="px-5 py-3 bg-[#F5F4F0] border-b border-gray-200/60 flex items-center gap-3 shrink-0">
-          <div className="flex-1 relative">
-            <IoSearchOutline className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none" />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search passages…"
-              className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-300 shadow-sm"
-            />
-          </div>
-          <div className="relative">
-            <button
-              onClick={() => setShowSortMenu(s => !s)}
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:border-gray-300 transition-colors shadow-sm cursor-pointer"
-            >
-              <IoFunnelOutline className="text-sm" />
-              {sortLabels[sort]}
-              <IoChevronDownOutline className={`text-xs transition-transform duration-150 ${showSortMenu ? 'rotate-180' : ''}`} />
-            </button>
-            {showSortMenu && (
-              <div className="absolute right-0 top-full mt-1 bg-white border border-gray-100 rounded-xl shadow-lg z-20 min-w-[170px] overflow-hidden">
-                {(Object.entries(sortLabels) as [SortKey, string][]).map(([key, label]) => (
-                  <button
-                    key={key}
-                    onClick={() => { setSort(key); setShowSortMenu(false); }}
-                    className={`w-full text-left px-4 py-2.5 text-xs hover:bg-gray-50 transition-colors cursor-pointer ${sort === key ? 'text-teal-600 font-semibold bg-teal-50' : 'text-gray-600'}`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          {(search || filter !== 'all' || langFilter !== 'all' || subjectFilter !== 'all') && (
-            <button
-              onClick={() => { setFilter('all'); setSearch(''); setLangFilter('all'); setSubjectFilter('all'); }}
-              className="text-xs font-semibold text-gray-400 hover:text-rose-500 transition-colors cursor-pointer whitespace-nowrap"
-            >
-              Clear filters
-            </button>
-          )}
-        </div>
-
-        {/* Scrollable material list */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2">
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-5xl mx-auto px-5 py-5 space-y-4">
 
           {uploadError && (
             <div className="bg-red-50 border border-red-200 text-red-600 text-xs rounded-xl px-4 py-3 flex items-center justify-between">
               {uploadError}
-              <button onClick={() => setUploadError(null)} className="ml-3 shrink-0"><IoCloseOutline /></button>
+              <button onClick={() => setUploadError(null)}><IoCloseOutline /></button>
             </div>
           )}
 
-          {/* Loading */}
-          {materialsLoading && (
-            <div className="flex flex-col items-center justify-center h-60 gap-3">
-              <div className="w-7 h-7 rounded-full border-2 border-teal-500 border-t-transparent animate-spin" />
-              <p className="text-sm text-gray-400">Loading passages…</p>
-            </div>
-          )}
+          {/* Upload note */}
+          <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
+            <button
+              type="button"
+              onClick={() => setShowPhilIriHelp(v => !v)}
+              className="flex items-center gap-1 text-left text-[10px] font-bold uppercase tracking-wider text-blue-600 mb-1"
+              aria-expanded={showPhilIriHelp}
+              aria-controls="phil-iri-help-main"
+            >
+              <span>Grade 7 Readability Check (Philippines DepEd)</span>
+              <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/80 border border-blue-200">
+                <IoInformationCircleOutline className="text-[11px]" />
+              </span>
+            </button>
+            {showPhilIriHelp ? (
+              <p id="phil-iri-help-main" className="text-xs text-blue-700 leading-relaxed">
+                {PHIL_IRI_HELP}
+              </p>
+            ) : (
+              <p className="text-xs text-blue-700 leading-relaxed">
+                <span className="font-semibold">Literal</span> = Easy, students can read independently.{' '}
+                <span className="font-semibold">Inferential</span> = Borderline, may need teacher support.{' '}
+                <span className="font-semibold">Evaluative</span> = Above G7, not recommended without scaffolding.
+              </p>
+            )}
+          </div>
 
-          {/* Empty state */}
-          {!materialsLoading && materials.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-teal-50 flex items-center justify-center">
-                <IoBookOutline className="text-teal-500 text-2xl" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-gray-700">No reading passages yet</p>
-                <p className="text-xs text-gray-400 mt-1.5 leading-relaxed max-w-xs mx-auto">
-                  Upload your first passage to check if it's the right difficulty for Grade 7 students.
-                </p>
-              </div>
+          {/* Search + Sort row */}
+          <div className="flex gap-3">
+            <div className="flex-1 relative">
+              <IoSearchOutline className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search materials…"
+                className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-300"
+              />
+            </div>
+            <div className="relative">
               <button
-                onClick={() => { setUploadError(null); setShowUploadModal(true); }}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-teal-500 hover:bg-teal-600 text-white text-sm font-bold transition-colors cursor-pointer shadow-sm"
+                onClick={() => setShowSortMenu(s => !s)}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:border-teal-300 transition-colors"
               >
-                <IoCloudUploadOutline className="text-base" />
-                Add a Reading Passage
+                <IoFunnelOutline className="text-sm" />
+                {sortLabels[sort]}
+                <IoChevronDownOutline className={`text-xs transition-transform ${showSortMenu ? 'rotate-180' : ''}`} />
               </button>
+              {showSortMenu && (
+                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-100 rounded-xl shadow-lg z-20 min-w-[170px] overflow-hidden">
+                  {(Object.entries(sortLabels) as [SortKey, string][]).map(([key, label]) => (
+                    <button
+                      key={key}
+                      onClick={() => { setSort(key); setShowSortMenu(false); }}
+                      className={`w-full text-left px-4 py-2.5 text-xs hover:bg-gray-50 transition-colors ${sort === key ? 'text-teal-600 font-semibold bg-teal-50' : 'text-gray-600'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Filter tabs */}
+          <div className="flex gap-2 flex-wrap items-center">
+            {/* Language filters */}
+            {([
+              { key: 'all' as const, label: 'All', count: materials.length },
+              { key: 'eng' as const, label: '🇬🇧 English', count: langCounts.eng },
+              { key: 'fil' as const, label: '🇵🇭 Filipino', count: langCounts.fil },
+            ]).map(({ key, label, count }) => (
+              <button
+                key={key}
+                onClick={() => setLangFilter(key)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                  langFilter === key
+                    ? 'bg-teal-50 text-teal-700 border-teal-200'
+                    : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                {label}
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${langFilter === key ? 'bg-white/60' : 'bg-gray-100'}`}>
+                  {count}
+                </span>
+              </button>
+            ))}
+
+            {/* Divider */}
+            <div className="w-px h-5 bg-gray-200 mx-1" />
+
+            {/* Complexity filters */}
+            {([
+              { key: 'all' as const, label: 'All', meta: null },
+              { key: ComplexityLevel.LITERAL, label: 'Literal', meta: levelMeta[ComplexityLevel.LITERAL] },
+              { key: ComplexityLevel.INFERENTIAL, label: 'Inferential', meta: levelMeta[ComplexityLevel.INFERENTIAL] },
+              { key: ComplexityLevel.EVALUATIVE, label: 'Evaluative', meta: levelMeta[ComplexityLevel.EVALUATIVE] },
+            ]).map(({ key, label, meta: m }) => {
+              const count = counts[key];
+              const isActive = filter === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setFilter(key)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                    isActive
+                      ? m ? `${m.bg} ${m.text} ${m.border}` : 'bg-teal-50 text-teal-700 border-teal-200'
+                      : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  {m && <span className={`w-1.5 h-1.5 rounded-full ${m.dot}`} />}
+                  {label}
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${isActive ? 'bg-white/60' : 'bg-gray-100'}`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Loading state */}
+          {materialsLoading && (
+            <div className="flex flex-col items-center justify-center h-60">
+              <div className="w-8 h-8 rounded-full border-2 border-teal-500 border-t-transparent animate-spin mb-3" />
+              <p className="text-sm text-gray-400">Loading materials...</p>
+            </div>
+          )}
+
+          {/* Empty-state helper text */}
+          {!materialsLoading && materials.length === 0 && (
+            <div className="text-center py-8 text-sm text-gray-400">
+              Upload your first material to start your library.
             </div>
           )}
 
           {/* No results */}
-          {!materialsLoading && materials.length > 0 && displayed.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
-              <p className="text-sm text-gray-500 font-medium">No passages match your filters.</p>
-              <button
-                onClick={() => { setFilter('all'); setSearch(''); setLangFilter('all'); setSubjectFilter('all'); }}
-                className="text-xs font-semibold text-teal-600 hover:text-teal-700 underline underline-offset-2 cursor-pointer"
-              >
-                Clear all filters
-              </button>
+          {materials.length > 0 && displayed.length === 0 && (
+            <div className="text-center py-12 text-sm text-gray-400">
+              No materials match your current filter or search.
             </div>
           )}
 
-          {/* Material cards */}
-          {displayed.map((mat) => {
-            const cr = mat.complexityResult;
-            const modelLevel = normalizeLevel(cr.level, cr.score);
-            const teacherLevel = mat.isVerified && mat.teacherVerifiedLevel
-              ? normalizeLevel(mat.teacherVerifiedLevel)
-              : null;
-            const cardLevel = teacherLevel ?? modelLevel;
-            const meta = levelMeta[cardLevel];
-            const cardUiLang = getMaterialUiLanguage(mat, uiLanguagePreference);
-            return (
-              <div
-                key={mat.id}
-                onClick={() => setSelected(mat)}
-                className="group bg-white border border-gray-100 rounded-2xl hover:border-teal-200 hover:shadow-md transition-all cursor-pointer overflow-hidden flex"
-              >
-                {/* Left accent bar */}
-                <div className={`w-1.5 shrink-0 ${meta.dot}`} />
+          {/* Material cards grid */}
+          {displayed.length > 0 && (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {displayed.map(mat => {
+                const meta = levelMeta[mat.complexityResult.level] ?? levelMeta[ComplexityLevel.LITERAL];
+                const cr = mat.complexityResult;
+                return (
+                  <div
+                    key={mat.id}
+                    onClick={() => setSelected(mat)}
+                    className="group text-left bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all relative overflow-hidden cursor-pointer"
+                  >
+                    {/* Level color bar */}
+                    <div className={`absolute top-0 left-0 right-0 h-1 rounded-t-2xl ${meta.dot}`} />
 
-                {/* Card body */}
-                <div className="flex-1 px-4 py-3.5 min-w-0 flex items-start gap-3">
-                  <div className="flex-1 min-w-0">
-                    {/* Title row */}
-                    <div className="flex items-center gap-2 min-w-0 mb-1.5">
-                      <span className="text-sm font-bold text-gray-900 group-hover:text-teal-700 transition-colors truncate leading-snug">
-                        {mat.name}
-                      </span>
-                      {mat.language && (
-                        <span className={`shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
-                          mat.language === 'eng'
-                            ? 'bg-sky-50 text-sky-600 border-sky-100'
-                            : 'bg-violet-50 text-violet-600 border-violet-100'
-                        }`}>
-                          {mat.language === 'eng' ? 'EN' : 'FIL'}
-                        </span>
-                      )}
+                    <div className="flex items-start justify-between gap-2 mb-3 pt-1">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
+                          <div className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${meta.badge}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
+                            {meta.label}
+                          </div>
+                          {mat.language && (
+                            <span className={`inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
+                              mat.language === 'eng'
+                                ? 'bg-blue-50 text-blue-600 border-blue-100'
+                                : 'bg-purple-50 text-purple-600 border-purple-100'
+                            }`}>
+                              {mat.language === 'eng' ? '🇬🇧 EN' : '🇵🇭 FIL'}
+                            </span>
+                          )}
+                        </div>
+                        <h3 className="text-sm font-semibold text-gray-800 truncate group-hover:text-teal-600 transition-colors">
+                          {mat.name}
+                        </h3>
+                      </div>
+                      <button
+                        onClick={e => { e.stopPropagation(); handleDelete(mat.id); }}
+                        className="shrink-0 p-1.5 rounded-lg text-gray-200 hover:text-red-400 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                      >
+                        <IoTrashOutline className="text-xs" />
+                      </button>
                     </div>
 
-                    {/* Tags + meta */}
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {/* Level badge */}
-                      <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg border ${meta.badge}`}>
-                        {teacherLevel
-                          ? <IoCheckmarkCircle className="text-[10px]" />
-                          : <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
-                        }
-                        {getLevelLabel(cardLevel, cardUiLang)}
-                      </span>
-
-                      {mat.subject && (
-                        <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-lg">
-                          {mat.subject}
-                        </span>
-                      )}
-
-                      <span className="text-[10px] text-gray-300">·</span>
-                      <span className="text-[10px] text-gray-400">{cr.wordCount} words</span>
-                      <span className="text-[10px] text-gray-300">·</span>
-                      <span className="text-[10px] text-gray-400">{cr.estimatedReadingTime} min read</span>
+                    {/* Score */}
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="flex-1">
+                        <div className="flex justify-between text-[10px] text-gray-400 mb-1">
+                          <span>Complexity Score</span>
+                          <span className={`font-bold ${meta.text}`}>{typeof cr.score === 'number' ? cr.score : 'N/A'}</span>
+                        </div>
+                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${meta.dot}`}
+                            style={{ width: `${typeof cr.score === 'number' ? Math.min(100, cr.score) : 0}%` }}
+                          />
+                        </div>
+                      </div>
                     </div>
 
-                    {/* Status hint */}
-                    <div className="mt-1.5">
-                      {teacherLevel
-                        ? <span className={`text-[10px] font-semibold flex items-center gap-0.5 ${meta.text}`}>
-                            <IoCheckmarkCircle className="text-[10px]" /> Level confirmed
-                          </span>
-                        : <span className="text-[10px] font-semibold text-amber-500">Tap to confirm reading level →</span>
-                      }
+                    {/* Meta row */}
+                    <div className="flex items-center gap-3 text-[10px] text-gray-400">
+                      <span className="flex items-center gap-1">
+                        <IoDocumentTextOutline className="text-xs" />
+                        {cr.wordCount} words
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <IoTimeOutline className="text-xs" />
+                        {cr.estimatedReadingTime} min
+                      </span>
+                      <span className="ml-auto">
+                        {new Date(mat.uploadedAt).toLocaleDateString('en', { month: 'short', day: 'numeric' })}
+                      </span>
+                    </div>
+
+                    {/* G7 readability note */}
+                    <div className={`mt-3 pt-3 border-t border-gray-50 text-[10px] font-medium ${meta.text}`}>
+                      {meta.desc}
                     </div>
                   </div>
-
-                  {/* Right: date + difficulty bar + delete */}
-                  <div className="shrink-0 flex flex-col items-end gap-2 pt-0.5">
-                    <span className="text-[10px] text-gray-300">
-                      {new Date(mat.uploadedAt).toLocaleDateString('en', { month: 'short', day: 'numeric' })}
-                    </span>
-                    <div className="w-14 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${meta.dot} transition-all`}
-                        style={{ width: `${typeof cr.score === 'number' ? Math.min(100, cr.score) : 0}%` }}
-                      />
-                    </div>
-                    <button
-                      onClick={e => { e.stopPropagation(); handleDelete(mat.id); }}
-                      className="p-1 rounded-lg text-gray-200 hover:text-red-400 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
-                    >
-                      <IoTrashOutline className="text-xs" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>

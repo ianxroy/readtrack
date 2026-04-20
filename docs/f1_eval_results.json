@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-04-20T01:43:33.296734Z",
+  "generated_at_utc": "2026-04-20T04:01:06.070857Z",
   "evaluation_set": "docs/f1_evaluation_set.json",
   "protocol": {
     "path": "docs/f1_eval_protocol.json",
@@ -226,8 +226,8 @@
         "id": "essay-en-01",
         "language": "english",
         "ground_truth": "Nagsisimula",
-        "heuristic_predicted": "Nagsisimula",
-        "heuristic_correct": true,
+        "heuristic_predicted": "Papaunlad",
+        "heuristic_correct": false,
         "ml_predicted": "Unknown",
         "ml_correct": false,
         "split": "calibration"
@@ -236,8 +236,8 @@
         "id": "essay-en-01-dup1",
         "language": "english",
         "ground_truth": "Nagsisimula",
-        "heuristic_predicted": "Nagsisimula",
-        "heuristic_correct": true,
+        "heuristic_predicted": "Papaunlad",
+        "heuristic_correct": false,
         "ml_predicted": "Unknown",
         "ml_correct": false,
         "split": "calibration"
@@ -326,8 +326,8 @@
         "id": "essay-fil-01",
         "language": "filipino",
         "ground_truth": "Nagsisimula",
-        "heuristic_predicted": "Nagsisimula",
-        "heuristic_correct": true,
+        "heuristic_predicted": "Papaunlad",
+        "heuristic_correct": false,
         "ml_predicted": "Unknown",
         "ml_correct": false,
         "split": "calibration"
@@ -336,8 +336,8 @@
         "id": "essay-fil-01-dup1",
         "language": "filipino",
         "ground_truth": "Nagsisimula",
-        "heuristic_predicted": "Nagsisimula",
-        "heuristic_correct": true,
+        "heuristic_predicted": "Papaunlad",
+        "heuristic_correct": false,
         "ml_predicted": "Unknown",
         "ml_correct": false,
         "split": "calibration"
@@ -718,21 +718,21 @@
       "heuristic_path": {
         "full": {
           "count": 20,
-          "accuracy": 1.0,
-          "macro_precision": 1.0,
-          "macro_recall": 1.0,
-          "macro_f1": 1.0,
+          "accuracy": 0.8,
+          "macro_precision": 0.8889,
+          "macro_recall": 0.8333,
+          "macro_f1": 0.8222,
           "classification_report": {
             "Nagsisimula": {
               "precision": 1.0,
-              "recall": 1.0,
-              "f1-score": 1.0,
+              "recall": 0.5,
+              "f1-score": 0.6666666666666666,
               "support": 8.0
             },
             "Papaunlad": {
-              "precision": 1.0,
+              "precision": 0.6666666666666666,
               "recall": 1.0,
-              "f1-score": 1.0,
+              "f1-score": 0.8,
               "support": 8.0
             },
             "Mahusay": {
@@ -741,24 +741,24 @@
               "f1-score": 1.0,
               "support": 4.0
             },
-            "accuracy": 1.0,
+            "accuracy": 0.8,
             "macro avg": {
-              "precision": 1.0,
-              "recall": 1.0,
-              "f1-score": 1.0,
+              "precision": 0.8888888888888888,
+              "recall": 0.8333333333333334,
+              "f1-score": 0.8222222222222223,
               "support": 20.0
             },
             "weighted avg": {
-              "precision": 1.0,
-              "recall": 1.0,
-              "f1-score": 1.0,
+              "precision": 0.8666666666666666,
+              "recall": 0.8,
+              "f1-score": 0.7866666666666667,
               "support": 20.0
             }
           },
           "confusion_matrix": [
             [
-              8,
-              0,
+              4,
+              4,
               0
             ],
             [
@@ -775,21 +775,21 @@
         },
         "calibration": {
           "count": 8,
-          "accuracy": 1.0,
-          "macro_precision": 0.6667,
-          "macro_recall": 0.6667,
-          "macro_f1": 0.6667,
+          "accuracy": 0.5,
+          "macro_precision": 0.1667,
+          "macro_recall": 0.3333,
+          "macro_f1": 0.2222,
           "classification_report": {
             "Nagsisimula": {
-              "precision": 1.0,
-              "recall": 1.0,
-              "f1-score": 1.0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1-score": 0.0,
               "support": 4.0
             },
             "Papaunlad": {
-              "precision": 1.0,
+              "precision": 0.5,
               "recall": 1.0,
-              "f1-score": 1.0,
+              "f1-score": 0.6666666666666666,
               "support": 4.0
             },
             "Mahusay": {
@@ -798,24 +798,24 @@
               "f1-score": 0.0,
               "support": 0.0
             },
-            "accuracy": 1.0,
+            "accuracy": 0.5,
             "macro avg": {
-              "precision": 0.6666666666666666,
-              "recall": 0.6666666666666666,
-              "f1-score": 0.6666666666666666,
+              "precision": 0.16666666666666666,
+              "recall": 0.3333333333333333,
+              "f1-score": 0.2222222222222222,
               "support": 8.0
             },
             "weighted avg": {
-              "precision": 1.0,
-              "recall": 1.0,
-              "f1-score": 1.0,
+              "precision": 0.25,
+              "recall": 0.5,
+              "f1-score": 0.3333333333333333,
               "support": 8.0
             }
           },
           "confusion_matrix": [
             [
-              4,
               0,
+              4,
               0
             ],
             [
@@ -890,21 +890,21 @@
         "by_language": {
           "english": {
             "count": 10,
-            "accuracy": 1.0,
-            "macro_precision": 1.0,
-            "macro_recall": 1.0,
-            "macro_f1": 1.0,
+            "accuracy": 0.8,
+            "macro_precision": 0.8889,
+            "macro_recall": 0.8333,
+            "macro_f1": 0.8222,
             "classification_report": {
               "Nagsisimula": {
                 "precision": 1.0,
-                "recall": 1.0,
-                "f1-score": 1.0,
+                "recall": 0.5,
+                "f1-score": 0.6666666666666666,
                 "support": 4.0
               },
               "Papaunlad": {
-                "precision": 1.0,
+                "precision": 0.6666666666666666,
                 "recall": 1.0,
-                "f1-score": 1.0,
+                "f1-score": 0.8,
                 "support": 4.0
               },
               "Mahusay": {
@@ -913,24 +913,24 @@
                 "f1-score": 1.0,
                 "support": 2.0
               },
-              "accuracy": 1.0,
+              "accuracy": 0.8,
               "macro avg": {
-                "precision": 1.0,
-                "recall": 1.0,
-                "f1-score": 1.0,
+                "precision": 0.8888888888888888,
+                "recall": 0.8333333333333334,
+                "f1-score": 0.8222222222222223,
                 "support": 10.0
               },
               "weighted avg": {
-                "precision": 1.0,
-                "recall": 1.0,
-                "f1-score": 1.0,
+                "precision": 0.8666666666666666,
+                "recall": 0.8,
+                "f1-score": 0.7866666666666667,
                 "support": 10.0
               }
             },
             "confusion_matrix": [
               [
-                4,
-                0,
+                2,
+                2,
                 0
               ],
               [
@@ -947,21 +947,21 @@
           },
           "filipino": {
             "count": 10,
-            "accuracy": 1.0,
-            "macro_precision": 1.0,
-            "macro_recall": 1.0,
-            "macro_f1": 1.0,
+            "accuracy": 0.8,
+            "macro_precision": 0.8889,
+            "macro_recall": 0.8333,
+            "macro_f1": 0.8222,
             "classification_report": {
               "Nagsisimula": {
                 "precision": 1.0,
-                "recall": 1.0,
-                "f1-score": 1.0,
+                "recall": 0.5,
+                "f1-score": 0.6666666666666666,
                 "support": 4.0
               },
               "Papaunlad": {
-                "precision": 1.0,
+                "precision": 0.6666666666666666,
                 "recall": 1.0,
-                "f1-score": 1.0,
+                "f1-score": 0.8,
                 "support": 4.0
               },
               "Mahusay": {
@@ -970,24 +970,24 @@
                 "f1-score": 1.0,
                 "support": 2.0
               },
-              "accuracy": 1.0,
+              "accuracy": 0.8,
               "macro avg": {
-                "precision": 1.0,
-                "recall": 1.0,
-                "f1-score": 1.0,
+                "precision": 0.8888888888888888,
+                "recall": 0.8333333333333334,
+                "f1-score": 0.8222222222222223,
                 "support": 10.0
               },
               "weighted avg": {
-                "precision": 1.0,
-                "recall": 1.0,
-                "f1-score": 1.0,
+                "precision": 0.8666666666666666,
+                "recall": 0.8,
+                "f1-score": 0.7866666666666667,
                 "support": 10.0
               }
             },
             "confusion_matrix": [
               [
-                4,
-                0,
+                2,
+                2,
                 0
               ],
               [
