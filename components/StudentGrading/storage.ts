@@ -55,9 +55,27 @@ export function loadStudents(): Student[] {
   }
 }
 
+/** Strip base64 blobs before persisting — only keep storageUrl/mimeType/name. */
+function stripBase64(file: any): any {
+  if (!file) return file;
+  const { base64: _drop, ...rest } = file;
+  return rest;
+}
+
+function stripEssayBlobs(students: Student[]): Student[] {
+  return students.map(s => ({
+    ...s,
+    essays: s.essays.map(e => ({
+      ...e,
+      originalFile:  e.originalFile  ? stripBase64(e.originalFile)  : e.originalFile,
+      originalFiles: e.originalFiles ? e.originalFiles.map(stripBase64) : e.originalFiles,
+    })),
+  }));
+}
+
 export function saveStudents(students: Student[]): void {
   try {
-    localStorage.setItem(STUDENTS_KEY, JSON.stringify(students));
+    localStorage.setItem(STUDENTS_KEY, JSON.stringify(stripEssayBlobs(students)));
   } catch (e) {
     throw new Error('Failed to save students: storage may be full.');
   }
