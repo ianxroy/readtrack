@@ -388,7 +388,11 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
                               <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">{localized.imageLabel} {i + 1}</div>
                             )}
                             {mime ? (
-                              <img src={`data:${mime};base64,${file.base64}`} alt={`${localized.originalSubmission} ${i + 1}`} className="w-full rounded-xl border border-slate-100" />
+                              <img
+                                src={file.storageUrl ?? (file.base64 ? `data:${mime};base64,${file.base64}` : '')}
+                                alt={`${localized.originalSubmission} ${i + 1}`}
+                                className="w-full rounded-xl border border-slate-100"
+                              />
                             ) : (
                               <div className="text-xs text-slate-400 italic p-4 bg-slate-50 rounded-xl border border-slate-100">
                                 {localized.noPreview}

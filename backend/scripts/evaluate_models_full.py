@@ -21,9 +21,16 @@ def load_model(model_name):
     with open(model_path, 'rb') as f:
         saved_data = pickle.load(f)
         model = saved_data['model']
-        scaler = saved_data['scaler']
+        scaler = saved_data.get('scaler', None)
     
     return model, scaler
+
+
+def maybe_scale_features(scaler, X):
+    """Use scaler when available; otherwise return raw features."""
+    if scaler is None:
+        return X
+    return scaler.transform(X)
 
 def evaluate_proficiency_model():
     """Evaluate proficiency model on full dataset with different splits"""
@@ -72,7 +79,7 @@ def evaluate_proficiency_model():
             print(f"Testing samples: {len(X_test)}")
             
             # Scale and predict on full dataset
-            X_test_scaled = scaler.transform(X_test)
+            X_test_scaled = maybe_scale_features(scaler, X_test)
             y_pred = model.predict(X_test_scaled)
             
             # Calculate accuracy (no training for full dataset)
@@ -92,8 +99,8 @@ def evaluate_proficiency_model():
             print(f"Testing samples: {len(X_test)}")
             
             # Scale data
-            X_train_scaled = scaler.transform(X_train)
-            X_test_scaled = scaler.transform(X_test)
+            X_train_scaled = maybe_scale_features(scaler, X_train)
+            X_test_scaled = maybe_scale_features(scaler, X_test)
             
             # Predict on both train and test
             y_train_pred = model.predict(X_train_scaled)
@@ -195,7 +202,7 @@ def evaluate_complexity_model():
             print(f"Testing samples: {len(X_test)}")
             
             # Scale and predict on full dataset
-            X_test_scaled = scaler.transform(X_test)
+            X_test_scaled = maybe_scale_features(scaler, X_test)
             y_pred = model.predict(X_test_scaled)
             
             # Calculate accuracy (no training for full dataset)
@@ -215,8 +222,8 @@ def evaluate_complexity_model():
             print(f"Testing samples: {len(X_test)}")
             
             # Scale data
-            X_train_scaled = scaler.transform(X_train)
-            X_test_scaled = scaler.transform(X_test)
+            X_train_scaled = maybe_scale_features(scaler, X_train)
+            X_test_scaled = maybe_scale_features(scaler, X_test)
             
             # Predict on both train and test
             y_train_pred = model.predict(X_train_scaled)

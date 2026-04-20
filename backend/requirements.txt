@@ -21,6 +21,7 @@ tqdm
 torch
 transformers
 xgboost
+catboost
 sentencepiece
 langdetect
 imbalanced-learn

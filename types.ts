@@ -122,7 +122,8 @@ export interface TextComplexityResult {
 }
 
 export interface OriginalFile {
-  base64: string;
+  base64?: string;       // present locally before/after upload; stripped from DB payload
+  storageUrl?: string;   // Supabase Storage public URL after upload
   mimeType: string;
   name: string;
 }

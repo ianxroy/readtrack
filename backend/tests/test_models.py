@@ -46,15 +46,22 @@ def test_models():
 
     for sample in test_samples:
         features = extract_features(sample['text'])['vector'][0]
+
+        def _predict(payload, feature_row):
+            model = payload['model']
+            scaler = payload.get('scaler')
+            X_row = np.asarray([feature_row], dtype=float)
+            if scaler is not None:
+                X_row = scaler.transform(X_row)
+            pred = model.predict(X_row)
+            return np.asarray(pred).ravel()[0]
         
         # Predict Proficiency
-        prof_scaled = prof_data['scaler'].transform([features])
-        prof_pred = prof_data['model'].predict(prof_scaled)[0]
+        prof_pred = _predict(prof_data, features)
         prof_label = prof_labels[prof_pred] if isinstance(prof_pred, (int, np.integer)) else prof_pred
 
         # Predict Complexity
-        comp_scaled = comp_data['scaler'].transform([features])
-        comp_pred = comp_data['model'].predict(comp_scaled)[0]
+        comp_pred = _predict(comp_data, features)
         comp_label = comp_labels[comp_pred] if isinstance(comp_pred, (int, np.integer)) else comp_pred
 
         print(f"{sample['name']:<20} | {str(prof_label):<15} | {str(comp_label):<15}")

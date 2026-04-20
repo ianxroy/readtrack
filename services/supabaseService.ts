@@ -26,7 +26,7 @@ export interface StudentGradingUpload {
   section_name?: string;
   subject_name?: string;
   teacher_rubric_scores?: unknown;
-  original_file?: { base64: string; mimeType: string; name: string } | null;
+  original_file?: { base64?: string; storageUrl?: string; mimeType: string; name: string } | null;
 }
 
 export interface TeacherRubricScores {
@@ -46,7 +46,7 @@ export interface MaterialUpload {
   complexity_level?: string;
   complexity_score?: number | null;
   complexity_result?: unknown;
-  original_file?: { base64: string; mimeType: string; name: string } | null;
+  original_file?: { base64?: string; storageUrl?: string; mimeType: string; name: string } | null;
   teacher_verified_level?: string | null;
   teacher_verified_at?: string | null;
   verification_comment?: string | null;
@@ -130,6 +130,102 @@ async function sha256Hex(value: string): Promise<string> {
   return Array.from(new Uint8Array(digest))
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
+}
+
+// ----------------------------------------------------------------
+// Storage helpers — compress images + upload to Supabase bucket
+// ----------------------------------------------------------------
+
+const STORAGE_BUCKET = 'original-files';
+
+/** Compress an image base64 to JPEG using the canvas API. Max 1200px, quality 0.78. */
+async function compressImageBase64(base64: string, sourceMime: string): Promise<{ base64: string; mimeType: string }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 1200;
+      const scale = img.width > MAX ? MAX / img.width : 1;
+      const canvas = document.createElement('canvas');
+      canvas.width  = Math.round(img.width  * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.78);
+      resolve({ base64: dataUrl.split(',')[1], mimeType: 'image/jpeg' });
+    };
+    img.onerror = reject;
+    img.src = `data:${sourceMime};base64,${base64}`;
+  });
+}
+
+/**
+ * Upload a single OriginalFile to Supabase Storage.
+ * Images are compressed to JPEG first.
+ * Returns the public URL, or null on failure.
+ */
+export async function uploadFileToStorage(
+  file: { base64?: string; mimeType: string; name: string },
+  folder: 'essays' | 'materials',
+): Promise<string | null> {
+  if (!file.base64) return null;
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  try {
+    let base64 = file.base64;
+    let mimeType = file.mimeType;
+
+    const isCompressible = mimeType.startsWith('image/') && mimeType !== 'image/gif';
+    if (isCompressible) {
+      try {
+        const compressed = await compressImageBase64(base64, mimeType);
+        base64    = compressed.base64;
+        mimeType  = compressed.mimeType;
+      } catch {
+        // keep original on compression failure
+      }
+    }
+
+    const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+    const blob  = new Blob([bytes], { type: mimeType });
+    const ext   = mimeType === 'image/jpeg' ? 'jpg'
+                : file.name.includes('.') ? file.name.split('.').pop()!
+                : 'bin';
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80);
+    const path = `${user.id}/${folder}/${Date.now()}_${safeName}`;
+
+    const { error } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .upload(path, blob, { contentType: mimeType, upsert: false });
+
+    if (error) {
+      console.error('Storage upload failed:', error.message);
+      return null;
+    }
+
+    const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+    return urlData.publicUrl ?? null;
+  } catch (e) {
+    console.error('uploadFileToStorage error:', e);
+    return null;
+  }
+}
+
+/**
+ * Upload all OriginalFiles to storage, returning updated copies with storageUrl set
+ * and base64 stripped (to keep the DB payload small).
+ */
+export async function uploadOriginalFilesToStorage(
+  files: Array<{ base64?: string; mimeType: string; name: string }>,
+  folder: 'essays' | 'materials',
+): Promise<Array<{ storageUrl?: string; mimeType: string; name: string }>> {
+  return Promise.all(
+    files.map(async f => {
+      const storageUrl = await uploadFileToStorage(f, folder);
+      // Return without base64 so it's not saved to the DB
+      return { mimeType: f.mimeType, name: f.name, ...(storageUrl ? { storageUrl } : {}) };
+    }),
+  );
 }
 
 export async function saveTeacherEvaluation(evaluation: TeacherEvaluation): Promise<{ error: string | null }> {

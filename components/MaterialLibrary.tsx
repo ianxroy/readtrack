@@ -16,7 +16,7 @@ import {
 } from 'react-icons/io5';
 import { LibraryMaterial, TextComplexityResult, ComplexityLevel, OriginalFile } from '../types';
 import { classifyTextComplexityAPI, extractTextFromImageAPI, detectLanguageAPI, addTrainingSampleAPI, ingestReferenceAPI, detectLanguageClientSide, triggerRetrainAPI } from '../services/pythonService';
-import { saveMaterialUpload, loadMaterialUploads, deleteMaterialUpload, saveMaterialTeacherVerification, loadOrganization, loadMaterialSubjectCatalog, saveMaterialSubjectCatalog, updateMaterialSubject } from '../services/supabaseService';
+import { saveMaterialUpload, loadMaterialUploads, deleteMaterialUpload, saveMaterialTeacherVerification, loadOrganization, loadMaterialSubjectCatalog, saveMaterialSubjectCatalog, updateMaterialSubject, uploadOriginalFilesToStorage } from '../services/supabaseService';
 import { getUILanguagePreference, resolveUILanguage, subscribeUILanguagePreferenceChange, UILanguagePreference } from '../services/uiSettings';
 import { useEffect } from 'react';
 import { IoDocumentOutline } from 'react-icons/io5';
@@ -387,8 +387,9 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, uiLanguagePreferenc
 
   // Create a blob URL for PDF so browsers don't block data: URIs in iframes
   const pdfBlobUrl = useMemo(() => {
-    if (material.originalFile?.mimeType === 'application/pdf' && material.originalFile.base64) {
-      return base64ToBlobUrl(material.originalFile.base64, 'application/pdf');
+    if (material.originalFile?.mimeType === 'application/pdf') {
+      if (material.originalFile.storageUrl) return material.originalFile.storageUrl;
+      if (material.originalFile.base64) return base64ToBlobUrl(material.originalFile.base64, 'application/pdf');
     }
     return null;
   }, [material.originalFile]);
@@ -552,7 +553,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, uiLanguagePreferenc
                             <div key={i}>
                               <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">Image {i + 1}</div>
                               {mime ? (
-                                <img src={`data:${mime};base64,${img.base64}`} alt={`Image ${i+1}`} className="w-full rounded-lg border border-gray-200" />
+                                <img src={img.storageUrl ?? (img.base64 ? `data:${mime};base64,${img.base64}` : '')} alt={`Image ${i+1}`} className="w-full rounded-lg border border-gray-200" />
                               ) : (
                                 <div className="text-xs text-gray-400 italic p-4 bg-gray-50 rounded-lg border border-gray-200">No preview available.</div>
                               )}
@@ -562,7 +563,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, uiLanguagePreferenc
                       </div>
                     ) : safeImageMime ? (
                       <img
-                        src={`data:${safeImageMime};base64,${material.originalFile!.base64}`}
+                        src={material.originalFile!.storageUrl ?? (material.originalFile!.base64 ? `data:${safeImageMime};base64,${material.originalFile!.base64}` : '')}
                         alt="Original uploaded material"
                         className="w-full rounded-lg border border-gray-200"
                       />
@@ -851,8 +852,9 @@ const UploadCompareModal: React.FC<UploadVerificationModalProps> = ({
     : null;
 
   const pdfBlobUrl = useMemo(() => {
-    if (material.originalFile?.mimeType === 'application/pdf' && material.originalFile.base64) {
-      return base64ToBlobUrl(material.originalFile.base64, 'application/pdf');
+    if (material.originalFile?.mimeType === 'application/pdf') {
+      if (material.originalFile.storageUrl) return material.originalFile.storageUrl;
+      if (material.originalFile.base64) return base64ToBlobUrl(material.originalFile.base64, 'application/pdf');
     }
     return null;
   }, [material.originalFile]);
@@ -1002,8 +1004,9 @@ const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = (
     : null;
 
   const pdfBlobUrl = useMemo(() => {
-    if (material.originalFile?.mimeType === 'application/pdf' && material.originalFile.base64) {
-      return base64ToBlobUrl(material.originalFile.base64, 'application/pdf');
+    if (material.originalFile?.mimeType === 'application/pdf') {
+      if (material.originalFile.storageUrl) return material.originalFile.storageUrl;
+      if (material.originalFile.base64) return base64ToBlobUrl(material.originalFile.base64, 'application/pdf');
     }
     return null;
   }, [material.originalFile]);
@@ -1475,6 +1478,15 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
 
     persist([material, ...materials]);
 
+    // Upload original file to storage (compresses images), strip base64 from DB
+    const rawFiles = material.originalFiles?.length
+      ? material.originalFiles
+      : material.originalFile ? [material.originalFile] : [];
+    const storedFiles = rawFiles.length
+      ? await uploadOriginalFilesToStorage(rawFiles, 'materials')
+      : [];
+    const storedFile = storedFiles[0] ?? null;
+
     const { error } = await saveMaterialUpload({
       material_name: material.name,
       material_text: material.text,
@@ -1482,14 +1494,14 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
       complexity_score: material.complexityResult.score,
       complexity_result: {
         ...material.complexityResult,
-        originalFile: material.originalFile ?? null,
+        originalFile: storedFile,
         teacherVerification: {
           level: material.teacherVerifiedLevel,
           comment: material.verificationComment || null,
           verifiedAt: material.teacherVerifiedAt,
         },
       },
-      original_file: material.originalFile ?? null,
+      original_file: storedFile,
       teacher_verified_level: material.teacherVerifiedLevel ?? null,
       teacher_verified_at: material.teacherVerifiedAt ?? null,
       verification_comment: material.verificationComment ?? null,

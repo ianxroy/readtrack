@@ -22,7 +22,7 @@ import { ModelPerformancePage } from './ModelPerformancePage';
 import { ProficiencyLevel, CachedAnalysis, StudentDiagnosisResult, DepEdRubricScore, OriginalFile } from '../../types';
 import { IoRefreshOutline } from 'react-icons/io5';
 import { analyzeStudentWorkAPI, classifyTextComplexityAPI, evaluateDepEdRubricAPI, getTrainStatusAPI, triggerRetrainAPI, TrainStatusResponse } from '../../services/pythonService';
-import { saveStudentGradingUpload, saveTeacherRubricScores, lookupEssayIdByText, deleteStudentUpload, deleteStudentAllUploads, updateStudentEssayText, updateStudentUploadAnalysis, deleteSection as deleteSectionRemote } from '../../services/supabaseService';
+import { saveStudentGradingUpload, saveTeacherRubricScores, lookupEssayIdByText, deleteStudentUpload, deleteStudentAllUploads, updateStudentEssayText, updateStudentUploadAnalysis, deleteSection as deleteSectionRemote, uploadOriginalFilesToStorage } from '../../services/supabaseService';
 
 interface StudentGradingProps {
   onMenuClick?: () => void;
@@ -357,7 +357,6 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
     updateStudents(next);
 
     setSelectedStudentId(params.studentId);
-    setSelectedEssayId(tempEssayId);
     const student = next.find(s => s.id === params.studentId);
     if (student) setSelectedSectionId(student.sectionId);
     setSelectedSubjectId(params.subjectId);
@@ -368,6 +367,15 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
       try {
         const targetStudent = next.find(s => s.id === params.studentId);
         const sectionName = sections.find(sec => sec.id === targetStudent?.sectionId)?.name;
+        // Upload original files to storage (compresses images), strip base64 from DB payload
+        const rawFiles = essay.originalFiles?.length
+          ? essay.originalFiles
+          : essay.originalFile ? [essay.originalFile] : [];
+        const storedFiles = rawFiles.length
+          ? await uploadOriginalFilesToStorage(rawFiles, 'essays')
+          : [];
+        const storedFile = storedFiles[0] ?? null;
+
         const { data, error } = await saveStudentGradingUpload({
           student_name: targetStudent?.name ?? 'Unknown Student',
           essay_title: essay.title,
@@ -379,7 +387,7 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
           section_name: sectionName,
           subject_name: selectedSubjectForUpload?.name,
           subject_language: selectedSubjectForUpload?.language === 'english' ? 'en' : 'tl',
-          original_file: essay.originalFiles?.[0] ?? essay.originalFile ?? null,
+          original_file: storedFile,
         });
 
         if (error) {
@@ -403,7 +411,6 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
           });
 
           flushPendingRubricSave(tempEssayId, realId).catch(console.error);
-          setSelectedEssayId(id => id === tempEssayId ? realId : id);
         }
 
         const primaryImage = params.originalFiles?.[0];

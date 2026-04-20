@@ -262,7 +262,20 @@ async def check_english_grammar(text: str) -> GrammarCheckResponse:
                     issue_type = "grammar"
 
             original_fragment = text[match.offset:match.offset + match.error_length]
+
+            # Skip spelling flags on capitalized words — likely proper nouns/names
+            if issue_type == "spelling" and original_fragment and original_fragment[0].isupper():
+                continue
+
             if issue_type == "spelling" and _is_us_uk_variant(original_fragment, match.replacements or []):
+                continue
+
+            # Skip whitespace/spacing corrections
+            rule_id = match.rule_id if hasattr(match, 'rule_id') else ""
+            category = match.category if hasattr(match, 'category') else ""
+            if rule_id and "WHITESPACE" in rule_id.upper():
+                continue
+            if category and "whitespace" in category.lower():
                 continue
 
             context = ""

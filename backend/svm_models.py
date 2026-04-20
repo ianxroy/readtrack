@@ -53,7 +53,7 @@ class BaseModel:
             with open(path, 'rb') as f:
                 data = pickle.load(f)
                 self.model = data['model']
-                self.scaler = data['scaler']
+                self.scaler = data.get('scaler', self.scaler)
                 self.feature_idx = data.get('feature_idx', None)
             return True
         except FileNotFoundError:
@@ -78,17 +78,23 @@ class BaseModel:
             if self.feature_idx is not None:
                 v = v[:, self.feature_idx]
 
-            expected_features = getattr(self.scaler, 'n_features_in_', None)
+            expected_features = None
+            if self.scaler is not None:
+                expected_features = getattr(self.scaler, 'n_features_in_', None)
             if expected_features is None:
                 expected_features = getattr(self.model, 'n_features_in_', None)
             if expected_features is None:
-                scaler_mean = getattr(self.scaler, 'mean_', None)
-                if scaler_mean is not None:
-                    expected_features = len(scaler_mean)
+                expected_features = getattr(self.model, 'feature_count_', None)
             if expected_features is None:
-                scaler_scale = getattr(self.scaler, 'scale_', None)
-                if scaler_scale is not None:
-                    expected_features = len(scaler_scale)
+                if self.scaler is not None:
+                    scaler_mean = getattr(self.scaler, 'mean_', None)
+                    if scaler_mean is not None:
+                        expected_features = len(scaler_mean)
+            if expected_features is None:
+                if self.scaler is not None:
+                    scaler_scale = getattr(self.scaler, 'scale_', None)
+                    if scaler_scale is not None:
+                        expected_features = len(scaler_scale)
             if expected_features is None:
                 support_vectors = getattr(self.model, 'support_vectors_', None)
                 if support_vectors is not None and len(getattr(support_vectors, 'shape', [])) == 2:
@@ -103,7 +109,9 @@ class BaseModel:
                     pad_width = expected_features - v.shape[1]
                     v = np.pad(v, ((0, 0), (0, pad_width)), mode='constant')
 
-            return self.scaler.transform(v)
+            if self.scaler is not None and hasattr(self.scaler, 'transform'):
+                return self.scaler.transform(v)
+            return v
         except Exception as exc:
             print(f"Warning: ML inference skipped, falling back to heuristics ({exc})")
             return None

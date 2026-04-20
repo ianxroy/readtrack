@@ -1,35 +1,55 @@
 {
-  "description": "Held-out protocol for ReadTrack F1 reevaluation. Calibration set is used only for threshold sanity-checking; primary reporting uses the held-out test split.",
+  "description": "Held-out protocol for ReadTrack F1 reevaluation. Calibration set is used only for threshold sanity-checking; primary reporting uses the held-out test split. Current split sizes: materials calibration=8, materials test=12, essays calibration=8, essays test=12.",
   "reading_materials": {
     "calibration_ids": [
       "mat-en-01",
+      "mat-en-01-dup1",
       "mat-en-03",
+      "mat-en-03-dup1",
       "mat-fil-01",
-      "mat-fil-03"
+      "mat-fil-01-dup1",
+      "mat-fil-03",
+      "mat-fil-03-dup1"
     ],
     "test_ids": [
       "mat-en-02",
+      "mat-en-02-dup1",
       "mat-en-04",
+      "mat-en-04-dup1",
       "mat-en-05",
+      "mat-en-05-dup1",
       "mat-fil-02",
+      "mat-fil-02-dup1",
       "mat-fil-04",
-      "mat-fil-05"
+      "mat-fil-04-dup1",
+      "mat-fil-05",
+      "mat-fil-05-dup1"
     ]
   },
   "student_essays": {
     "calibration_ids": [
       "essay-en-01",
+      "essay-en-01-dup1",
       "essay-en-03",
+      "essay-en-03-dup1",
       "essay-fil-01",
-      "essay-fil-03"
+      "essay-fil-01-dup1",
+      "essay-fil-03",
+      "essay-fil-03-dup1"
     ],
     "test_ids": [
       "essay-en-02",
+      "essay-en-02-dup1",
       "essay-en-04",
+      "essay-en-04-dup1",
       "essay-en-05",
+      "essay-en-05-dup1",
       "essay-fil-02",
+      "essay-fil-02-dup1",
       "essay-fil-04",
-      "essay-fil-05"
+      "essay-fil-04-dup1",
+      "essay-fil-05",
+      "essay-fil-05-dup1"
     ]
   }
 }

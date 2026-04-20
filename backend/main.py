@@ -23,8 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from preprocessing import extract_features
 from svm_models import TextComplexitySVM, StudentProficiencySVM
-from sklearn.svm import SVC
-from sklearn.preprocessing import RobustScaler
+from catboost import CatBoostClassifier
 from sklearn.metrics import classification_report, confusion_matrix as sklearn_cm
 import numpy as np
 from supabase import create_client
@@ -456,17 +455,25 @@ def _train_language_model(language: str) -> dict:
     else:
         X_train, y_train = X_ph, y_ph
 
-    scaler = RobustScaler()
-    X_scaled = scaler.fit_transform(X_train)
-    model = SVC(kernel="rbf", C=10, gamma="scale", class_weight="balanced", random_state=42)
-    model.fit(X_scaled, y_train)
-    train_acc = float((model.predict(X_scaled) == y_train).mean() * 100.0)
+    model = CatBoostClassifier(
+        loss_function="MultiClass",
+        eval_metric="Accuracy",
+        random_seed=42,
+        verbose=False,
+        depth=6,
+        learning_rate=0.05,
+        iterations=500,
+        l2_leaf_reg=3,
+    )
+    model.fit(X_train, y_train)
+    train_pred = np.asarray(model.predict(X_train)).ravel()
+    train_acc = float((train_pred == y_train).mean() * 100.0)
 
     model_path = MODEL_DIR / ("proficiency_model_en.pkl" if language == "en" else "proficiency_model_tl.pkl")
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
     with open(model_path, "wb") as f:
         import pickle
-        pickle.dump({"model": model, "scaler": scaler}, f)
+        pickle.dump({"model": model, "scaler": None, "model_type": "catboost"}, f)
 
     # Hot-reload model into memory for immediate use.
     if language == "en":
@@ -483,6 +490,25 @@ def _train_language_model(language: str) -> dict:
         "model_saved": model_path.name,
     }
 
+def clean_extracted_text(text: str) -> str:
+    """Normalize text extracted from PDF, DOCX, or TXT uploads."""
+    if not text:
+        return ""
+    # Normalize line endings
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    # Remove standalone page numbers (lines that are just a number)
+    text = re.sub(r"(?m)^\s*\d{1,4}\s*$", "", text)
+    # Join hyphenated line-breaks (word- \n wrap -> wordwrap)
+    text = re.sub(r"-\n(\w)", r"\1", text)
+    # Collapse 3+ blank lines to a single blank line
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    # Collapse multiple spaces (but preserve paragraph breaks)
+    lines = text.split("\n")
+    lines = [re.sub(r" {2,}", " ", line).strip() for line in lines]
+    text = "\n".join(lines)
+    return text.strip()
+
+
 def extract_text_from_pdf(base64_string: str) -> str:
     try:
         import struct
@@ -495,7 +521,8 @@ def extract_text_from_pdf(base64_string: str) -> str:
             except (struct.error, Exception):
                 page_text = ""
             pages_text.append(page_text)
-        return "\n\n".join(t.strip() for t in pages_text if t.strip())
+        raw = "\n\n".join(t.strip() for t in pages_text if t.strip())
+        return clean_extracted_text(raw)
     except Exception as e:
         print(f"ERROR in extract_text_from_pdf: {e}")
         return ""
@@ -1605,6 +1632,7 @@ def ingest_reference(request: ReferenceIngestRequest):
                 decoded = base64.b64decode(request.file)
                 text = decoded.decode("utf-8", errors="replace")
 
+        text = clean_extracted_text(text)
         title = generate_reference_title(text, request.name)
         cleaned_text = remove_title_from_body(text, title)
         return {"title": title, "text": cleaned_text}
