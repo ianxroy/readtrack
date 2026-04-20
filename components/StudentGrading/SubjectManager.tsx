@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { IoCloseOutline, IoAddOutline, IoTrashOutline, IoPencilOutline, IoCheckmarkOutline } from 'react-icons/io5';
+import { IoCloseOutline, IoAddOutline, IoTrashOutline, IoPencilOutline, IoCheckmarkOutline, IoWarningOutline } from 'react-icons/io5';
 import { Subject, Student } from './types';
 
 interface SubjectManagerProps {
@@ -18,6 +18,7 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
   const [newLang, setNewLang] = useState<'english' | 'filipino' | ''>('');
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renamingValue, setRenamingValue] = useState('');
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const essayCountForSubject = (subjectId: string) =>
     students.reduce((acc, s) => acc + s.essays.filter(e => e.subjectId === subjectId).length, 0);
@@ -37,7 +38,7 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[80vh]">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[80vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-100">
           <div>
@@ -84,15 +85,9 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                   </button>
                 )}
                 <button
-                  onClick={() => {
-                    if (count > 0) {
-                      alert(`${count} essay${count !== 1 ? 's' : ''} are tagged to "${sub.name}". Re-tag or delete those essays first.`);
-                      return;
-                    }
-                    onDelete(sub.id);
-                  }}
-                  className={`p-1 ${count > 0 ? 'text-gray-200 cursor-not-allowed' : 'text-gray-400 hover:text-red-500'}`}
-                  title={count > 0 ? 'Re-tag or delete essays first' : 'Delete subject'}
+                  onClick={() => setConfirmDeleteId(sub.id)}
+                  className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                  title="Delete subject"
                 >
                   <IoTrashOutline className="text-sm" />
                 </button>
@@ -129,6 +124,37 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
           </button>
         </div>
       </div>
+      {confirmDeleteId && (() => {
+        const sub = subjects.find(s => s.id === confirmDeleteId)!;
+        const count = essayCountForSubject(confirmDeleteId);
+        return (
+          <div className="absolute inset-0 bg-white/90 backdrop-blur-sm rounded-2xl flex flex-col items-center justify-center p-6 gap-4 z-10">
+            <IoWarningOutline className="text-4xl text-amber-400" />
+            <div className="text-center">
+              <p className="text-sm font-bold text-gray-900">Delete "{sub.name}"?</p>
+              {count > 0 && (
+                <p className="text-xs text-amber-700 mt-1 bg-amber-50 rounded-lg px-3 py-1.5 border border-amber-100">
+                  {count} essay{count !== 1 ? 's' : ''} tagged to this subject will become untagged.
+                </p>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmDeleteId(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { onDelete(confirmDeleteId); setConfirmDeleteId(null); }}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-red-500 hover:bg-red-600"
+              >
+                Delete Subject
+              </button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

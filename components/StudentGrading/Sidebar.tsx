@@ -89,7 +89,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   );
 
   return (
-    <div className="w-60 shrink-0 flex flex-col h-full bg-white border-r border-gray-100">
+    <div className="w-72 shrink-0 flex flex-col h-full bg-white border-r border-gray-100">
 
       {/* Brand block — mirrors MaterialLibrary sidebar */}
       <div className="px-5 pt-5 pb-4 border-b border-gray-100 shrink-0">

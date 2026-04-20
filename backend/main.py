@@ -494,18 +494,143 @@ def clean_extracted_text(text: str) -> str:
     """Normalize text extracted from PDF, DOCX, or TXT uploads."""
     if not text:
         return ""
+
+    def _is_heading_like_line(line: str) -> bool:
+        s = line.strip()
+        if not s:
+            return False
+        words = s.split()
+        if len(words) > 8:
+            return False
+        letters = [ch for ch in s if ch.isalpha()]
+        if not letters:
+            return False
+        upper_ratio = sum(1 for ch in letters if ch.isupper()) / len(letters)
+        return upper_ratio >= 0.8 and not s.endswith((".", "!", "?"))
+
+    def _is_list_like_line(line: str) -> bool:
+        s = line.lstrip()
+        return bool(re.match(r"^(?:[-*•]|\d+[\.)]|[A-Za-z][\.)])\s+", s))
+
+    def _is_soft_fragment_line(line: str) -> bool:
+        s = line.strip()
+        if not s:
+            return False
+        if _is_heading_like_line(s) or _is_list_like_line(s):
+            return False
+        if re.search(r"[.!?]([\"')\]]+)?$", s):
+            return False
+        words = s.split()
+        if len(words) <= 4:
+            return True
+        return bool(re.match(r"^(and|or|but|with|for|to|of|in|on|at|from|by|that|which|who|while)\b", s, re.IGNORECASE))
+
     # Normalize line endings
     text = text.replace("\r\n", "\n").replace("\r", "\n")
+    # Normalize unusual spacing characters
+    text = text.replace("\xa0", " ")
+    text = re.sub(r"[\u200b\u200c\u200d\ufeff]", "", text)
     # Remove standalone page numbers (lines that are just a number)
     text = re.sub(r"(?m)^\s*\d{1,4}\s*$", "", text)
     # Join hyphenated line-breaks (word- \n wrap -> wordwrap)
-    text = re.sub(r"-\n(\w)", r"\1", text)
-    # Collapse 3+ blank lines to a single blank line
+    text = re.sub(r"(?<=\w)-\s*\n\s*(?=\w)", "", text)
+
+    # Rebuild paragraphs from hard-wrapped and over-fragmented lines.
+    raw_lines = [re.sub(r"[ \t]+", " ", line).strip() for line in text.split("\n")]
+    rebuilt_lines = []
+    i = 0
+    n = len(raw_lines)
+
+    while i < n:
+        line = raw_lines[i]
+
+        if not line:
+            prev_non_empty = next((ln for ln in reversed(rebuilt_lines) if ln), "")
+            j = i + 1
+            while j < n and not raw_lines[j]:
+                j += 1
+            next_non_empty = raw_lines[j] if j < n else ""
+
+            # OCR/PDF artifacts often insert blank lines between single words.
+            # Skip those synthetic blanks so fragments can be rejoined.
+            if prev_non_empty and next_non_empty:
+                prev_ends_sentence = bool(re.search(r"[.!?]([\"')\]]+)?$", prev_non_empty))
+                prev_ends_label = prev_non_empty.endswith(":")
+                prev_structural = _is_heading_like_line(prev_non_empty) or _is_list_like_line(prev_non_empty)
+                next_structural = _is_heading_like_line(next_non_empty) or _is_list_like_line(next_non_empty)
+
+                if not prev_structural and not next_structural:
+                    if (
+                        _is_soft_fragment_line(prev_non_empty)
+                        or _is_soft_fragment_line(next_non_empty)
+                        or (not prev_ends_sentence and not prev_ends_label)
+                    ):
+                        i += 1
+                        continue
+
+            if rebuilt_lines and rebuilt_lines[-1] != "":
+                rebuilt_lines.append("")
+            i += 1
+            continue
+
+        if not rebuilt_lines:
+            rebuilt_lines.append(line)
+            i += 1
+            continue
+
+        prev = rebuilt_lines[-1]
+        if prev == "":
+            rebuilt_lines.append(line)
+            i += 1
+            continue
+
+        if _is_heading_like_line(line) or _is_list_like_line(line):
+            if rebuilt_lines[-1] != "":
+                rebuilt_lines.append("")
+            rebuilt_lines.append(line)
+            i += 1
+            continue
+
+        prev_trim = prev.strip()
+        if _is_heading_like_line(prev_trim):
+            rebuilt_lines.append(line)
+            i += 1
+            continue
+
+        prev_ends_sentence = bool(re.search(r"[.!?]([\"')\]]+)?$", prev_trim))
+        prev_ends_label = prev_trim.endswith(":")
+        current_starts_lower = bool(re.match(r"^[a-z]", line))
+        current_starts_connector = bool(re.match(
+            r"^(and|or|but|with|for|to|of|in|on|at|from|by|that|which|who|while)\b",
+            line,
+            re.IGNORECASE,
+        ))
+
+        should_join = (
+            _is_soft_fragment_line(prev_trim)
+            or _is_soft_fragment_line(line)
+            or (not prev_ends_sentence and not prev_ends_label)
+            or current_starts_lower
+            or current_starts_connector
+        )
+
+        if should_join:
+            rebuilt_lines[-1] = f"{prev_trim} {line}".strip()
+        else:
+            rebuilt_lines.append(line)
+
+        i += 1
+
+    normalized_lines = []
+    for line in rebuilt_lines:
+        if not line:
+            if normalized_lines and normalized_lines[-1] != "":
+                normalized_lines.append("")
+            continue
+        normalized_lines.append(re.sub(r"\s{2,}", " ", line).strip())
+
+    text = "\n".join(normalized_lines)
     text = re.sub(r"\n{3,}", "\n\n", text)
-    # Collapse multiple spaces (but preserve paragraph breaks)
-    lines = text.split("\n")
-    lines = [re.sub(r" {2,}", " ", line).strip() for line in lines]
-    text = "\n".join(lines)
     return text.strip()
 
 
@@ -747,23 +872,25 @@ def _clamp(value: float, low: float, high: float) -> float:
 
 
 def _band_to_overall_score(band: str) -> float:
-    # Center each proficiency band in the DepEd 1-4 scale.
+    # PH Grade 7 calibration: keep band centers slightly more forgiving so
+    # borderline essays are not systematically under-credited.
     if band == "Mahusay":
         return 3.6
     if band == "Papaunlad":
-        return 2.8
+        return 3.0
     if band == "Nagsisimula":
-        return 1.8
-    return 2.8
+        return 2.1
+    return 3.0
 
 
 def _to_rubric_score(value_0_100: float) -> int:
     # Convert normalized feature score to DepEd rubric 1-4 band.
-    if value_0_100 >= 80:
+    # Lowered cutoffs to better match PH Grade 7 classroom expectations.
+    if value_0_100 >= 75:
         return 4
-    if value_0_100 >= 60:
+    if value_0_100 >= 55:
         return 3
-    if value_0_100 >= 40:
+    if value_0_100 >= 35:
         return 2
     return 1
 
@@ -897,8 +1024,9 @@ async def evaluate_rubric_with_ml_english(text: str, grade_level: str) -> dict:
     vector = features.get("vector")
 
     # Use trained English proficiency model signal as the global anchor.
+    # Apply a floor so out-of-domain model drift does not over-punish PH G7 essays.
     model_band = student_model_en.ml_predict(vector) if vector is not None else None
-    anchored_overall = _band_to_overall_score(str(model_band or "Papaunlad"))
+    anchored_overall = max(2.2, _band_to_overall_score(str(model_band or "Papaunlad")))
 
     word_count = _safe_float_metric(metrics.get("wordCount", 0), 0.0)
     vocab = _safe_float_metric(metrics.get("vocabularyRichness", 0), 0.0)
@@ -920,7 +1048,7 @@ async def evaluate_rubric_with_ml_english(text: str, grade_level: str) -> dict:
         per_100_words_issues = 0.0
     else:
         per_100_words_issues = (issue_count / word_count) * 100.0
-    grammar_quality = _clamp(100.0 - (per_100_words_issues * 8.0), 0.0, 100.0)
+    grammar_quality = _clamp(100.0 - (per_100_words_issues * 6.0), 0.0, 100.0)
 
     # NLP/grammar feature composites (0-100), then projected to DepEd 1-4.
     content_base = (
@@ -943,11 +1071,11 @@ async def evaluate_rubric_with_ml_english(text: str, grade_level: str) -> dict:
         grammar_quality * 0.75
         + _clamp(structure, 0.0, 100.0) * 0.25
     )
-    mechanics_base = _clamp(100.0 - (error_count / max(word_count, 1.0) * 900.0), 0.0, 100.0)
+    mechanics_base = _clamp(100.0 - (error_count / max(word_count, 1.0) * 650.0), 0.0, 100.0)
 
     # Keep per-dimension scores consistent with the model's overall proficiency signal.
     anchor_0_100 = (anchored_overall - 1.0) / 3.0 * 100.0
-    blend = lambda raw: _clamp((raw * 0.65) + (anchor_0_100 * 0.35), 0.0, 100.0)
+    blend = lambda raw: _clamp((raw * 0.75) + (anchor_0_100 * 0.25), 0.0, 100.0)
 
     content_score = _to_rubric_score(blend(content_base))
     organization_score = _to_rubric_score(blend(organization_base))

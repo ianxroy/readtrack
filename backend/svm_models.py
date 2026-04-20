@@ -193,8 +193,8 @@ class StudentProficiencySVM(BaseModel):
             word_count = metrics.get('wordCount', 1)
             error_count   = len([i for i in grammar_data.get('issues', []) if i.get('severity') == 'error'])
             warning_count = grammar_data.get('issue_count', 0) - error_count
-            # Softer penalty: errors cost 2×, warnings 0.5× (was 3× and 1×)
-            penalty = ((error_count * 2.0) + (warning_count * 0.5)) / max(word_count, 1) * 100
+            # PH G7 calibration: keep mechanics less punitive for ESL/L1-transfer patterns.
+            penalty = ((error_count * 1.5) + (warning_count * 0.35)) / max(word_count, 1) * 100
             grammar_score = max(0, min(100, 100 - penalty))
         else:
             grammar_score = 70.0
@@ -232,12 +232,14 @@ class StudentProficiencySVM(BaseModel):
         # The ASAP2-trained SVM is overconfident (0.78–0.84) for out-of-domain
         # Filipino/G7 essays and collapses predictions to Nagsisimula. The
         # calculated_score is language-agnostic and more reliable here.
-        # G7 thresholds calibrated from bilingual evaluation corpus (wc ~80–280 words).
-        # Empirical score ranges: Mahusay 55–59, Papaunlad 43–49, Nagsisimula 34–42.
-        # Boundaries: Mahusay ≥52 | Papaunlad 42–51 | Nagsisimula <42
-        if calculated_score >= 52:
+        # PH Grade 7 threshold adjustment: lower expectations to avoid systematic
+        # under-crediting from international training priors.
+        mahusay_cutoff = 49
+        papaunlad_cutoff = 38
+
+        if calculated_score >= mahusay_cutoff:
             proficiency = "Mahusay"
-        elif calculated_score >= 42:
+        elif calculated_score >= papaunlad_cutoff:
             proficiency = "Papaunlad"
         else:
             proficiency = "Nagsisimula"
@@ -255,9 +257,9 @@ class StudentProficiencySVM(BaseModel):
         if rubric_score is not None:
             rubric_nat = round((rubric_score / 4.0) * 100, 2)
             nat = round((rubric_nat * 0.6) + (nat * 0.4), 2)
-            if nat >= 52:
+            if nat >= mahusay_cutoff:
                 proficiency = "Mahusay"
-            elif nat >= 42:
+            elif nat >= papaunlad_cutoff:
                 proficiency = "Papaunlad"
             else:
                 proficiency = "Nagsisimula"

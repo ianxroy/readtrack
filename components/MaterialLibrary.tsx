@@ -2132,17 +2132,32 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
             {availableSubjects.map(subject => {
               const isActive = subjectFilter === subject;
               return (
-                <button
-                  key={subject}
-                  onClick={() => setSubjectFilter(subject)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs font-semibold transition-colors cursor-pointer ${
-                    isActive ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'
-                  }`}
-                >
-                  <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
-                  <span className="flex-1 truncate">{subject}</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${isActive ? 'bg-white/50' : 'bg-gray-100 text-gray-400'}`}>{subjectCounts[subject] ?? 0}</span>
-                </button>
+                <div key={subject} className="group flex items-center rounded-xl">
+                  <button
+                    onClick={() => setSubjectFilter(subject)}
+                    className={`flex-1 flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs font-semibold transition-colors cursor-pointer ${
+                      isActive ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+                    <span className="flex-1 truncate">{subject}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${isActive ? 'bg-white/50' : 'bg-gray-100 text-gray-400'}`}>{subjectCounts[subject] ?? 0}</span>
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!window.confirm(`Delete subject "${subject}"? Materials tagged to it will become untagged.`)) return;
+                      const next = availableSubjects.filter(s => s !== subject);
+                      setAvailableSubjects(next);
+                      saveStoredMaterialSubjects(next);
+                      await saveMaterialSubjectCatalog(next);
+                      if (subjectFilter === subject) setSubjectFilter('all');
+                    }}
+                    className="opacity-0 group-hover:opacity-100 p-1.5 mr-1 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all"
+                    title="Delete subject"
+                  >
+                    <IoTrashOutline className="text-[11px]" />
+                  </button>
+                </div>
               );
             })}
             {availableSubjects.length === 0 && (

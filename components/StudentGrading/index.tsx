@@ -236,8 +236,12 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
   };
 
   const handleDeleteSubject = (id: string) => {
-    const hasEssays = students.some(s => s.essays.some(e => e.subjectId === id));
-    if (hasEssays) return; // SubjectManager UI already blocks this with an alert
+    // Clear subjectId on essays that referenced this subject
+    const updatedStudents = students.map(s => ({
+      ...s,
+      essays: s.essays.map(e => e.subjectId === id ? { ...e, subjectId: '' } : e),
+    }));
+    updateStudents(updatedStudents);
     const next = subjects.filter(s => s.id !== id);
     updateSubjects(next);
     if (selectedSubjectId === id)
