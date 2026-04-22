@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { IoCloseOutline, IoAddOutline, IoTrashOutline, IoPencilOutline, IoCheckmarkOutline, IoWarningOutline } from 'react-icons/io5';
 import { Subject, Student } from './types';
+import { useT } from '../../services/i18n';
 
 interface SubjectManagerProps {
   subjects: Subject[];
@@ -14,6 +15,7 @@ interface SubjectManagerProps {
 export const SubjectManager: React.FC<SubjectManagerProps> = ({
   subjects, students, onAdd, onRename, onDelete, onClose,
 }) => {
+  const t = useT();
   const [newName, setNewName] = useState('');
   const [newLang, setNewLang] = useState<'english' | 'filipino' | ''>('');
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -42,8 +44,7 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-100">
           <div>
-            <h2 className="text-base font-black text-gray-900">Manage Subjects</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Pamamahala ng mga Paksa</p>
+            <h2 className="text-base font-black text-gray-900">{t('subj_manage_title')}</h2>
           </div>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 text-gray-400">
             <IoCloseOutline className="text-lg" />
@@ -53,11 +54,12 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
         {/* Subject list */}
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2">
           {subjects.length === 0 && (
-            <p className="text-xs text-gray-400 text-center py-4">No subjects yet. Add one below.</p>
+            <p className="text-xs text-gray-400 text-center py-4">{t('subj_empty')}</p>
           )}
           {subjects.map(sub => {
             const count = essayCountForSubject(sub.id);
             const isRenaming = renamingId === sub.id;
+            const canDelete = subjects.length > 1;
             return (
               <div key={sub.id} className="flex items-center gap-2 px-3 py-2.5 border border-gray-100 rounded-xl bg-gray-50">
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
@@ -76,7 +78,9 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                 ) : (
                   <span className="flex-1 text-sm font-semibold text-gray-800">{sub.name}</span>
                 )}
-                <span className="text-[10px] text-gray-400">{count} essays</span>
+                <span className="text-[10px] text-gray-400">
+                  {count} {count === 1 ? t('subj_essay') : t('subj_essays')}
+                </span>
                 {isRenaming ? (
                   <button onClick={handleRenameConfirm} className="p-1 text-teal-600"><IoCheckmarkOutline /></button>
                 ) : (
@@ -86,8 +90,9 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                 )}
                 <button
                   onClick={() => setConfirmDeleteId(sub.id)}
-                  className="p-1 text-gray-400 hover:text-red-500 transition-colors"
-                  title="Delete subject"
+                  disabled={!canDelete}
+                  className="p-1 text-gray-400 hover:text-red-500 transition-colors disabled:text-gray-300 disabled:cursor-not-allowed"
+                  title={canDelete ? t('subj_delete_title') : t('subj_delete_disabled')}
                 >
                   <IoTrashOutline className="text-sm" />
                 </button>
@@ -98,10 +103,10 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
 
         {/* Add new subject */}
         <div className="px-6 pb-6 pt-4 border-t border-gray-100 space-y-2">
-          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Add Subject (Magdagdag ng Paksa)</div>
+          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">{t('subj_add_header')}</div>
           <input
             className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-teal-400"
-            placeholder="Subject name (e.g. English, AP, Math)"
+            placeholder={t('subj_name_ph')}
             value={newName}
             onChange={e => setNewName(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleAdd()}
@@ -111,30 +116,33 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
             value={newLang}
             onChange={e => setNewLang(e.target.value as any)}
           >
-            <option value="">Select grading language (Wika)…</option>
-            <option value="english">🇺🇸 English</option>
-            <option value="filipino">🇵🇭 Filipino</option>
+            <option value="">{t('subj_select_lang')}</option>
+            <option value="english">🇺🇸 {t('gen_english')}</option>
+            <option value="filipino">🇵🇭 {t('gen_filipino')}</option>
           </select>
           <button
             onClick={handleAdd}
             disabled={!newName.trim() || !newLang}
             className="w-full py-2.5 rounded-xl bg-teal-500 hover:bg-teal-600 disabled:bg-gray-100 disabled:text-gray-400 text-white font-bold text-sm flex items-center justify-center gap-2 transition-colors"
           >
-            <IoAddOutline /> Add Subject
+            <IoAddOutline /> {t('subj_add_btn')}
           </button>
         </div>
       </div>
       {confirmDeleteId && (() => {
         const sub = subjects.find(s => s.id === confirmDeleteId)!;
         const count = essayCountForSubject(confirmDeleteId);
+        const fallback = subjects.find(s => s.id !== confirmDeleteId);
         return (
           <div className="absolute inset-0 bg-white/90 backdrop-blur-sm rounded-2xl flex flex-col items-center justify-center p-6 gap-4 z-10">
             <IoWarningOutline className="text-4xl text-amber-400" />
             <div className="text-center">
-              <p className="text-sm font-bold text-gray-900">Delete "{sub.name}"?</p>
+              <p className="text-sm font-bold text-gray-900">{t('gen_delete')} "{sub.name}"?</p>
               {count > 0 && (
                 <p className="text-xs text-amber-700 mt-1 bg-amber-50 rounded-lg px-3 py-1.5 border border-amber-100">
-                  {count} essay{count !== 1 ? 's' : ''} tagged to this subject will become untagged.
+                  {fallback
+                    ? `${count} ${count !== 1 ? t('subj_essays') : t('subj_essay')} tagged to this subject will be reassigned to "${fallback.name}".`
+                    : t('subj_delete_impossible')}
                 </p>
               )}
             </div>
@@ -143,13 +151,13 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                 onClick={() => setConfirmDeleteId(null)}
                 className="px-4 py-2 rounded-xl text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200"
               >
-                Cancel
+                {t('gen_cancel')}
               </button>
               <button
                 onClick={() => { onDelete(confirmDeleteId); setConfirmDeleteId(null); }}
                 className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-red-500 hover:bg-red-600"
               >
-                Delete Subject
+                {t('subj_delete_btn')}
               </button>
             </div>
           </div>

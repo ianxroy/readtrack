@@ -13,7 +13,7 @@ const Login: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-[#F2F2F7]">
+      <div className="h-screen w-screen flex items-center justify-center bg-[#F5F4F0]">
         <div className="w-6 h-6 rounded-full border-2 border-teal-500 border-t-transparent animate-spin" />
       </div>
     );
@@ -47,7 +47,7 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="h-screen w-screen flex items-center justify-center bg-[#F2F2F7]">
+    <div className="h-screen w-screen flex items-center justify-center bg-[#F5F4F0]">
       <div className="w-full max-w-sm mx-4">
 
         {/* Logo / Brand */}

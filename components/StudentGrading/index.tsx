@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { IoMenuOutline, IoCloudUploadOutline } from 'react-icons/io5';
+import { IoMenuOutline } from 'react-icons/io5';
 
 import { Section, Subject, Student, StudentEssay, TeacherRubricScores } from './types';
 import {
@@ -224,12 +224,34 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
   };
 
   const handleDeleteSubject = (id: string) => {
-    const hasEssays = students.some(s => s.essays.some(e => e.subjectId === id));
-    if (hasEssays) return; // SubjectManager UI already blocks this with an alert
-    const next = subjects.filter(s => s.id !== id);
-    updateSubjects(next);
-    if (selectedSubjectId === id)
-      setSelectedSubjectId(next[0]?.id ?? '');
+    if (subjects.length <= 1) {
+      window.alert('At least one subject is required. Add another subject before deleting this one.');
+      return;
+    }
+
+    const nextSubjects = subjects.filter(s => s.id !== id);
+    const fallbackSubjectId = nextSubjects[0]?.id ?? '';
+    const reassignedEssayIds = new Set<string>();
+
+    const nextStudents = students.map(student => ({
+      ...student,
+      essays: student.essays.map((essay) => {
+        if (essay.subjectId !== id) return essay;
+        reassignedEssayIds.add(essay.id);
+        return { ...essay, subjectId: fallbackSubjectId };
+      }),
+    }));
+
+    updateSubjects(nextSubjects);
+    if (reassignedEssayIds.size > 0) {
+      updateStudents(nextStudents);
+    }
+
+    if (selectedSubjectId === id) {
+      setSelectedSubjectId(fallbackSubjectId);
+    } else if (selectedEssayId && reassignedEssayIds.has(selectedEssayId)) {
+      setSelectedEssayId(null);
+    }
   };
 
   // ── Student actions ───────────────────────────────────
@@ -586,7 +608,7 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
   }
 
   return (
-    <div className="flex flex-col h-full bg-[#F2F2F7]">
+    <div className="flex flex-col h-full bg-[#F5F4F0]">
       {showMigration && sections.length > 0 && subjects.length > 0 && (
         <MigrationModal
           students={students}
@@ -609,20 +631,6 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
           <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
             {students.length}
           </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowUpload(true)}
-            disabled={showMigration}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-colors ${
-              showMigration
-                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                : 'bg-teal-500 hover:bg-teal-600 text-white'
-            }`}
-          >
-            <IoCloudUploadOutline className="text-base" />
-            Upload Essay
-          </button>
         </div>
       </header>
 
@@ -650,6 +658,8 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
           onRenameSection={handleRenameSection}
           onDeleteSection={handleDeleteSection}
           onManageSubjects={() => setShowSubjectManager(true)}
+          onUploadEssay={() => setShowUpload(true)}
+          uploadDisabled={showMigration}
         />
 
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
@@ -732,7 +742,6 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
           selectedSubject={selectedSubject}
           selectedEssayId={selectedEssayId}
           onSelectEssay={setSelectedEssayId}
-          onUploadEssay={() => setShowUpload(true)}
           onDeleteEssay={handleDeleteEssay}
           trainStatus={trainStatus}
         />

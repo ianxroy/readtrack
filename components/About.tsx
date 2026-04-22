@@ -75,7 +75,7 @@ export const About: React.FC<AboutProps> = ({ onMenuClick }) => {
   }, []);
 
   return (
-    <div className="flex flex-col h-full bg-[#F2F2F7]">
+    <div className="flex flex-col h-full bg-[#F5F4F0]">
     {/* Header */}
     <header className="h-14 flex items-center gap-3 px-5 border-b border-gray-100 bg-white shadow-sm shrink-0">
       {onMenuClick && (

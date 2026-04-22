@@ -19,7 +19,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
   if (loading) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-[#F2F2F7]">
+      <div className="h-screen w-screen flex items-center justify-center bg-[#F5F4F0]">
         <div className="w-6 h-6 rounded-full border-2 border-teal-500 border-t-transparent animate-spin" />
       </div>
     );
@@ -96,7 +96,7 @@ const AppRoutes: React.FC = () => {
         path="/*"
         element={
           <ProtectedRoute>
-            <div className="h-screen w-screen bg-[#F2F2F7] text-gray-900 font-sans overflow-hidden">
+            <div className="h-screen w-screen bg-[#F5F4F0] text-gray-900 font-sans overflow-hidden">
               <div className="max-w-[1920px] mx-auto flex flex-col md:flex-row h-full relative">
                 <Navigation
                   isMobileOpen={isMobileMenuOpen}
@@ -106,7 +106,7 @@ const AppRoutes: React.FC = () => {
                   onDeleteHistory={handleDeleteHistory}
                 />
 
-                <main className="flex-1 h-full overflow-hidden flex flex-col relative bg-[#F2F2F7]">
+                <main className="flex-1 h-full overflow-hidden flex flex-col relative bg-[#F5F4F0]">
                   <Routes>
                     <Route path="/evaluation" element={<Navigate to="/about" replace />} />
                     <Route path="/" element={<></>} />

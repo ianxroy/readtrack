@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { IoWarningOutline } from 'react-icons/io5';
 import { Student, Section, Subject } from './types';
+import { useT } from '../../services/i18n';
 
 interface MigrationModalProps {
   students: Student[];
@@ -12,6 +13,7 @@ interface MigrationModalProps {
 export const MigrationModal: React.FC<MigrationModalProps> = ({
   students, sections, subjects, onComplete,
 }) => {
+  const t = useT();
   const [assignments, setAssignments] = useState<Record<string, string>>(
     Object.fromEntries(students.filter(s => !s.sectionId).map(s => [s.id, '']))
   );
@@ -49,15 +51,15 @@ export const MigrationModal: React.FC<MigrationModalProps> = ({
     <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="px-6 pt-5 pb-4 border-b border-slate-100 flex-shrink-0">
+        <div className="px-6 pt-5 pb-4 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center gap-3 mb-1.5">
             <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
               <IoWarningOutline className="text-amber-500 text-sm" />
             </div>
-            <h2 className="text-sm font-bold text-slate-800">One-time Setup Needed</h2>
+            <h2 className="text-sm font-bold text-slate-800">{t('migrate_title')}</h2>
           </div>
           <p className="text-xs text-slate-500 ml-11 leading-relaxed">
-            Some students and essays need a section or subject before you can continue.
+            {t('migrate_desc')}
           </p>
         </div>
 
@@ -66,7 +68,7 @@ export const MigrationModal: React.FC<MigrationModalProps> = ({
           {orphanedStudents.length > 0 && (
             <div>
               <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">
-                Assign Students to a Section
+                {t('migrate_assign_sections')}
               </div>
               <div className="space-y-2">
                 {orphanedStudents.map(s => (
@@ -81,7 +83,7 @@ export const MigrationModal: React.FC<MigrationModalProps> = ({
                       value={assignments[s.id] || ''}
                       onChange={e => setAssignments(prev => ({ ...prev, [s.id]: e.target.value }))}
                     >
-                      <option value="">Select section…</option>
+                      <option value="">{t('migrate_select_section')}</option>
                       {sections.map(sec => (
                         <option key={sec.id} value={sec.id}>{sec.name}</option>
                       ))}
@@ -95,7 +97,7 @@ export const MigrationModal: React.FC<MigrationModalProps> = ({
           {orphanedEssays.length > 0 && (
             <div>
               <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">
-                Assign Essays to a Subject
+                {t('migrate_assign_subjects')}
               </div>
               <div className="space-y-2">
                 {orphanedEssays.map(e => (
@@ -110,7 +112,7 @@ export const MigrationModal: React.FC<MigrationModalProps> = ({
                       value={essayAssignments[e.id] || ''}
                       onChange={ev => setEssayAssignments(prev => ({ ...prev, [e.id]: ev.target.value }))}
                     >
-                      <option value="">Select subject…</option>
+                      <option value="">{t('migrate_select_subject')}</option>
                       {subjects.map(sub => (
                         <option key={sub.id} value={sub.id}>{sub.name}</option>
                       ))}
@@ -123,13 +125,13 @@ export const MigrationModal: React.FC<MigrationModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-100 flex-shrink-0">
+        <div className="px-6 py-4 border-t border-gray-100 flex-shrink-0">
           <button
             onClick={handleComplete}
             disabled={!allAssigned}
             className="w-full py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-600 disabled:bg-slate-100 disabled:text-slate-400 text-white font-bold text-sm transition-colors"
           >
-            {allAssigned ? 'Save & Continue →' : 'Assign all items to continue'}
+            {allAssigned ? t('migrate_save_continue') : t('migrate_assign_all')}
           </button>
         </div>
       </div>

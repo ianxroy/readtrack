@@ -6,6 +6,7 @@ import {
 import { Student, Subject, Section } from './types';
 import { OriginalFile } from '../../types';
 import { extractTextFromImageAPI, ingestReferenceAPI } from '../../services/pythonService';
+import { useT } from '../../services/i18n';
 import mammoth from 'mammoth';
 
 interface UploadModalProps {
@@ -41,6 +42,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   prefilledStudentId, prefilledSubjectId, prefilledText,
   onUpload, onAddSection, onAddSubject, onAddStudent, onClose,
 }) => {
+  const t = useT();
+
   const initialSectionId = prefilledSectionId
     ?? (prefilledStudentId ? students.find(s => s.id === prefilledStudentId)?.sectionId : '')
     ?? '';
@@ -70,10 +73,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   const [analyzeStepIndex, setAnalyzeStepIndex] = useState(0);
 
   const analyzeSteps = [
-    'Preparing the submission...',
-    'Checking writing quality and language use...',
-    'Reviewing reading level fit...',
-    'Saving results for teacher review...',
+    t('upload_step_1'),
+    t('upload_step_2'),
+    t('upload_step_3'),
+    t('upload_step_4'),
   ];
 
   const handleCreateSection = () => {
@@ -139,7 +142,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   };
 
   const handleFile = async (file: File) => {
-    if (file.size > 10 * 1024 * 1024) { setError('File exceeds 10MB limit.'); return; }
+    if (file.size > 10 * 1024 * 1024) { setError(t('upload_err_size')); return; }
     setError(null);
     const fallbackTitle = file.name.replace(/\.[^.]+$/, '').trim() || 'Untitled Essay';
 
@@ -162,9 +165,9 @@ export const UploadModal: React.FC<UploadModalProps> = ({
           setText(bodyText);
           setTitle(prev => prev.trim() || nextTitle);
         } else {
-          setError('Could not extract text from this .docx file. Please paste the text manually.');
+          setError(t('upload_err_docx'));
         }
-      } catch { setError('Failed to read .docx file. Please paste the text manually.'); }
+      } catch { setError(t('upload_err_docx_fail')); }
     } else {
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -184,15 +187,15 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       try {
         const extracted = await extractTextFromImageAPI(img.base64, img.mimeType);
         if ((extracted as any)?.error === 'api_key_invalid') {
-          setError('Text scanning is temporarily unavailable. Please contact your administrator.'); break;
+          setError(t('upload_err_scanner')); break;
         } else if ((extracted as any)?.error === 'project_denied') {
-          setError('Text scanning is temporarily unavailable. Please contact your administrator.'); break;
+          setError(t('upload_err_scanner')); break;
         } else if ((extracted as any)?.error === 'no_api_key') {
-          setError('Text scanning is not set up yet. Please contact your administrator.'); break;
+          setError(t('upload_err_no_setup')); break;
         } else if ((extracted as any)?.error === 'ocr_timeout') {
           setError(`Reading "${img.name}" took too long. Try a smaller image or paste the text manually.`); break;
         } else if ((extracted as any)?.error === 'ocr_unavailable') {
-          setError('Text scanning is currently unavailable. Please contact your administrator.'); break;
+          setError(t('upload_err_ocr_unavail')); break;
         } else if ((extracted as any)?.error === 'invalid_base64') {
           setError(`Could not read "${img.name}". Please re-upload the file.`); break;
         } else if (extracted?.text) {
@@ -266,7 +269,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       });
       onClose();
     } catch (e: any) {
-      setError(e.message ?? 'Upload failed.');
+      setError(e.message ?? t('upload_err_failed'));
     } finally {
       setIsUploading(false);
     }
@@ -284,10 +287,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh] relative overflow-hidden" aria-busy={isUploading}>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-slate-100 flex-shrink-0">
+        <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100 flex-shrink-0">
           <div>
-            <h2 className="text-sm font-bold text-slate-800">Grade Essay</h2>
-            <p className="text-[10px] text-slate-400 mt-0.5">Upload student work for instant analysis</p>
+            <h2 className="text-sm font-bold text-slate-800">{t('upload_grade_essay')}</h2>
+            <p className="text-[10px] text-slate-400 mt-0.5">{t('upload_instant_analysis')}</p>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
             <IoCloseOutline className="text-lg" />
@@ -315,8 +318,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({
               <>
                 <div className="w-5 h-5 rounded-full border-2 border-teal-400 border-t-transparent animate-spin" />
                 <div className="text-center">
-                  <div className="text-xs font-bold text-teal-600">Extracting text…</div>
-                  <div className="text-[10px] text-slate-400">Reading text from image · may take a moment</div>
+                  <div className="text-xs font-bold text-teal-600">{t('upload_extracting')}</div>
+                  <div className="text-[10px] text-slate-400">{t('upload_reading_image')}</div>
                 </div>
               </>
             ) : (
@@ -324,9 +327,9 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                 <IoCloudUploadOutline className={`text-2xl ${isDragging ? 'text-teal-500' : 'text-slate-300'}`} />
                 <div className="text-center">
                   <div className="text-xs font-bold text-slate-600">
-                    {imageFiles.length > 0 ? 'Click or drag to add more' : 'Click or drag a file'}
+                    {imageFiles.length > 0 ? t('upload_drag_more') : t('upload_drag_file')}
                   </div>
-                  <div className="text-[10px] text-slate-400">PDF, Image, TXT, or DOCX · Max 10MB</div>
+                  <div className="text-[10px] text-slate-400">{t('upload_file_types')}</div>
                 </div>
               </>
             )}
@@ -336,7 +339,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
           {imageFiles.length > 0 && (
             <div className="space-y-1.5">
               <div className="text-[9px] font-black uppercase tracking-widest text-slate-400">
-                Images ({imageFiles.length}) — drag to reorder
+                {t('upload_images_label')} ({imageFiles.length}) — {t('upload_drag_reorder')}
               </div>
               {imageFiles.map((f, i) => (
                 <React.Fragment key={i}>
@@ -383,8 +386,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                 className="w-full mt-1 py-2 rounded-xl bg-teal-500 hover:bg-teal-600 disabled:bg-slate-100 disabled:text-slate-400 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2"
               >
                 {isExtracting
-                  ? <><div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Scanning…</>
-                  : `Scan ${imageFiles.length} Image${imageFiles.length > 1 ? 's' : ''}`}
+                  ? <><div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> {t('upload_scanning')}</>
+                  : `${t('upload_scan')} ${imageFiles.length} ${imageFiles.length > 1 ? t('upload_images_plur') : t('upload_image_sing')}`}
               </button>
             </div>
           )}
@@ -411,23 +414,23 @@ export const UploadModal: React.FC<UploadModalProps> = ({
           {/* Section */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className={labelClass}>Section</label>
+              <label className={labelClass}>{t('upload_section')}</label>
               {onAddSection && (
                 <button type="button" onClick={() => { setShowNewSection(s => !s); setNewSectionName(''); }} className={addLinkClass}>
-                  <IoAddOutline /> New
+                  <IoAddOutline /> {t('upload_new')}
                 </button>
               )}
             </div>
             {showNewSection && (
               <div className="flex gap-2 mb-2">
-                <input autoFocus className={inlineInputClass} placeholder="Section name…" value={newSectionName}
+                <input autoFocus className={inlineInputClass} placeholder={t('sidebar_section_ph')} value={newSectionName}
                   onChange={e => setNewSectionName(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') handleCreateSection(); if (e.key === 'Escape') setShowNewSection(false); }} />
-                <button onClick={handleCreateSection} disabled={!newSectionName.trim()} className={inlineAddBtnClass}>Add</button>
+                <button onClick={handleCreateSection} disabled={!newSectionName.trim()} className={inlineAddBtnClass}>{t('gen_add')}</button>
               </div>
             )}
             <select className={inputClass} value={sectionId} onChange={e => { setSectionId(e.target.value); setStudentId(''); }}>
-              <option value="">All sections…</option>
+              <option value="">{t('upload_all_sections')}</option>
               {sections.map(sec => <option key={sec.id} value={sec.id}>{sec.name}</option>)}
             </select>
           </div>
@@ -435,23 +438,23 @@ export const UploadModal: React.FC<UploadModalProps> = ({
           {/* Student */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className={labelClass}>Student</label>
+              <label className={labelClass}>{t('upload_student')}</label>
               {onAddStudent && (
                 <button type="button" onClick={() => { setShowNewStudent(s => !s); setNewStudentName(''); if (!sectionId && sections.length > 0) setSectionId(sections[0].id); }} className={addLinkClass}>
-                  <IoAddOutline /> New
+                  <IoAddOutline /> {t('upload_new')}
                 </button>
               )}
             </div>
             {showNewStudent && (
               <div className="flex gap-2 mb-2">
-                <input autoFocus className={inlineInputClass} placeholder={sectionId ? 'Student name…' : 'Select a section first…'} value={newStudentName}
+                <input autoFocus className={inlineInputClass} placeholder={sectionId ? t('upload_student_ph') : t('upload_sec_first')} value={newStudentName}
                   onChange={e => setNewStudentName(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') handleCreateStudent(); if (e.key === 'Escape') setShowNewStudent(false); }} />
-                <button onClick={handleCreateStudent} disabled={!newStudentName.trim() || !sectionId} className={inlineAddBtnClass}>Add</button>
+                <button onClick={handleCreateStudent} disabled={!newStudentName.trim() || !sectionId} className={inlineAddBtnClass}>{t('gen_add')}</button>
               </div>
             )}
             <select className={inputClass} value={studentId} onChange={e => setStudentId(e.target.value)}>
-              <option value="">Select student…</option>
+              <option value="">{t('upload_select_student')}</option>
               {sectionId
                 ? filteredStudents.map(s => <option key={s.id} value={s.id}>{s.name}</option>)
                 : studentsBySection.map(({ section, students: ss }) => (
@@ -465,16 +468,16 @@ export const UploadModal: React.FC<UploadModalProps> = ({
           {/* Subject */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className={labelClass}>Subject</label>
+              <label className={labelClass}>{t('upload_subject')}</label>
               {onAddSubject && (
                 <button type="button" onClick={() => { setShowNewSubject(s => !s); setNewSubjectName(''); }} className={addLinkClass}>
-                  <IoAddOutline /> New
+                  <IoAddOutline /> {t('upload_new')}
                 </button>
               )}
             </div>
             {showNewSubject && (
               <div className="flex gap-2 mb-2">
-                <input autoFocus className={inlineInputClass} placeholder="Subject name…" value={newSubjectName}
+                <input autoFocus className={inlineInputClass} placeholder={t('upload_subject_ph')} value={newSubjectName}
                   onChange={e => setNewSubjectName(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') handleCreateSubject(); if (e.key === 'Escape') setShowNewSubject(false); }} />
                 <button
@@ -483,11 +486,11 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                 >
                   {newSubjectLang === 'english' ? 'EN' : 'FIL'}
                 </button>
-                <button onClick={handleCreateSubject} disabled={!newSubjectName.trim()} className={inlineAddBtnClass}>Add</button>
+                <button onClick={handleCreateSubject} disabled={!newSubjectName.trim()} className={inlineAddBtnClass}>{t('gen_add')}</button>
               </div>
             )}
             <select className={inputClass} value={subjectId} onChange={e => setSubjectId(e.target.value)}>
-              <option value="">Select subject…</option>
+              <option value="">{t('upload_select_subject')}</option>
               {subjects.map(sub => (
                 <option key={sub.id} value={sub.id}>
                   {sub.name} ({sub.language === 'english' ? 'EN' : 'FIL'})
@@ -498,16 +501,16 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
           {/* Title */}
           <div>
-            <label className={labelClass}>Title — optional</label>
-            <input className={inputClass} placeholder="e.g. Narrative Essay #1" value={title} onChange={e => setTitle(e.target.value)} />
+            <label className={labelClass}>{t('upload_title_opt')}</label>
+            <input className={inputClass} placeholder={t('upload_title_ph')} value={title} onChange={e => setTitle(e.target.value)} />
           </div>
 
           {/* Text */}
           <div>
-            <label className={labelClass}>Essay Content</label>
+            <label className={labelClass}>{t('upload_essay_content')}</label>
             <textarea
               className="w-full px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 transition-all resize-none min-h-[120px] placeholder:text-slate-300"
-              placeholder="Paste essay text here, or upload a file above…"
+              placeholder={t('upload_essay_ph')}
               value={text}
               onChange={e => setText(e.target.value)}
             />
@@ -522,8 +525,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({
             className="w-full py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-600 disabled:bg-slate-100 disabled:text-slate-400 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2"
           >
             {isUploading
-              ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Analyzing…</>
-              : 'Analyze & Grade →'}
+              ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> {t('upload_analyzing')}</>
+              : t('upload_analyze_grade')}
           </button>
         </div>
 
@@ -533,10 +536,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({
             <div className="border border-indigo-100 bg-indigo-50 rounded-2xl px-4 py-4 mb-5">
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-4 h-4 rounded-full border-2 border-indigo-400 border-t-transparent animate-spin shrink-0" />
-                <span className="text-[11px] font-black text-indigo-700 uppercase tracking-widest">Analyzing Essay</span>
+                <span className="text-[11px] font-black text-indigo-700 uppercase tracking-widest">{t('upload_analyzing_title')}</span>
               </div>
               <div className="text-xs text-indigo-800 font-medium">{analyzeSteps[analyzeStepIndex]}</div>
-              <div className="text-[10px] text-indigo-500 mt-1">This may take a moment for longer essays or image uploads.</div>
+              <div className="text-[10px] text-indigo-500 mt-1">{t('upload_analysis_wait')}</div>
             </div>
             <div className="space-y-3 opacity-40">
               <div className="h-3 w-32 bg-slate-200 rounded" />

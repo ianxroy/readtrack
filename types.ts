@@ -134,6 +134,7 @@ export interface LibraryMaterial {
   text: string;
   uploadedAt: Date;
   complexityResult: TextComplexityResult;
+  modelSuggestedLevel?: ComplexityLevel;
   originalFile?: OriginalFile;
   originalFiles?: OriginalFile[];
   teacherVerifiedLevel?: ComplexityLevel;

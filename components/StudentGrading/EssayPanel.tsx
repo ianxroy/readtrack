@@ -1,5 +1,5 @@
 import React from 'react';
-import { IoCloudUploadOutline, IoStar, IoTrashOutline } from 'react-icons/io5';
+import { IoStar, IoTrashOutline } from 'react-icons/io5';
 import { Student, Subject } from './types';
 import { ProficiencyLevel } from '../../types';
 import { TrainStatusResponse } from '../../services/pythonService';
@@ -26,7 +26,6 @@ interface EssayPanelProps {
   selectedSubject: Subject | null;
   selectedEssayId: string | null;
   onSelectEssay: (essayId: string) => void;
-  onUploadEssay: () => void;
   onDeleteEssay: (essayId: string) => void;
   trainStatus?: TrainStatusResponse | null;
 }
@@ -45,7 +44,7 @@ function ScoreBar({ score, max = 4 }: { score: number; max?: number }) {
 }
 
 export const EssayPanel: React.FC<EssayPanelProps> = ({
-  student, selectedSubject, selectedEssayId, onSelectEssay, onUploadEssay, onDeleteEssay, trainStatus,
+  student, selectedSubject, selectedEssayId, onSelectEssay, onDeleteEssay, trainStatus,
 }) => {
   const [uiLanguagePreference, setUiLanguagePreference] = React.useState(getUILanguagePreference());
   React.useEffect(() => {
@@ -71,7 +70,7 @@ export const EssayPanel: React.FC<EssayPanelProps> = ({
         visible ? 'w-[220px]' : 'w-0'
       }`}
     >
-      {student && (
+      {student ? (
         <>
           {/* Header */}
           <div className="px-3 pt-3 pb-2.5 border-b border-slate-200/60 flex-shrink-0">
@@ -127,7 +126,7 @@ export const EssayPanel: React.FC<EssayPanelProps> = ({
                         className={`w-full text-left px-2.5 py-2 rounded-lg border transition-all ${
                           isActive
                             ? 'bg-indigo-50 border-indigo-200 border-l-2 border-l-indigo-500'
-                            : 'bg-white border-slate-100 hover:border-slate-200 border-l-2 border-l-transparent'
+                            : 'bg-white border-gray-100 hover:border-slate-200 border-l-2 border-l-transparent'
                         }`}
                       >
                         <div className={`text-[11px] font-semibold truncate mb-1 ${isActive ? 'text-indigo-800' : 'text-slate-800'}`}>
@@ -192,19 +191,9 @@ export const EssayPanel: React.FC<EssayPanelProps> = ({
               </div>
             )}
           </div>
-
-          {/* Upload button */}
-          <div className="p-2 border-t border-slate-200/60 flex-shrink-0">
-            <button
-              onClick={onUploadEssay}
-              className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border-2 border-dashed border-indigo-200 hover:border-indigo-400 hover:bg-indigo-50 text-indigo-400 hover:text-indigo-600 text-[10px] font-bold transition-colors"
-            >
-              <IoCloudUploadOutline className="text-sm" />
-              Upload Essay
-            </button>
-          </div>
         </>
-      )}
+      ) : null}
+
     </div>
   );
 };

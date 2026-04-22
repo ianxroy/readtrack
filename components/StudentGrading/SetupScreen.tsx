@@ -39,7 +39,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-full bg-[#F2F2F7] p-8">
+    <div className="flex flex-col items-center justify-center h-full bg-[#F5F4F0] p-8">
       <div className="bg-white rounded-2xl shadow-lg border border-gray-100 w-full max-w-md p-8">
         <div className="flex items-center gap-3 mb-6">
           <IoSchoolOutline className="text-3xl text-teal-500" />

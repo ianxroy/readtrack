@@ -82,7 +82,7 @@ function DepEdRubricPanel({ rubric }: { rubric: DepEdRubricScore }) {
   useEffect(() => { setDisplayLanguage(rubric.language); }, [rubric.language]);
 
   return (
-    <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm space-y-5">
+    <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm space-y-5">
       <div className="flex items-center justify-between">
         <div className="space-y-2">
           <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
@@ -319,7 +319,7 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
     { key: 'analysis', label: localized.tabs.details },
   ] as const;
 
-  const textareaClass = "w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs text-slate-700 leading-relaxed outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 transition-all resize-none";
+  const textareaClass = "w-full bg-slate-50 border border-gray-100 rounded-xl p-3 text-xs text-slate-700 leading-relaxed outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 transition-all resize-none";
   const analyzedAt = (essay.uploadedAt instanceof Date ? essay.uploadedAt : new Date(essay.uploadedAt as unknown as string)).toLocaleString();
 
   return (
@@ -353,7 +353,7 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
         />
 
         {/* Tab Bar */}
-        <div className="flex border-b border-slate-100 px-4 flex-shrink-0">
+        <div className="flex border-b border-gray-100 px-4 flex-shrink-0">
           {TABS.map(tab => (
             <button
               key={tab.key}
@@ -391,10 +391,10 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
                               <img
                                 src={file.storageUrl ?? (file.base64 ? `data:${mime};base64,${file.base64}` : '')}
                                 alt={`${localized.originalSubmission} ${i + 1}`}
-                                className="w-full rounded-xl border border-slate-100"
+                                className="w-full rounded-xl border border-gray-100"
                               />
                             ) : (
-                              <div className="text-xs text-slate-400 italic p-4 bg-slate-50 rounded-xl border border-slate-100">
+                              <div className="text-xs text-slate-400 italic p-4 bg-slate-50 rounded-xl border border-gray-100">
                                 {localized.noPreview}
                               </div>
                             )}
@@ -491,7 +491,7 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
                   </div>
 
                   {/* Proficiency card */}
-                  <div className={`p-5 rounded-2xl border col-span-full ${pMeta?.border || 'border-slate-100'} ${pMeta?.bg || 'bg-slate-50'}`}>
+                  <div className={`p-5 rounded-2xl border col-span-full ${pMeta?.border || 'border-gray-100'} ${pMeta?.bg || 'bg-slate-50'}`}>
                     <div className="flex items-center gap-2 mb-3">
                       <IoCheckmarkCircleOutline className={`text-sm ${pMeta?.color || 'text-slate-400'}`} />
                       <span className={`text-[10px] font-black uppercase tracking-widest ${pMeta?.color || 'text-slate-400'}`}>
@@ -558,7 +558,7 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
               {/* Highlighted essay */}
               <div>
                 <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">{localized.highlightedPreview}</h4>
-                <div className="w-full rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+                <div className="w-full rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
                   <GrammarHighlightedText text={editableText} issues={dr?.issues ?? []} />
                 </div>
               </div>
@@ -580,7 +580,7 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
                 </div>
 
                 {/* Teacher Rubric Rating */}
-                <div className="bg-white border border-slate-100 rounded-2xl p-5 space-y-4 shadow-sm">
+                <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-4 shadow-sm">
                   <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">{localized.teacherRubric}</h4>
 
                   <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 items-center">
@@ -635,7 +635,7 @@ export const EssayViewerModal: React.FC<EssayViewerModalProps> = ({
                       ? parseFloat((dims.reduce((s, d) => s + teacherDims[d], 0) / 5).toFixed(1))
                       : null;
                     return (
-                      <div className="pt-2 border-t border-slate-100 grid grid-cols-[1fr_auto_auto] gap-x-4 items-center">
+                      <div className="pt-2 border-t border-gray-100 grid grid-cols-[1fr_auto_auto] gap-x-4 items-center">
                         <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{localized.overall}</span>
                         <span className="text-xs font-bold text-indigo-500 text-center">{sysAvg !== null ? `${sysAvg}/4` : '—'}</span>
                         <span className="text-xs font-bold text-amber-500 text-center">{teacherAvg !== null ? `${teacherAvg}/4` : '—'}</span>

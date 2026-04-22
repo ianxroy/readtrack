@@ -12,11 +12,11 @@ import {
   IoChevronDownOutline,
   IoInformationCircleOutline,
   IoSettingsOutline,
-  IoPersonOutline,
   IoCheckmarkCircleOutline,
 } from "react-icons/io5";
 import { useAuth } from '../context/AuthContext';
 import { CachedAnalysis } from '../types';
+import { useT } from '../services/i18n';
 
 interface NavigationProps {
   isMobileOpen: boolean;
@@ -27,7 +27,7 @@ interface NavigationProps {
   onDeleteHistory?: (id: string) => void;
 }
 
-function groupByDate(items: CachedAnalysis[]): { label: string; items: CachedAnalysis[] }[] {
+function groupByDate(items: CachedAnalysis[], labels: { today: string; yesterday: string; last7: string; older: string }) {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const yesterday = new Date(today);
@@ -36,19 +36,19 @@ function groupByDate(items: CachedAnalysis[]): { label: string; items: CachedAna
   lastWeek.setDate(today.getDate() - 7);
 
   const groups: Record<string, CachedAnalysis[]> = {
-    Today: [],
-    Yesterday: [],
-    'Last 7 days': [],
-    Older: [],
+    [labels.today]: [],
+    [labels.yesterday]: [],
+    [labels.last7]: [],
+    [labels.older]: [],
   };
 
   for (const item of items) {
     const d = new Date(item.timestamp);
     const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-    if (day >= today) groups['Today'].push(item);
-    else if (day >= yesterday) groups['Yesterday'].push(item);
-    else if (day >= lastWeek) groups['Last 7 days'].push(item);
-    else groups['Older'].push(item);
+    if (day >= today) groups[labels.today].push(item);
+    else if (day >= yesterday) groups[labels.yesterday].push(item);
+    else if (day >= lastWeek) groups[labels.last7].push(item);
+    else groups[labels.older].push(item);
   }
 
   return Object.entries(groups)
@@ -69,6 +69,7 @@ const SidebarContent: React.FC<NavigationProps> = ({
   onDeleteHistory,
 }) => {
   const { user, signOut } = useAuth();
+  const t = useT();
   const [historyCollapsed, setHistoryCollapsed] = useState(false);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
@@ -109,7 +110,12 @@ const SidebarContent: React.FC<NavigationProps> = ({
     </NavLink>
   );
 
-  const grouped = groupByDate(history);
+  const grouped = groupByDate(history, {
+    today: t('nav_today'),
+    yesterday: t('nav_yesterday'),
+    last7: t('nav_last_7_days'),
+    older: t('nav_older'),
+  });
   const email = user?.email ?? '';
   const initials = email ? email.slice(0, 2).toUpperCase() : 'T';
 
@@ -134,9 +140,9 @@ const SidebarContent: React.FC<NavigationProps> = ({
           <div className="px-3 mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-600">
             Main
           </div>
-          <NavItem to="/" icon={IoGridOutline} label="Dashboard" />
-          <NavItem to="/student" icon={IoSchoolOutline} label="Essay Grading" />
-          <NavItem to="/material" icon={IoLibraryOutline} label="Material Library" />
+          <NavItem to="/" icon={IoGridOutline} label={t('nav_dashboard')} />
+          <NavItem to="/student" icon={IoSchoolOutline} label={t('nav_essay_grading')} />
+          <NavItem to="/material" icon={IoLibraryOutline} label={t('nav_material_library')} />
         </div>
 
         {/* History */}
@@ -148,7 +154,7 @@ const SidebarContent: React.FC<NavigationProps> = ({
             >
               <span className="flex items-center gap-1.5">
                 <IoTimeOutline className="text-xs" />
-                Recent
+                {t('nav_recent')}
               </span>
               <IoChevronDownOutline
                 className={`text-xs transition-transform duration-200 ${historyCollapsed ? '-rotate-90' : ''}`}
@@ -219,7 +225,7 @@ const SidebarContent: React.FC<NavigationProps> = ({
           }
         >
           <IoSettingsOutline className="text-base" />
-          <span className="text-sm">Settings</span>
+          <span className="text-sm">{t('nav_settings')}</span>
         </NavLink>
 
         <NavLink
@@ -232,7 +238,7 @@ const SidebarContent: React.FC<NavigationProps> = ({
           }
         >
           <IoInformationCircleOutline className="text-base" />
-          <span className="text-sm">About</span>
+          <span className="text-sm">{t('nav_about')}</span>
         </NavLink>
 
         {/* User row */}
@@ -244,7 +250,7 @@ const SidebarContent: React.FC<NavigationProps> = ({
             <div className="text-[11px] text-slate-400 truncate">{email || 'Teacher'}</div>
             <div className="flex items-center gap-1 mt-0.5">
               <IoCheckmarkCircleOutline className="text-emerald-500 text-[10px]" />
-              <span className="text-[9px] text-slate-600">Signed in</span>
+              <span className="text-[9px] text-slate-600">{t('nav_signed_in')}</span>
             </div>
           </div>
           <button

@@ -15,6 +15,7 @@ import { classifyTextComplexityAPI, extractTextFromImageAPI, detectLanguageAPI, 
 
 import { saveMaterialUpload, loadMaterialUploads, deleteMaterialUpload, saveMaterialTeacherVerification, loadMaterialSubjectCatalog, saveMaterialSubjectCatalog, updateMaterialSubject } from '../services/supabaseService';
 import { useEffect } from 'react';
+import { useT } from '../services/i18n';
 import { IoDocumentOutline, IoAddOutline } from 'react-icons/io5';
 
 function normalizeSubjectName(value: string): string {
@@ -72,21 +73,50 @@ const COMPLEXITY_TO_PHIL_IRI: Record<ComplexityLevel, 'Independent' | 'Instructi
   [ComplexityLevel.EVALUATIVE]:   'Frustration',
 };
 
+const RAW_TO_COMPLEXITY_LEVEL: Record<string, ComplexityLevel> = {
+  literal: ComplexityLevel.LITERAL,
+  inferential: ComplexityLevel.INFERENTIAL,
+  evaluative: ComplexityLevel.EVALUATIVE,
+  independent: ComplexityLevel.LITERAL,
+  instructional: ComplexityLevel.INFERENTIAL,
+  frustration: ComplexityLevel.EVALUATIVE,
+};
+
+function normalizeComplexityLevel(value: string | undefined | null): ComplexityLevel {
+  if (!value) return ComplexityLevel.LITERAL;
+  return RAW_TO_COMPLEXITY_LEVEL[value.toLowerCase()] ?? ComplexityLevel.LITERAL;
+}
+
+function normalizeComplexityResult(result: TextComplexityResult): TextComplexityResult {
+  return {
+    ...result,
+    level: normalizeComplexityLevel(result.level as unknown as string),
+  };
+}
+
+function getModelSuggestedLevel(material: LibraryMaterial): ComplexityLevel {
+  return normalizeComplexityLevel(material.modelSuggestedLevel ?? material.complexityResult.level);
+}
+
+function getFinalLevel(material: LibraryMaterial): ComplexityLevel {
+  return material.teacherVerifiedLevel ?? getModelSuggestedLevel(material);
+}
+
 const levelMeta = {
   [ComplexityLevel.LITERAL]: {
     bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-200',
     dot: 'bg-green-500', badge: 'bg-green-50 text-green-700 border-green-200',
-    label: 'Literal', desc: 'Easy — G7 Readable',
+    label: 'Independent', desc: 'Easy — G7 Readable',
   },
   [ComplexityLevel.INFERENTIAL]: {
     bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-200',
     dot: 'bg-orange-500', badge: 'bg-orange-50 text-orange-700 border-orange-200',
-    label: 'Inferential', desc: 'Moderate — G7 Borderline',
+    label: 'Instructional', desc: 'Moderate — G7 Borderline',
   },
   [ComplexityLevel.EVALUATIVE]: {
     bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-200',
     dot: 'bg-red-500', badge: 'bg-red-50 text-red-700 border-red-200',
-    label: 'Evaluative', desc: 'Difficult — Above G7',
+    label: 'Frustration', desc: 'Difficult — Above G7',
   },
 };
 
@@ -130,7 +160,7 @@ const ADVANCED_METRIC_HELP: Record<string, string> = {
   'Gunning Fog Index': 'Estimated grade level based on sentence length and complex words. Higher values mean harder text.',
 };
 
-const PHIL_IRI_HELP = 'Phil-IRI stands for Philippine Informal Reading Inventory. In ReadTrack, it is used as a quick Grade 7 reading guide: Literal means easy and direct, Inferential means borderline and may need teacher support, and Evaluative means above Grade 7 and usually needs scaffolding.';
+const PHIL_IRI_HELP = 'Phil-IRI stands for Philippine Informal Reading Inventory. In ReadTrack, it is used as a quick Grade 7 reading guide: Independent means easy and direct, Instructional means borderline and may need teacher support, and Frustration means above Grade 7 and usually needs scaffolding.';
 
 const REASONING_KEYWORDS: Record<ComplexityLevel, Array<{ pattern: RegExp; tag: string }>> = {
   [ComplexityLevel.LITERAL]: [
@@ -190,21 +220,29 @@ function base64ToBlobUrl(base64: string, mimeType: string): string {
 }
 
 const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, onUpdate, onVerify }) => {
+  const t = useT();
+  const levelLabel = (level: ComplexityLevel) =>
+    level === ComplexityLevel.LITERAL ? t('level_independent') :
+    level === ComplexityLevel.INFERENTIAL ? t('level_instructional') :
+    t('level_frustration');
   const [editedText, setEditedText] = useState(material.text);
   const [isSavingText, setIsSavingText] = useState(false);
   const [textMessage, setTextMessage] = useState<string | null>(null);
   const [textError, setTextError] = useState(false);
-  const [teacherLevel, setTeacherLevel] = useState<ComplexityLevel>(material.teacherVerifiedLevel ?? material.complexityResult.level);
+  const modelLevel = getModelSuggestedLevel(material);
+  const finalLevel = getFinalLevel(material);
+  const [teacherLevel, setTeacherLevel] = useState<ComplexityLevel>(material.teacherVerifiedLevel ?? modelLevel);
   const [verificationComment, setVerificationComment] = useState(material.verificationComment ?? '');
   const [isSavingVerification, setIsSavingVerification] = useState(false);
   const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
   const [verifyError, setVerifyError] = useState(false);
   const [activeTab, setActiveTab] = useState<'original' | 'analysis'>('original');
   const [activeMetricHelp, setActiveMetricHelp] = useState<string | null>(null);
-  const meta = levelMeta[material.complexityResult.level] ?? levelMeta[ComplexityLevel.LITERAL];
+  const meta = levelMeta[modelLevel] ?? levelMeta[ComplexityLevel.LITERAL];
+  const finalMeta = levelMeta[finalLevel] ?? levelMeta[ComplexityLevel.LITERAL];
   const cr = material.complexityResult;
   const { summary: reasoningSummary, tags: reasoningTags } = parseReasoning(
-    cr.reasoning, material.complexityResult.level
+    cr.reasoning, modelLevel
   );
 
   const allImages = material.originalFiles?.length
@@ -270,15 +308,20 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
           <div className="flex-1 min-w-0 pr-4">
             <div className="flex items-center gap-3 mb-2">
               <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${meta.badge}`}>
-                {meta.label}
+                Model: {levelLabel(modelLevel)}
               </span>
+              {material.teacherVerifiedLevel && (
+                <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${finalMeta.badge}`}>
+                  Teacher: {levelLabel(finalLevel)}
+                </span>
+              )}
               {material.language && (
                 <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${
                   material.language === 'eng'
                     ? 'bg-blue-50 text-blue-600 border-blue-100'
                     : 'bg-purple-50 text-purple-600 border-purple-100'
                 }`}>
-                  {material.language === 'eng' ? 'English' : 'Filipino'}
+                  {material.language === 'eng' ? t('gen_english') : t('gen_filipino')}
                 </span>
               )}
             </div>
@@ -325,14 +368,14 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
           {activeTab === 'original' && (
             <div>
               <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4 flex items-center gap-2">
-                <IoBookOutline /> Original File
+                <IoBookOutline /> {t('mat_original_file')}
               </h4>
               {(allImages.length > 0 || material.originalFile) ? (
                 <div className="flex gap-4">
                   {/* Left: original file(s) */}
                   <div className="flex-1 min-w-0">
                     <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">
-                      Original File{allImages.length > 1 ? `s (${allImages.length})` : ''}
+                      {t('mat_original_file')}{allImages.length > 1 ? `s (${allImages.length})` : ''}
                     </p>
                     {allImages.length > 1 ? (
                       <div className="space-y-3">
@@ -442,7 +485,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
               {/* Teacher verification */}
               <div className="rounded-xl border border-teal-100 bg-teal-50/60 p-4">
                 <div className="text-[10px] font-bold uppercase tracking-widest text-teal-700 mb-2">
-                  Teacher Verification (Improves Model Reliability)
+                  {t('mat_teacher_verification')}
                 </div>
                 <div className="flex flex-wrap gap-2 mb-2">
                   {(Object.values(ComplexityLevel) as ComplexityLevel[]).map(level => (
@@ -455,7 +498,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
                           : 'bg-white text-teal-700 border-teal-200 hover:border-teal-400'
                       }`}
                     >
-                      {level}
+                      {level === ComplexityLevel.LITERAL ? t('level_independent') : level === ComplexityLevel.INFERENTIAL ? t('level_instructional') : t('level_frustration')}
                     </button>
                   ))}
                 </div>
@@ -463,7 +506,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
                 <textarea
                   value={verificationComment}
                   onChange={e => setVerificationComment(e.target.value)}
-                  placeholder="Optional note on why this level is correct"
+                  placeholder={t('mat_optional_note')}
                   className="w-full min-h-[70px] bg-white border border-teal-100 rounded-lg p-2 text-xs text-gray-700 outline-none focus:ring-1 focus:ring-teal-400"
                 />
                 <div className="mt-2 flex items-center justify-between gap-3">
@@ -476,7 +519,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
                         : 'bg-teal-600 text-white hover:bg-teal-700'
                     }`}
                   >
-                    {isSavingVerification ? 'Saving…' : 'Save & Improve Model'}
+                    {isSavingVerification ? t('mat_saving_verification') : t('mat_save_verification')}
                   </button>
                   {verifyMessage && (
                     <p className={`text-[10px] font-medium ${verifyError ? 'text-red-500' : 'text-green-700'}`}>
@@ -581,7 +624,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ material, onClose, onDelete, 
               {/* Reasoning */}
               <div className={`rounded-xl border p-4 ${meta.bg} ${meta.border}`}>
                 <div className={`text-[10px] font-bold uppercase tracking-widest mb-1.5 ${meta.text}`}>
-                  Why is this {meta.label}?
+                  Why is this {levelLabel(modelLevel)}?
                 </div>
                 <p className={`text-xs leading-relaxed mb-2 ${meta.text}`}>{reasoningSummary}</p>
                 {reasoningTags.length > 0 && (
@@ -621,6 +664,13 @@ const UploadCompareModal: React.FC<UploadVerificationModalProps> = ({
   onCancel,
   onContinue,
 }) => {
+  const t = useT();
+  const predicted = getModelSuggestedLevel(material);
+  const predictedMeta = levelMeta[predicted] ?? levelMeta[ComplexityLevel.LITERAL];
+  const levelLabel = (lv: ComplexityLevel) =>
+    lv === ComplexityLevel.LITERAL ? t('level_independent') :
+    lv === ComplexityLevel.INFERENTIAL ? t('level_instructional') :
+    t('level_frustration');
   const safeImageMime = material.originalFile?.mimeType && SAFE_IMAGE_TYPES.has(material.originalFile.mimeType)
     ? material.originalFile.mimeType
     : null;
@@ -637,17 +687,17 @@ const UploadCompareModal: React.FC<UploadVerificationModalProps> = ({
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden">
         <div className="flex items-start justify-between px-6 pt-6 pb-4 border-b border-gray-100">
           <div className="flex-1 min-w-0 pr-3">
-            <h3 className="text-lg font-black text-gray-900">Confirm Material Level</h3>
+            <h3 className="text-lg font-black text-gray-900">{t('mat_confirm_level')}</h3>
             <p className="text-xs text-gray-500 mt-1">
-              Model predicted: <span className="font-semibold">{material.complexityResult.level}</span>
+              {t('mat_model_predicted')} <span className={`font-semibold ${predictedMeta.text}`}>{levelLabel(predicted)}</span>
             </p>
             <div className="mt-3">
-              <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Material Title</label>
+              <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">{t('mat_title_label')}</label>
               <input
                 type="text"
                 value={materialName}
                 onChange={(e) => onChangeName(e.target.value)}
-                placeholder="Enter material title"
+                placeholder={t('mat_title_ph')}
                 className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-teal-300"
               />
             </div>
@@ -660,7 +710,7 @@ const UploadCompareModal: React.FC<UploadVerificationModalProps> = ({
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div>
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Original File</p>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">{t('mat_original_file')}</p>
               {material.originalFile ? (
                 safeImageMime ? (
                   <img
@@ -745,7 +795,12 @@ const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = (
   onCancel,
   onConfirm,
 }) => {
-  const predicted = material.complexityResult.level;
+  const t = useT();
+  const levelLabel = (lv: ComplexityLevel) =>
+    lv === ComplexityLevel.LITERAL ? t('level_independent') :
+    lv === ComplexityLevel.INFERENTIAL ? t('level_instructional') :
+    t('level_frustration');
+  const predicted = getModelSuggestedLevel(material);
   const isManualChoice = selectedLevel !== predicted;
   const [decisionMode, setDecisionMode] = useState<'confirm' | 'manual'>('confirm');
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -771,7 +826,7 @@ const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = (
         {/* Header */}
         <div className="flex items-start justify-between px-6 pt-6 pb-4 border-b border-gray-100">
           <div className="flex-1 min-w-0 pr-3">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">New Material</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">{t('mat_new_material')}</p>
             <h3 className="text-base font-black text-gray-900 truncate">{material.name}</h3>
             {material.language && (
               <span className={`inline-block mt-1 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${
@@ -779,7 +834,7 @@ const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = (
                   ? 'bg-blue-50 text-blue-600 border-blue-100'
                   : 'bg-purple-50 text-purple-600 border-purple-100'
               }`}>
-                {material.language === 'eng' ? 'English' : 'Filipino'}
+                {material.language === 'eng' ? t('gen_english') : t('gen_filipino')}
               </span>
             )}
           </div>
@@ -861,7 +916,7 @@ const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = (
             <div className={`rounded-xl border px-4 py-2.5 flex items-center gap-2 ${selMeta.bg} ${selMeta.border}`}>
               <span className={`w-2 h-2 rounded-full shrink-0 ${selMeta.dot}`} />
               <span className={`text-[11px] font-bold ${selMeta.text}`}>
-                Will be saved as: <span className="font-black">{selectedLevel}</span>
+                Will be saved as: <span className="font-black">{levelLabel(selectedLevel)}</span>
               </span>
             </div>
           )}
@@ -918,7 +973,7 @@ const UploadVerificationModal: React.FC<UploadTeacherVerificationModalProps> = (
                   : 'bg-teal-600 text-white hover:bg-teal-700'
             }`}
           >
-            {saving ? 'Saving…' : isManualChoice ? `Save as ${selectedLevel}` : `Keep ${predicted} & Save`}
+            {saving ? t('mat_saving') : isManualChoice ? `${t('mat_save_verification')} (${levelLabel(selectedLevel)})` : `${levelLabel(predicted)} & ${t('mat_save_verification')}`}
           </button>
         </div>
       </div>
@@ -932,6 +987,11 @@ interface MaterialLibraryProps {
 }
 
 export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, onDataChanged }) => {
+  const t = useT();
+  const levelLabel = (lv: ComplexityLevel) =>
+    lv === ComplexityLevel.LITERAL ? t('level_independent') :
+    lv === ComplexityLevel.INFERENTIAL ? t('level_instructional') :
+    t('level_frustration');
   const [materials, setMaterials] = useState<LibraryMaterial[]>([]);
   const [materialsLoading, setMaterialsLoading] = useState(true);
   const [filter, setFilter] = useState<ComplexityLevel | 'all'>('all');
@@ -959,6 +1019,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
   const [showAddSubjectPanel, setShowAddSubjectPanel] = useState(false);
   const [subjectPanelError, setSubjectPanelError] = useState<string | null>(null);
   const [savingSubjectPanel, setSavingSubjectPanel] = useState(false);
+  const [deletingSubjectName, setDeletingSubjectName] = useState<string | null>(null);
   const dragCount = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -1031,6 +1092,70 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
     setShowAddSubjectPanel(false);
   };
 
+  const handleDeleteSubject = async (subjectName: string) => {
+    const normalized = normalizeSubjectName(subjectName);
+    if (!normalized) return;
+
+    const taggedMaterials = materials.filter(
+      (m) => normalizeSubjectName(m.subject || '').toLowerCase() === normalized.toLowerCase(),
+    );
+    const tagCount = taggedMaterials.length;
+    const confirmed = window.confirm(
+      tagCount > 0
+        ? `Delete "${normalized}"? ${tagCount} tagged material${tagCount === 1 ? '' : 's'} will become untagged.`
+        : `Delete "${normalized}" from your subject list?`,
+    );
+    if (!confirmed) return;
+
+    setSavingSubjectPanel(true);
+    setDeletingSubjectName(normalized);
+    setSubjectPanelError(null);
+
+    try {
+      if (taggedMaterials.length > 0) {
+        const updateResults = await Promise.all(
+          taggedMaterials.map(async (material) => {
+            const { error } = await updateMaterialSubject(material.id, null);
+            return { id: material.id, error };
+          }),
+        );
+
+        const failedUpdates = updateResults.filter((result) => result.error);
+        if (failedUpdates.length > 0) {
+          setSubjectPanelError(`Could not untag ${failedUpdates.length} material${failedUpdates.length === 1 ? '' : 's'}. Please retry.`);
+          return;
+        }
+      }
+
+      const nextSubjects = availableSubjects.filter(
+        (subject) => subject.toLowerCase() !== normalized.toLowerCase(),
+      );
+      const { error } = await saveMaterialSubjectCatalog(nextSubjects);
+      if (error) {
+        setSubjectPanelError(`Could not delete subject: ${error}`);
+        return;
+      }
+
+      setMaterials((prev) => prev.map((material) => {
+        if (normalizeSubjectName(material.subject || '').toLowerCase() !== normalized.toLowerCase()) {
+          return material;
+        }
+        return { ...material, subject: undefined };
+      }));
+      setAvailableSubjects(nextSubjects);
+
+      if (subjectFilter !== 'all' && normalizeSubjectName(subjectFilter).toLowerCase() === normalized.toLowerCase()) {
+        setSubjectFilter('all');
+      }
+      if (normalizeSubjectName(uploadModalSubject).toLowerCase() === normalized.toLowerCase()) {
+        setUploadModalSubject('');
+      }
+    } finally {
+      setSavingSubjectPanel(false);
+      setDeletingSubjectName(null);
+    }
+  };
+
   const handleUpdateSubject = async (id: string, subject: string | null) => {
     const normalized = subject ? normalizeSubjectName(subject) : null;
     await updateMaterialSubject(id, normalized);
@@ -1070,15 +1195,17 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
       message = `Verification saved, but model training failed: ${e?.message || 'unknown error'}`;
     }
 
+    const modelSuggestedLevel = getModelSuggestedLevel(material);
     const updated: LibraryMaterial = {
       ...material,
+      modelSuggestedLevel,
       teacherVerifiedLevel: level,
       teacherVerifiedAt: new Date().toISOString(),
       verificationComment: comment || undefined,
       isVerified: true,
       complexityResult: {
         ...material.complexityResult,
-        level,
+        level: modelSuggestedLevel,
       },
     };
 
@@ -1092,15 +1219,17 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
     if (!pendingUploadMaterial) return;
 
     setSavingUploadDecision(true);
+    const modelSuggestedLevel = getModelSuggestedLevel(pendingUploadMaterial);
     const material: LibraryMaterial = {
       ...pendingUploadMaterial,
+      modelSuggestedLevel,
       teacherVerifiedLevel: uploadModalLevel,
       teacherVerifiedAt: new Date().toISOString(),
       verificationComment: uploadModalComment.trim() || undefined,
       isVerified: true,
       complexityResult: {
         ...pendingUploadMaterial.complexityResult,
-        level: uploadModalLevel,
+        level: modelSuggestedLevel,
       },
     };
 
@@ -1109,19 +1238,23 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
     const { error } = await saveMaterialUpload({
       material_name: material.name,
       material_text: material.text,
-      complexity_level: material.teacherVerifiedLevel || material.complexityResult.level,
+      complexity_level: material.teacherVerifiedLevel
+        ? COMPLEXITY_TO_PHIL_IRI[material.teacherVerifiedLevel]
+        : material.modelSuggestedLevel || material.complexityResult.level,
       complexity_score: material.complexityResult.score,
       complexity_result: {
         ...material.complexityResult,
+        level: material.modelSuggestedLevel || material.complexityResult.level,
+        modelSuggestedLevel: material.modelSuggestedLevel || material.complexityResult.level,
         originalFile: material.originalFile ?? null,
         teacherVerification: {
-          level: material.teacherVerifiedLevel,
+          level: material.teacherVerifiedLevel ? COMPLEXITY_TO_PHIL_IRI[material.teacherVerifiedLevel] : null,
           comment: material.verificationComment || null,
           verifiedAt: material.teacherVerifiedAt,
         },
       },
       original_file: material.originalFile ?? null,
-      teacher_verified_level: material.teacherVerifiedLevel ?? null,
+      teacher_verified_level: material.teacherVerifiedLevel ? COMPLEXITY_TO_PHIL_IRI[material.teacherVerifiedLevel] : null,
       teacher_verified_at: material.teacherVerifiedAt ?? null,
       verification_comment: material.verificationComment ?? null,
       is_verified: true,
@@ -1221,7 +1354,8 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
 
     setUploading(true);
     try {
-      const result: TextComplexityResult = await classifyTextComplexityAPI(text, base64, mimeType);
+      const rawResult: TextComplexityResult = await classifyTextComplexityAPI(text, base64, mimeType);
+      const result: TextComplexityResult = normalizeComplexityResult(rawResult);
       
       // CRITICAL: Ensure we use the analyzed_text if it exists, otherwise fall back.
       // If it's still empty, it means analysis failed or text was truly empty.
@@ -1282,6 +1416,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
         text: extractedText,
         uploadedAt: new Date(),
         complexityResult: result,
+        modelSuggestedLevel: result.level,
         subject: normalizeSubjectName(uploadModalSubject) || undefined,
         originalFile: base64 ? { base64, mimeType, name: file.name } : undefined,
       };
@@ -1324,7 +1459,8 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
       }
       if (!combinedText.trim()) throw new Error('No text could be extracted from the images.');
 
-      const result: TextComplexityResult = await classifyTextComplexityAPI(combinedText);
+      const rawResult: TextComplexityResult = await classifyTextComplexityAPI(combinedText);
+      const result: TextComplexityResult = normalizeComplexityResult(rawResult);
       let extractedText = normalizeMaterialText(result.analyzed_text || combinedText);
 
       const fallbackTitle = stagedImages[0].name.replace(/\.[^.]+$/, '');
@@ -1344,6 +1480,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
         text: extractedText,
         uploadedAt: new Date(),
         complexityResult: result,
+        modelSuggestedLevel: result.level,
         subject: normalizeSubjectName(uploadModalSubject) || undefined,
         originalFile: stagedImages[0],
         originalFiles: stagedImages,
@@ -1382,7 +1519,8 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
   // Filtered + sorted + searched list
   const displayed = sortMaterials(
     materials.filter(m => {
-      if (filter !== 'all' && m.complexityResult.level !== filter) return false;
+      const effectiveLevel = getFinalLevel(m);
+      if (filter !== 'all' && effectiveLevel !== filter) return false;
       if (langFilter !== 'all' && m.language !== langFilter) return false;
       if (subjectFilter !== 'all' && (m.subject?.trim() || '') !== subjectFilter) return false;
       if (search && !m.name.toLowerCase().includes(search.toLowerCase())) return false;
@@ -1392,11 +1530,11 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
   );
 
   const sortLabels: Record<SortKey, string> = {
-    newest: 'Newest first',
-    oldest: 'Oldest first',
-    score_high: 'Score: High → Low',
-    score_low: 'Score: Low → High',
-    name: 'Name A → Z',
+    newest:     t('mat_sort_newest'),
+    oldest:     t('mat_sort_oldest'),
+    score_high: t('mat_sort_score_high'),
+    score_low:  t('mat_sort_score_low'),
+    name:       t('mat_sort_name'),
   };
 
   const subjectCounts = availableSubjects.reduce<Record<string, number>>((acc, s) => {
@@ -1411,8 +1549,8 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden">
             <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-100">
               <div>
-                <h2 className="text-base font-black text-gray-900">Upload Material (Mag-upload ng Materyal)</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Upload reading material for instant complexity analysis</p>
+                <h2 className="text-base font-black text-gray-900">{t('mat_upload_btn')}</h2>
+                <p className="text-xs text-gray-400 mt-0.5">{t('mat_upload_desc')}</p>
               </div>
               <button
                 onClick={() => { setShowUploadModal(false); setUploadError(null); }}
@@ -1536,9 +1674,9 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
                   </p>
                 ) : (
                   <p className="text-xs text-blue-700 leading-relaxed">
-                    <span className="font-semibold">Literal</span> = Easy, students can read independently.{' '}
-                    <span className="font-semibold">Inferential</span> = Borderline, may need teacher support.{' '}
-                    <span className="font-semibold">Evaluative</span> = Above G7, not recommended without scaffolding.
+                    <span className="font-semibold">Independent</span> = Easy, students can read independently.{' '}
+                    <span className="font-semibold">Instructional</span> = Borderline, may need teacher support.{' '}
+                    <span className="font-semibold">Frustration</span> = Above G7, not recommended without scaffolding.
                   </p>
                 )}
               </div>
@@ -1597,7 +1735,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
             </button>
           )}
           <IoBookOutline className="text-teal-500 text-xl" />
-          <h1 className="text-base font-bold text-gray-800">Material Library</h1>
+          <h1 className="text-base font-bold text-gray-800">{t('mat_library')}</h1>
           <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{materials.length}</span>
         </div>
         <input ref={fileInputRef} type="file" accept=".txt,.md,image/*,.pdf" className="hidden" onChange={handleFileChange} />
@@ -1614,17 +1752,17 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
               className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-teal-500 hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold transition-colors shadow-sm cursor-pointer"
             >
               <IoCloudUploadOutline className="text-base" />
-              {uploading ? 'Analyzing…' : 'Upload Material'}
+              {uploading ? t('mat_analyzing') : t('mat_upload_btn')}
             </button>
           </div>
           {/* Subjects header */}
           <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
-            <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">Subjects</span>
+            <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">{t('mat_subjects')}</span>
             <button
               onClick={() => { setShowAddSubjectPanel(p => !p); setSubjectPanelError(null); }}
               className="flex items-center gap-1 text-[9px] font-bold text-indigo-500 hover:text-indigo-700"
             >
-              <IoAddOutline className="text-[11px]" /> Add
+              <IoAddOutline className="text-[11px]" /> {t('mat_add')}
             </button>
           </div>
 
@@ -1633,7 +1771,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
               <input
                 autoFocus
                 className="w-full text-xs border border-indigo-300 rounded-lg px-2 py-1.5 outline-none bg-white"
-                placeholder="New subject name…"
+                placeholder={t('mat_add_subject_ph')}
                 value={newSubjectName}
                 onChange={e => setNewSubjectName(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') handleAddSubject(); if (e.key === 'Escape') setShowAddSubjectPanel(false); }}
@@ -1644,7 +1782,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
                 disabled={savingSubjectPanel}
                 className="w-full py-1.5 rounded-lg bg-teal-500 hover:bg-teal-600 disabled:opacity-50 text-white text-[11px] font-bold"
               >
-                {savingSubjectPanel ? 'Saving…' : 'Add Subject'}
+                {savingSubjectPanel ? t('mat_saving') : t('mat_add_subject_btn')}
               </button>
             </div>
           )}
@@ -1658,25 +1796,41 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
               }`}
             >
               <span className="w-2 h-2 rounded-full bg-indigo-300 shrink-0" />
-              <span className="flex-1">All Subjects</span>
+              <span className="flex-1">{t('mat_all_subjects')}</span>
               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400">{materials.length}</span>
             </button>
             {availableSubjects.map(subject => {
               const isActive = subjectFilter === subject;
+              const isDeleting = deletingSubjectName?.toLowerCase() === subject.toLowerCase();
               return (
-                <button
-                  key={subject}
-                  onClick={() => setSubjectFilter(subject)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs font-semibold transition-colors ${
-                    isActive ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'
-                  }`}
-                >
-                  <span className={`w-2 h-2 rounded-full shrink-0 ${isActive ? 'bg-indigo-500' : 'bg-gray-300'}`} />
-                  <span className="flex-1 truncate">{subject}</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${isActive ? 'bg-white/50' : 'bg-gray-100 text-gray-400'}`}>
-                    {subjectCounts[subject] ?? 0}
-                  </span>
-                </button>
+                <div key={subject} className="group flex items-center gap-1">
+                  <button
+                    onClick={() => setSubjectFilter(subject)}
+                    className={`flex-1 flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs font-semibold transition-colors ${
+                      isActive ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${isActive ? 'bg-indigo-500' : 'bg-gray-300'}`} />
+                    <span className="flex-1 truncate">{subject}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${isActive ? 'bg-white/50' : 'bg-gray-100 text-gray-400'}`}>
+                      {subjectCounts[subject] ?? 0}
+                    </span>
+                  </button>
+                  {isActive && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteSubject(subject);
+                      }}
+                      disabled={savingSubjectPanel}
+                      className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      title={isDeleting ? 'Deleting…' : `Delete ${subject}`}
+                      aria-label={isDeleting ? `Deleting ${subject}` : `Delete ${subject}`}
+                    >
+                      <IoTrashOutline className="text-[11px]" />
+                    </button>
+                  )}
+                </div>
               );
             })}
             {availableSubjects.length === 0 && (
@@ -1693,7 +1847,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
           <div className="flex items-center justify-between px-5 py-3 bg-[#F5F4F0] border-b border-gray-200/60 shrink-0 gap-3">
             <div className="flex items-center gap-2 min-w-0">
               <span className="text-sm font-bold text-gray-800 truncate">
-                {subjectFilter === 'all' ? 'All Materials' : subjectFilter}
+                {subjectFilter === 'all' ? t('mat_all_materials') : subjectFilter}
               </span>
               <span className="text-[10px] text-gray-400 shrink-0">· {displayed.length}</span>
             </div>
@@ -1722,10 +1876,10 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
           {/* Filter pills */}
           <div className="flex gap-1.5 px-5 py-2 border-b border-gray-200/60 bg-[#F5F4F0] shrink-0 flex-wrap items-center">
             {([
-              { key: 'all' as const, label: 'All', dot: null, pill: null },
-              { key: ComplexityLevel.LITERAL,     label: 'Independent',   dot: levelMeta[ComplexityLevel.LITERAL].dot,     pill: 'bg-green-50 text-green-700 border-green-200'  },
-              { key: ComplexityLevel.INFERENTIAL, label: 'Instructional', dot: levelMeta[ComplexityLevel.INFERENTIAL].dot, pill: 'bg-orange-50 text-orange-700 border-orange-200' },
-              { key: ComplexityLevel.EVALUATIVE,  label: 'Frustration',   dot: levelMeta[ComplexityLevel.EVALUATIVE].dot,  pill: 'bg-red-50 text-red-700 border-red-200'        },
+              { key: 'all' as const, label: t('mat_filter_all'), dot: null, pill: null },
+              { key: ComplexityLevel.LITERAL,     label: t('level_independent'),   dot: levelMeta[ComplexityLevel.LITERAL].dot,     pill: 'bg-green-50 text-green-700 border-green-200'  },
+              { key: ComplexityLevel.INFERENTIAL, label: t('level_instructional'), dot: levelMeta[ComplexityLevel.INFERENTIAL].dot, pill: 'bg-orange-50 text-orange-700 border-orange-200' },
+              { key: ComplexityLevel.EVALUATIVE,  label: t('level_frustration'),   dot: levelMeta[ComplexityLevel.EVALUATIVE].dot,  pill: 'bg-red-50 text-red-700 border-red-200'        },
             ]).map(({ key, label, dot, pill }) => (
               <button
                 key={key}
@@ -1742,7 +1896,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
             ))}
             <div className="w-px h-4 bg-gray-200 mx-0.5 self-center" />
             {([
-              { key: 'all' as const, label: 'All Lang' },
+              { key: 'all' as const, label: t('mat_filter_all_lang') },
               { key: 'eng' as const, label: '🇬🇧 EN' },
               { key: 'fil' as const, label: '🇵🇭 FIL' },
             ]).map(({ key, label }) => (
@@ -1772,7 +1926,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
           {materialsLoading && (
             <div className="flex flex-col items-center justify-center flex-1">
               <div className="w-8 h-8 rounded-full border-2 border-teal-500 border-t-transparent animate-spin mb-3" />
-              <p className="text-sm text-gray-400">Loading materials…</p>
+              <p className="text-sm text-gray-400">{t('mat_loading')}</p>
             </div>
           )}
 
@@ -1782,12 +1936,12 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
               <div className="w-10 h-10 rounded-2xl bg-teal-50 flex items-center justify-center">
                 <IoBookOutline className="text-teal-400 text-xl" />
               </div>
-              <p className="text-sm font-semibold text-gray-500">No materials yet</p>
+              <p className="text-sm font-semibold text-gray-500">{t('mat_empty_title')}</p>
               <button
                 onClick={() => { setUploadError(null); setShowUploadModal(true); }}
                 className="text-xs text-teal-500 hover:text-teal-700 font-semibold underline"
               >
-                Upload your first material
+                {t('mat_empty_desc')}
               </button>
             </div>
           )}
@@ -1795,7 +1949,7 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
           {/* No filter results */}
           {!materialsLoading && materials.length > 0 && displayed.length === 0 && (
             <div className="flex items-center justify-center flex-1 text-sm text-gray-400">
-              No materials match the current filters.
+              {t('mat_no_match')}
             </div>
           )}
 
@@ -1805,16 +1959,18 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
               {/* Column headers */}
               <div className="flex items-center px-4 py-1.5 border-b border-gray-50 bg-gray-50/50">
                 <span className="w-3 shrink-0 mr-3" />
-                <span className="flex-1 text-[9px] font-black uppercase tracking-widest text-gray-400">Material</span>
-                <span className="w-24 text-[9px] font-black uppercase tracking-widest text-gray-400 text-center">Level</span>
-                <span className="w-14 text-[9px] font-black uppercase tracking-widest text-gray-400 text-center">Score</span>
+                <span className="flex-1 text-[9px] font-black uppercase tracking-widest text-gray-400">{t('mat_col_material')}</span>
+                <span className="w-24 text-[9px] font-black uppercase tracking-widest text-gray-400 text-center">{t('mat_col_level')}</span>
+                <span className="w-14 text-[9px] font-black uppercase tracking-widest text-gray-400 text-center">{t('mat_col_score')}</span>
                 <span className="w-14 text-[9px] font-black uppercase tracking-widest text-gray-400 text-center">Words</span>
                 <span className="w-14 text-[9px] font-black uppercase tracking-widest text-gray-400 text-right">Date</span>
                 <span className="w-7" />
               </div>
 
               {displayed.map(mat => {
-                const meta = levelMeta[mat.complexityResult.level] ?? levelMeta[ComplexityLevel.LITERAL];
+                const modelLevel = getModelSuggestedLevel(mat);
+                const finalLevel = getFinalLevel(mat);
+                const meta = levelMeta[finalLevel] ?? levelMeta[ComplexityLevel.LITERAL];
                 const cr = mat.complexityResult;
                 return (
                   <div
@@ -1850,9 +2006,14 @@ export const MaterialLibrary: React.FC<MaterialLibraryProps> = ({ onMenuClick, o
 
                     {/* Level badge */}
                     <div className="w-24 flex justify-center">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${meta.badge}`}>
-                        {meta.label}
-                      </span>
+                      <div className="flex flex-col items-center leading-tight">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${meta.badge}`}>
+                          {levelLabel(finalLevel)}
+                        </span>
+                        {mat.teacherVerifiedLevel && mat.teacherVerifiedLevel !== modelLevel && (
+                          <span className="mt-0.5 text-[9px] font-semibold text-gray-400">Model: {levelLabel(modelLevel)}</span>
+                        )}
+                      </div>
                     </div>
 
                     {/* Score */}

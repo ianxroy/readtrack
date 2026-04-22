@@ -20,7 +20,7 @@ export const TeacherModalFrame: React.FC<TeacherModalFrameProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
       <div
         className={joinClasses(
-          'w-full max-h-[90vh] flex flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-2xl',
+          'w-full max-h-[90vh] flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xl',
           maxWidthClass,
           panelClassName
         )}
@@ -55,7 +55,7 @@ export const TeacherModalHeader: React.FC<TeacherModalHeaderProps> = ({
   subtitleClassName,
 }) => {
   return (
-    <div className={joinClasses('flex items-start justify-between px-7 pt-6 pb-5 border-b border-slate-100 flex-shrink-0', className)}>
+    <div className={joinClasses('flex items-start justify-between px-7 pt-6 pb-5 border-b border-gray-100 flex-shrink-0', className)}>
       <div className="flex-1 min-w-0 pr-4">
         {meta ? <div className="flex items-center gap-2 mb-2 flex-wrap">{meta}</div> : null}
         <h2 className={joinClasses('text-xl font-black text-slate-900 tracking-tight', titleClassName)}>{title}</h2>

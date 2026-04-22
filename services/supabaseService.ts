@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { ComplexityLevel } from '../types';
 
 const SUPABASE_URL = 'https://eaicqmwicqapwwpeuyjv.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVhaWNxbXdpY3FhcHd3cGV1eWp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwNDQwNTEsImV4cCI6MjA4NzYyMDA1MX0.hrFzV5nfNo-472kCsmZnf66hrMenBsNYdfq1Sng5Vs0';
@@ -84,6 +85,20 @@ const LEGACY_PROFICIENCY_MAP: Record<string, string> = {
   'Instructional': 'Papaunlad',
   'Independent':   'Mahusay',
 };
+
+const PHIL_IRI_TO_COMPLEXITY_MAP: Record<string, ComplexityLevel> = {
+  Independent: ComplexityLevel.LITERAL,
+  Instructional: ComplexityLevel.INFERENTIAL,
+  Frustration: ComplexityLevel.EVALUATIVE,
+};
+
+function normalizeComplexityLevel(value: string | undefined | null): ComplexityLevel | undefined {
+  if (!value) return undefined;
+  if (value === ComplexityLevel.LITERAL || value === ComplexityLevel.INFERENTIAL || value === ComplexityLevel.EVALUATIVE) {
+    return value;
+  }
+  return PHIL_IRI_TO_COMPLEXITY_MAP[value] ?? undefined;
+}
 
 function normalizeProficiency(value: string | undefined): string | undefined {
   if (!value) return value;
@@ -701,23 +716,38 @@ export async function loadMaterialUploads(): Promise<{ data: any[]; error: strin
   if (error) return { data: [], error: error.message };
   
   // Format for LibraryMaterial type
-  const formatted = (data ?? []).map((m: any) => ({
-    id: m.id,
-    name: m.material_name,
-    text: m.material_text,
-    uploadedAt: new Date(m.created_at),
-    complexityResult: m.complexity_result,
-    teacherVerifiedLevel: m.teacher_verified_level || m.complexity_result?.teacherVerification?.level || undefined,
-    teacherVerifiedAt: m.teacher_verified_at || m.complexity_result?.teacherVerification?.verifiedAt || undefined,
-    verificationComment: m.verification_comment || m.complexity_result?.teacherVerification?.comment || undefined,
-    isVerified: Boolean(m.is_verified || m.teacher_verified_level || m.complexity_result?.teacherVerification?.level),
-    subject: m.subject || undefined,
-    originalFile:
-      m.original_file ||
-      m.complexity_result?.originalFile ||
-      m.complexity_result?.original_file ||
-      undefined,
-  }));
+  const formatted = (data ?? []).map((m: any) => {
+    const normalizedTeacherLevel = normalizeComplexityLevel(
+      m.teacher_verified_level || m.complexity_result?.teacherVerification?.level,
+    );
+    const normalizedModelSuggestedLevel =
+      normalizeComplexityLevel(m.complexity_result?.modelSuggestedLevel) ||
+      normalizeComplexityLevel(m.complexity_result?.level) ||
+      (!normalizedTeacherLevel ? normalizeComplexityLevel(m.complexity_level) : undefined) ||
+      ComplexityLevel.LITERAL;
+
+    return {
+      id: m.id,
+      name: m.material_name,
+      text: m.material_text,
+      uploadedAt: new Date(m.created_at),
+      complexityResult: {
+        ...(m.complexity_result || {}),
+        level: normalizedModelSuggestedLevel,
+      },
+      modelSuggestedLevel: normalizedModelSuggestedLevel,
+      teacherVerifiedLevel: normalizedTeacherLevel,
+      teacherVerifiedAt: m.teacher_verified_at || m.complexity_result?.teacherVerification?.verifiedAt || undefined,
+      verificationComment: m.verification_comment || m.complexity_result?.teacherVerification?.comment || undefined,
+      isVerified: Boolean(m.is_verified || normalizedTeacherLevel),
+      subject: m.subject || undefined,
+      originalFile:
+        m.original_file ||
+        m.complexity_result?.originalFile ||
+        m.complexity_result?.original_file ||
+        undefined,
+    };
+  });
 
   return { data: formatted, error: null };
 }
@@ -731,8 +761,15 @@ export async function saveMaterialTeacherVerification(
   if (!user) return { error: 'Not authenticated' };
 
   const verifiedAt = new Date().toISOString();
+  const normalizedTeacherLevel = normalizeComplexityLevel(verification.level) || ComplexityLevel.LITERAL;
+  const modelSuggestedLevel =
+    normalizeComplexityLevel(existingComplexityResult?.modelSuggestedLevel) ||
+    normalizeComplexityLevel(existingComplexityResult?.level) ||
+    normalizedTeacherLevel;
   const mergedComplexityResult = {
     ...(existingComplexityResult || {}),
+    level: modelSuggestedLevel,
+    modelSuggestedLevel,
     teacherVerification: {
       level: verification.level,
       comment: verification.comment || null,
@@ -818,7 +855,11 @@ export async function loadDashboardStats(): Promise<{
     totalStudents: 0, totalEssays: 0, totalMaterials: 0,
     ratedEssays: 0, avgTeacherRating: 'N/A',
     proficiencyCounts: { Nagsisimula: 0, Papaunlad: 0, Mahusay: 0 },
-    complexityCounts: { Independent: 0, Instructional: 0, Frustration: 0 },
+    complexityCounts: {
+      [ComplexityLevel.LITERAL]: 0,
+      [ComplexityLevel.INFERENTIAL]: 0,
+      [ComplexityLevel.EVALUATIVE]: 0,
+    },
     error: null as string | null,
   };
   if (!user) return { ...empty, error: 'Not authenticated' };
@@ -832,7 +873,7 @@ export async function loadDashboardStats(): Promise<{
   // Fetch materials
   const { data: materials, error: matErr } = await supabase
     .from('material_uploads')
-    .select('complexity_level')
+    .select('complexity_level, teacher_verified_level, complexity_result')
     .eq('teacher_id', user.id);
 
   if (essayErr || matErr) return { ...empty, error: (essayErr || matErr)!.message };
@@ -850,10 +891,19 @@ export async function loadDashboardStats(): Promise<{
     }
   });
 
-  const complexityCounts: Record<string, number> = { Independent: 0, Instructional: 0, Frustration: 0 };
+  const complexityCounts: Record<string, number> = {
+    [ComplexityLevel.LITERAL]: 0,
+    [ComplexityLevel.INFERENTIAL]: 0,
+    [ComplexityLevel.EVALUATIVE]: 0,
+  };
   (materials ?? []).forEach((m: any) => {
-    if (m.complexity_level && m.complexity_level in complexityCounts) {
-      complexityCounts[m.complexity_level] += 1;
+    const normalized =
+      normalizeComplexityLevel(m.teacher_verified_level) ||
+      normalizeComplexityLevel(m.complexity_result?.teacherVerification?.level) ||
+      normalizeComplexityLevel(m.complexity_result?.level) ||
+      normalizeComplexityLevel(m.complexity_level);
+    if (normalized && normalized in complexityCounts) {
+      complexityCounts[normalized] += 1;
     }
   });
 

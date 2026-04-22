@@ -6,6 +6,7 @@ import {
   IoListOutline, IoCloudUploadOutline, IoMenuOutline,
 } from 'react-icons/io5';
 import { Section, Subject, Student } from './types';
+import { useT } from '../../services/i18n';
 
 interface SidebarProps {
   sections: Section[];
@@ -32,6 +33,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onManageSubjects, onUploadEssay, onMenuClick, uploadDisabled,
   sectionDeleteNotice, onDismissNotice,
 }) => {
+  const t = useT();
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(selectedSectionId ? [selectedSectionId] : [])
   );
@@ -99,13 +101,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         )}
         <div className="text-[9px] font-black uppercase tracking-widest text-teal-500 mb-0.5">ReadTrack</div>
-        <h1 className="text-base font-black text-gray-900 leading-tight">Essay Grading</h1>
+        <h1 className="text-base font-black text-gray-900 leading-tight">{t('sidebar_essay_grading')}</h1>
         <p className="text-[11px] text-gray-400 mt-0.5">
-          {students.length} {students.length === 1 ? 'student' : 'students'}
+          {students.length} {students.length === 1 ? t('sidebar_student') : t('sidebar_students')}
         </p>
       </div>
 
-      {/* Upload CTA — mirrors MaterialLibrary sidebar */}
+      {/* Upload CTA */}
       <div className="px-4 py-3 border-b border-gray-100 shrink-0">
         <button
           onClick={onUploadEssay}
@@ -113,7 +115,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-teal-500 hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold transition-colors shadow-sm cursor-pointer"
         >
           <IoCloudUploadOutline className="text-base" />
-          Upload Essay
+          {t('sidebar_upload_essay')}
         </button>
       </div>
 
@@ -127,13 +129,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Sections header */}
       <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
-        <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">Sections</span>
+        <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">{t('sidebar_sections')}</span>
         <button
           onClick={onManageSubjects}
           className="flex items-center gap-1 text-[9px] font-bold text-indigo-500 hover:text-indigo-700 transition-colors"
         >
           <IoListOutline className="text-[10px]" />
-          Subjects
+          {t('sidebar_subjects')}
         </button>
       </div>
 
@@ -197,18 +199,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <IoEllipsisVertical className="text-[10px]" />
                       </button>
                       {isMenuOpen && (
-                        <div data-section-menu="true" className="absolute left-0 top-full mt-0.5 bg-white border border-slate-100 rounded-xl shadow-xl z-30 min-w-[130px] overflow-hidden text-xs">
+                        <div data-section-menu="true" className="absolute left-0 top-full mt-0.5 bg-white border border-gray-100 rounded-xl shadow-xl z-30 min-w-[130px] overflow-hidden text-xs">
                           <button
                             onClick={() => { setRenaming({ id: section.id, name: section.name }); setMenuOpenId(null); }}
                             className="w-full flex items-center gap-2 px-3 py-2 text-slate-700 hover:bg-slate-50"
                           >
-                            <IoPencilOutline className="text-[11px]" /> Rename
+                            <IoPencilOutline className="text-[11px]" /> {t('sidebar_rename')}
                           </button>
                           <button
                             onClick={() => { onDeleteSection(section.id); setMenuOpenId(null); }}
                             className="w-full flex items-center gap-2 px-3 py-2 text-rose-600 hover:bg-rose-50"
                           >
-                            <IoTrashOutline className="text-[11px]" /> Delete
+                            <IoTrashOutline className="text-[11px]" /> {t('sidebar_delete')}
                           </button>
                         </div>
                       )}
@@ -249,7 +251,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <input
               ref={newInputRef}
               className="flex-1 text-xs border border-indigo-300 rounded-lg px-2 py-1 outline-none bg-white"
-              placeholder="Section name…"
+              placeholder={t('sidebar_section_ph')}
               value={newSectionName}
               onChange={e => setNewSectionName(e.target.value)}
               onKeyDown={e => {
@@ -274,7 +276,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-semibold text-gray-400 hover:text-indigo-600 hover:bg-gray-50 transition-colors"
         >
           <IoAddOutline className="text-sm" />
-          Add Section
+          {t('sidebar_add_section')}
         </button>
       </div>
     </div>
