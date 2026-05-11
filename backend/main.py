@@ -1706,41 +1706,48 @@ async def add_training_sample(request: TrainingSampleRequest):
     return {"status": "ok", "message": "Sample saved and model retrained."}
 
 @app.post("/ocr/extract")
-def extract_text_from_image_endpoint(request: OCRRequest):
-
+async def extract_text_from_image_endpoint(request: OCRRequest):
     try:
-        if request.mimeType == "application/pdf":
-            print(f"Processing PDF for text extraction. Length: {len(request.image)}")
-            ocr_text = extract_text_from_pdf(request.image)
-            print(f"Extracted {len(ocr_text)} characters from PDF via pypdf")
-            # Scanned PDF — fall back to Gemini OCR
-            if not ocr_text.strip():
-                print("DEBUG: pypdf returned no text (scanned PDF), falling back to Gemini OCR")
-                ocr_result = extract_text_from_image(request.image, get_gemini_api_key(), mime_type="application/pdf")
-                ocr_text = ocr_result.get("text", "")
-                return {"text": ocr_text, "warning": ocr_result.get("warning"), "error": ocr_result.get("error")}
-            return {"text": ocr_text, "warning": None}
+        # Default values to ensure frontend always gets the expected keys
+        detected_title = "Untitled Document"
+        final_body = ""
 
-        print(f"\n{'='*60}")
-        print(f"OCR REQUEST  mime={request.mimeType}  size={len(request.image)} chars")
-        ocr_result = extract_text_from_image(request.image, get_gemini_api_key(), mime_type=request.mimeType)
-        ocr_text = ocr_result.get("text", "")
-        ocr_warning = ocr_result.get("warning")
+        # 1. Handle PDF specific logic
+        if request.mimeType == "application/pdf":
+            ocr_text = await run_cpu_bound(extract_text_from_pdf, request.image)
+            if ocr_text.strip():
+                detected_title = generate_reference_title(ocr_text)
+                final_body = remove_title_from_body(ocr_text, detected_title)
+                # Ensure 'title' is returned here explicitly
+                return {"text": final_body, "title": detected_title, "warning": None}
+            
+            print("DEBUG: pypdf returned no text (scanned PDF), falling back to Gemini OCR")
+
+        # 2. Unified Gemini OCR & Title Extraction
+        ocr_result = await run_cpu_bound(
+            extract_text_from_image, 
+            request.image, 
+            get_gemini_api_key(), 
+            mime_type=request.mimeType
+        )
+
         ocr_error = ocr_result.get("error")
         if ocr_error:
-            print(f"OCR ERROR: {ocr_error}")
-            print(f"{'='*60}\n")
-            return {"text": "", "warning": None, "error": ocr_error}
-        if ocr_text:
-            print(f"OCR SUCCESS  {len(ocr_text)} chars extracted")
-            print(f"--- EXTRACTED TEXT ---")
-            print(ocr_text[:2000] + ("..." if len(ocr_text) > 2000 else ""))
-            print(f"--- END ---")
-        else:
-            print(f"OCR WARNING: No text extracted. warning={ocr_warning}")
-        print(f"{'='*60}\n")
+            # Still return a title key even on error to prevent frontend crashes
+            return {"text": "", "title": "Untitled", "warning": None, "error": ocr_error}
 
-        return {"text": ocr_text, "warning": ocr_warning}
+        extracted_text = ocr_result.get("text", "")
+        detected_title = ocr_result.get("title", "Untitled Document")
+
+        # 3. Clean the body text using the Gemini-detected title
+        final_body = remove_title_from_body(extracted_text, detected_title)
+
+        return {
+            "title": detected_title,
+            "text": final_body, 
+            "warning": ocr_result.get("warning")
+        }
+
     except Exception as e:
         return {"error": _friendly_error(e)}
 

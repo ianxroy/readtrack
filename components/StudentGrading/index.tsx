@@ -666,7 +666,7 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
           {/* Model Confidence Widget */}
           {trainStatus && (
             <div className="flex items-center gap-4 px-4 py-2 bg-white border-b border-gray-100 flex-shrink-0 flex-wrap">
-              <div className="flex items-center gap-2">
+              {/* <div className="flex items-center gap-2">
                 <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Katumpakan ng Modelo</span>
                 <button
                   onClick={() => setShowPerformance(true)}
@@ -712,7 +712,7 @@ export const StudentGrading: React.FC<StudentGradingProps> = ({
                     )}
                   </div>
                 );
-              })}
+              })} */}
             </div>
           )}
 
